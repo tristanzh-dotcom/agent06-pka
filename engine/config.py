@@ -1,0 +1,103 @@
+from copy import deepcopy
+from pathlib import Path
+from typing import Any, Dict, Mapping, Union
+
+import yaml
+
+
+DEFAULT_CONFIG: Dict[str, Any] = {
+    "data_dir": "~/Documents/PKA_Data",
+    "chroma": {
+        "collection_name": "pka_knowledge",
+        "persist_dir": "{data_dir}/.vector",
+    },
+    "fts5": {"db_path": "{data_dir}/.fts5/pka.db"},
+    "embedding": {"host": "http://localhost:11434", "model": "bge-m3"},
+    "ocr": {
+        "endpoint": "",
+        "api_key": "",
+        "model": "doubao-1-5-vision-pro-32k",
+        "max_images_per_request": 10,
+    },
+    "deepseek": {
+        "endpoint": "",
+        "api_key": "",
+        "model": "deepseek-v4-pro",
+    },
+    "generation": {
+        "endpoint": "",
+        "api_key": "",
+        "model": "codex-base",
+        "max_context_chunks": 10,
+    },
+    "chunking": {
+        "max_chunk_size": 1024,
+        "chunk_overlap": 128,
+        "md_split_by": "##",
+    },
+    "retrieval": {
+        "fts5_top_k": 10,
+        "vector_top_k": 10,
+        "rrf_k": 60,
+        "final_top_k": 10,
+    },
+    "server": {"host": "0.0.0.0", "port": 8080},
+}
+
+
+def deep_merge(base: Dict[str, Any], updates: Mapping[str, Any]) -> Dict[str, Any]:
+    merged = deepcopy(base)
+    for key, value in updates.items():
+        if isinstance(value, Mapping) and isinstance(merged.get(key), dict):
+            merged[key] = deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def _expand_paths(config: Dict[str, Any]) -> Dict[str, Any]:
+    expanded = deepcopy(config)
+    data_dir = str(Path(expanded["data_dir"]).expanduser())
+    expanded["data_dir"] = data_dir
+    for section, key in [("chroma", "persist_dir"), ("fts5", "db_path")]:
+        value = expanded[section][key]
+        expanded[section][key] = str(Path(value.format(data_dir=data_dir)).expanduser())
+    return expanded
+
+
+def load_config(config_path: Union[str, Path] = "config.yaml") -> Dict[str, Any]:
+    path = Path(config_path)
+    raw: Dict[str, Any] = {}
+    if path.exists():
+        loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
+        raw = loaded if isinstance(loaded, dict) else {}
+    return _expand_paths(deep_merge(DEFAULT_CONFIG, raw))
+
+
+def save_config(config: Mapping[str, Any], config_path: Union[str, Path] = "config.yaml") -> None:
+    path = Path(config_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        yaml.safe_dump(dict(config), allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+
+
+def update_config(config: Mapping[str, Any], updates: Mapping[str, Any]) -> Dict[str, Any]:
+    return _expand_paths(deep_merge(dict(config), updates))
+
+
+def mask_secret(value: str) -> str:
+    if not value:
+        return ""
+    if len(value) <= 4:
+        return "****"
+    return "****" + value[-4:]
+
+
+def sanitize_config(config: Mapping[str, Any]) -> Dict[str, Any]:
+    sanitized = deepcopy(dict(config))
+    for section in ("generation", "ocr", "deepseek"):
+        if section in sanitized and "api_key" in sanitized[section]:
+            sanitized[section]["api_key"] = mask_secret(str(sanitized[section]["api_key"]))
+    return sanitized

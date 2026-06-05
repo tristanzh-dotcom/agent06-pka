@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PKA 录入</title>
+  <link rel="stylesheet" href="static/style.css?v=20260605-ask-workbench">
+</head>
+<body data-page="ingest">
+  <main class="shell">
+    <section class="panel">
+      <h1>内容录入</h1>
+      <form id="text-form" class="stack">
+        <textarea id="text-input" rows="10" placeholder="粘贴笔记、复盘、报告片段"></textarea>
+        <button type="submit">录入文本</button>
+      </form>
+      <pre id="text-feedback" class="feedback"></pre>
+    </section>
+    <section class="panel">
+      <h2>文件上传</h2>
+      <form id="file-form" class="dropzone">
+        <input id="file-input" type="file" accept=".txt,.md,.docx,.pptx,.pdf,.xlsx,.png,.jpg,.jpeg,.webp">
+        <button type="submit">上传并解析</button>
+      </form>
+      <pre id="file-feedback" class="feedback"></pre>
+    </section>
+  </main>
+  <script src="static/app.js?v=20260605-ask-workbench"></script>
+</body>
+</html>

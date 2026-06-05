@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PKA 配置</title>
+  <link rel="stylesheet" href="static/style.css?v=20260605-ask-workbench">
+</head>
+<body data-page="settings">
+  <main class="shell">
+    <section class="panel">
+      <h1>模型配置</h1>
+      <form id="settings-form" class="settings-grid">
+        <h2>DeepSeek 分析模型</h2>
+        <label>DeepSeek Endpoint<input name="deepseek.endpoint" type="url"></label>
+        <label>DeepSeek API Key<input name="deepseek.api_key" type="password" autocomplete="new-password"></label>
+        <label>DeepSeek 模型名称<input name="deepseek.model" type="text"></label>
+        <h2>英文输出模型</h2>
+        <label>英文输出 Endpoint<input name="generation.endpoint" type="url"></label>
+        <label>英文输出 API Key<input name="generation.api_key" type="password" autocomplete="new-password"></label>
+        <label>英文输出模型名称<select name="generation.model"><option value="codex-base">Codex 基座模型</option></select></label>
+        <label>OCR Endpoint<input name="ocr.endpoint" type="url"></label>
+        <label>OCR API Key<input name="ocr.api_key" type="password" autocomplete="new-password"></label>
+        <label>Embedding 模型<input name="embedding.model" type="text"></label>
+        <label>检索结果数量<input name="retrieval.final_top_k" type="number" min="1" max="30"></label>
+        <div class="actions">
+          <button type="submit">保存</button>
+          <button type="button" id="test-connection">测试连接</button>
+        </div>
+      </form>
+      <pre id="settings-feedback" class="feedback"></pre>
+    </section>
+    <section class="panel danger-zone">
+      <h2>危险操作</h2>
+      <p>清空知识库中所有已索引的内容。此操作不可撤销。</p>
+      <button type="button" id="clear-knowledge">清空知识库</button>
+      <pre id="clear-feedback" class="feedback"></pre>
+    </section>
+  </main>
+  <script src="static/app.js?v=20260605-ask-workbench"></script>
+</body>
+</html>

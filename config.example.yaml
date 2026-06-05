@@ -1,0 +1,44 @@
+data_dir: "~/Documents/PKA_Data"
+
+chroma:
+  collection_name: "pka_knowledge"
+  persist_dir: "{data_dir}/.vector"
+
+fts5:
+  db_path: "{data_dir}/.fts5/pka.db"
+
+embedding:
+  host: "http://localhost:11434"
+  model: "bge-m3"
+
+ocr:
+  endpoint: ""
+  api_key: ""
+  model: "doubao-1-5-vision-pro-32k"
+  max_images_per_request: 10
+
+deepseek:
+  endpoint: ""
+  api_key: ""
+  model: "deepseek-v4-pro"
+
+generation:
+  endpoint: ""
+  api_key: ""
+  model: "codex-base"
+  max_context_chunks: 10
+
+chunking:
+  max_chunk_size: 1024
+  chunk_overlap: 128
+  md_split_by: "##"
+
+retrieval:
+  fts5_top_k: 10
+  vector_top_k: 10
+  rrf_k: 60
+  final_top_k: 10
+
+server:
+  host: "0.0.0.0"
+  port: 8080

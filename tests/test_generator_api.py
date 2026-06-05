@@ -1,0 +1,584 @@
+from copy import deepcopy
+import json
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+from engine.generator import build_prompt, generate_answer
+from engine.indexer import HybridIndexer
+from engine.models import RetrievedChunk
+from server import app
+
+
+class FakeLLMClient:
+    def __init__(self):
+        self.prompts = []
+
+    async def stream(self, prompt):
+        self.prompts.append(prompt)
+        for token in ["根据", "资料", "建议调整。"]:
+            yield token
+
+
+class FakeDeepSeekClient:
+    def __init__(self):
+        self.prompts = []
+
+    async def stream(self, prompt):
+        self.prompts.append(prompt)
+        yield '{"key_facts":[{"content":"组织架构调整方案","source":"org.txt","language":"zh"}],'
+        yield '"terminology":[{"zh":"组织架构","en":"organizational structure"}],'
+        yield '"logic_chain":"先明确职责边界，再调整组织。"}'
+
+
+class FakeEmbeddingClient:
+    def embed(self, texts):
+        return [[1.0] + [0.0] * 1023 for _ in texts]
+
+
+def sample_chunk():
+    return RetrievedChunk(
+        chunk_id="org.txt#2",
+        text="组织架构调整方案",
+        source_name="org.txt",
+        source_type="txt",
+        chunk_index=2,
+        score=0.9,
+        rank_fts5=1,
+        rank_vector=1,
+    )
+
+
+def sample_file_chunk():
+    return RetrievedChunk(
+        chunk_id="report.pdf#0",
+        text="组织架构调整方案",
+        source_name="report.pdf",
+        source_type="pdf",
+        chunk_index=0,
+        score=0.9,
+        rank_fts5=1,
+        rank_vector=1,
+        raw_file_path="raw/2026-06-04/report.pdf",
+    )
+
+
+def install_temp_runtime(server, tmp_path, collection_name):
+    original = (deepcopy(server.runtime.config), server.runtime.indexer, server.runtime.last_updated)
+    server.runtime.config = {
+        **deepcopy(original[0]),
+        "data_dir": str(tmp_path / "data"),
+        "fts5": {"db_path": str(tmp_path / "pka.db")},
+        "chroma": {
+            "persist_dir": str(tmp_path / "vector"),
+            "collection_name": collection_name,
+        },
+    }
+    server.runtime.indexer = HybridIndexer(
+        fts_db_path=str(tmp_path / "pka.db"),
+        vector_dir=str(tmp_path / "vector"),
+        collection_name=collection_name,
+        embedding_client=FakeEmbeddingClient(),
+    )
+    return original
+
+
+def restore_runtime(server, original):
+    server.runtime.config, server.runtime.indexer, server.runtime.last_updated = original
+
+
+def test_build_prompt_includes_question_chunks_and_source_names():
+    prompt = build_prompt("怎么调整组织？", [sample_chunk()])
+
+    assert "个人知识库助手" in prompt
+    assert "组织架构调整方案" in prompt
+    assert "来源: org.txt" in prompt
+    assert "怎么调整组织？" in prompt
+
+
+@pytest.mark.asyncio
+async def test_generate_answer_streams_tokens_sources_and_done():
+    deepseek_client = FakeDeepSeekClient()
+    llm_client = FakeLLMClient()
+    events = []
+    async for event in generate_answer(
+        question="怎么调整组织？",
+        chunks=[sample_chunk()],
+        language="en",
+        deepseek_endpoint="https://deepseek.example",
+        deepseek_api_key="deepseek-secret",
+        deepseek_model="deepseek-v4-pro",
+        generation_endpoint="https://example.test",
+        generation_api_key="secret",
+        generation_model="test-model",
+        deepseek_client=deepseek_client,
+        llm_client=llm_client,
+    ):
+        events.append(json.loads(event.removeprefix("data: ").strip()))
+
+    assert [event["type"] for event in events] == ["token", "token", "token", "sources", "done"]
+    assert events[-2]["sources"][0]["source_name"] == "org.txt"
+    assert events[-2]["sources"][0]["chunk_index"] == 2
+    assert len(deepseek_client.prompts) == 1
+    assert len(llm_client.prompts) == 1
+    assert "DeepSeek analysis" in llm_client.prompts[0]
+
+
+@pytest.mark.asyncio
+async def test_generate_answer_sources_include_raw_file_path():
+    events = []
+    async for event in generate_answer(
+        question="怎么调整组织？",
+        chunks=[sample_file_chunk()],
+        language="zh",
+        deepseek_endpoint="https://deepseek.example",
+        deepseek_api_key="deepseek-secret",
+        deepseek_model="deepseek-v4-pro",
+        deepseek_client=FakeDeepSeekClient(),
+    ):
+        events.append(json.loads(event.removeprefix("data: ").strip()))
+
+    sources = next(event["sources"] for event in events if event["type"] == "sources")
+    assert sources[0]["raw_file_path"] == "raw/2026-06-04/report.pdf"
+
+
+@pytest.mark.asyncio
+async def test_generate_answer_returns_empty_knowledge_message_without_llm():
+    events = []
+    async for event in generate_answer(
+        question="有什么资料？",
+        chunks=[],
+        language="zh",
+        deepseek_endpoint="",
+        deepseek_api_key="",
+        deepseek_model="",
+        generation_endpoint="",
+        generation_api_key="",
+        generation_model="",
+        llm_client=FakeLLMClient(),
+    ):
+        events.append(json.loads(event.removeprefix("data: ").strip()))
+
+    assert events[0] == {"type": "token", "content": "暂无相关内容。"}
+    assert events[-1] == {"type": "done"}
+
+
+@pytest.mark.asyncio
+async def test_generate_answer_with_language_zh_uses_deepseek_path_without_codex():
+    deepseek_client = FakeDeepSeekClient()
+    llm_client = FakeLLMClient()
+    events = []
+    async for event in generate_answer(
+        question="怎么调整组织？",
+        chunks=[sample_chunk()],
+        language="zh",
+        deepseek_endpoint="https://deepseek.example",
+        deepseek_api_key="deepseek-secret",
+        deepseek_model="deepseek-v4-pro",
+        generation_endpoint="",
+        generation_api_key="",
+        generation_model="codex-base",
+        deepseek_client=deepseek_client,
+        llm_client=llm_client,
+    ):
+        events.append(json.loads(event.removeprefix("data: ").strip()))
+
+    token_text = "".join(event.get("content", "") for event in events if event["type"] == "token")
+    assert "组织架构调整方案" in token_text
+    assert not token_text.lstrip().startswith("{")
+    assert "key_facts" not in token_text
+    assert len(deepseek_client.prompts) == 1
+    assert "中文个人建议" in deepseek_client.prompts[0]
+    assert "输出 JSON 格式" not in deepseek_client.prompts[0]
+    assert llm_client.prompts == []
+    assert [event["type"] for event in events][-2:] == ["sources", "done"]
+
+
+@pytest.mark.asyncio
+async def test_generate_answer_with_language_zh_formats_deepseek_json_as_natural_language():
+    events = []
+    async for event in generate_answer(
+        question="怎么调整组织？",
+        chunks=[sample_chunk()],
+        language="zh",
+        deepseek_endpoint="https://deepseek.example",
+        deepseek_api_key="deepseek-secret",
+        deepseek_model="deepseek-v4-pro",
+        deepseek_client=FakeDeepSeekClient(),
+    ):
+        events.append(json.loads(event.removeprefix("data: ").strip()))
+
+    token_text = "".join(event.get("content", "") for event in events if event["type"] == "token")
+    assert "核心结论" in token_text
+    assert "关键依据" in token_text
+    assert "组织架构调整方案" in token_text
+    assert "org.txt" in token_text
+    assert not token_text.lstrip().startswith("{")
+    assert "key_facts" not in token_text
+
+
+@pytest.mark.asyncio
+async def test_generate_answer_with_language_en_uses_deepseek_then_codex():
+    deepseek_client = FakeDeepSeekClient()
+    llm_client = FakeLLMClient()
+    events = []
+
+    async for event in generate_answer(
+        question="How should we adjust the organization?",
+        chunks=[sample_chunk()],
+        language="en",
+        deepseek_endpoint="https://deepseek.example",
+        deepseek_api_key="deepseek-secret",
+        deepseek_model="deepseek-v4-pro",
+        generation_endpoint="https://example.test",
+        generation_api_key="secret",
+        generation_model="codex-base",
+        deepseek_client=deepseek_client,
+        llm_client=llm_client,
+    ):
+        events.append(json.loads(event.removeprefix("data: ").strip()))
+
+    assert len(deepseek_client.prompts) == 1
+    assert len(llm_client.prompts) == 1
+    assert "English report" in llm_client.prompts[0]
+    assert "组织架构调整方案" in llm_client.prompts[0]
+    assert [event["type"] for event in events] == ["token", "token", "token", "sources", "done"]
+
+
+@pytest.mark.asyncio
+async def test_query_without_deepseek_returns_config_error_for_zh():
+    events = []
+
+    async for event in generate_answer(
+        question="怎么调整组织？",
+        chunks=[sample_chunk()],
+        language="zh",
+        deepseek_endpoint="",
+        deepseek_api_key="",
+        deepseek_model="deepseek-v4-pro",
+        generation_endpoint="",
+        generation_api_key="",
+        generation_model="codex-base",
+    ):
+        events.append(json.loads(event.removeprefix("data: ").strip()))
+
+    token_text = "".join(event.get("content", "") for event in events if event["type"] == "token")
+    assert "DeepSeek 模型未配置" in token_text
+    assert [event["type"] for event in events][-2:] == ["sources", "done"]
+
+
+@pytest.mark.asyncio
+async def test_query_without_generation_returns_config_error_for_en():
+    events = []
+
+    async for event in generate_answer(
+        question="How should we adjust the organization?",
+        chunks=[sample_chunk()],
+        language="en",
+        deepseek_endpoint="https://deepseek.example",
+        deepseek_api_key="deepseek-secret",
+        deepseek_model="deepseek-v4-pro",
+        generation_endpoint="",
+        generation_api_key="",
+        generation_model="",
+        deepseek_client=FakeDeepSeekClient(),
+    ):
+        events.append(json.loads(event.removeprefix("data: ").strip()))
+
+    token_text = "".join(event.get("content", "") for event in events if event["type"] == "token")
+    assert "英文输出模型未配置" in token_text
+    assert [event["type"] for event in events][-2:] == ["sources", "done"]
+
+
+def test_web_pages_and_core_api_routes_are_available():
+    client = TestClient(app)
+
+    for path in ["/", "/ask", "/settings"]:
+        response = client.get(path)
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == "no-store"
+    assert client.get("/api/stats").status_code == 200
+    config_response = client.get("/api/config")
+    assert config_response.status_code == 200
+    assert "api_key" in config_response.json()["generation"]
+    assert config_response.json()["generation"]["model"] == "codex-base"
+
+
+def test_text_ingest_stats_and_source_lookup_round_trip(tmp_path):
+    import server
+
+    original = install_temp_runtime(server, tmp_path, "test_text_ingest")
+    client = TestClient(app)
+
+    try:
+        response = client.post("/api/ingest/text", json={"text": "组织架构调整方案\n\n薪酬激励复盘"})
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "ok"
+        assert body["chunks"] >= 1
+
+        stats = client.get("/api/stats").json()
+        assert stats["total_chunks"] >= body["chunks"]
+
+        chunk_id = body["chunk_ids"][0]
+        source = client.get(f"/api/sources/{chunk_id}").json()
+        assert source["chunk_id"] == chunk_id
+        assert source["text"]
+    finally:
+        restore_runtime(server, original)
+
+
+def test_source_lookup_accepts_chunk_id_query_parameter_with_hash(tmp_path):
+    import server
+
+    original = install_temp_runtime(server, tmp_path, "test_source_query_lookup")
+    client = TestClient(app)
+
+    try:
+        response = client.post("/api/ingest/text", json={"text": "狗狗粪便管理需要设置清理制度。"})
+        assert response.status_code == 200
+        chunk_id = response.json()["chunk_ids"][0]
+        assert "#" in chunk_id
+
+        source = client.get("/api/sources", params={"chunk_id": chunk_id}).json()
+
+        assert source["chunk_id"] == chunk_id
+        assert "狗狗粪便管理" in source["text"]
+    finally:
+        restore_runtime(server, original)
+
+
+def test_source_lookup_query_parameter_can_render_html_for_browser_click(tmp_path):
+    import server
+
+    original = install_temp_runtime(server, tmp_path, "test_source_query_html")
+    client = TestClient(app)
+
+    try:
+        response = client.post("/api/ingest/text", json={"text": "狗狗粪便管理需要设置清理制度。"})
+        chunk_id = response.json()["chunk_ids"][0]
+
+        response = client.get(
+            "/api/sources",
+            params={"chunk_id": chunk_id},
+            headers={"accept": "text/html"},
+        )
+
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+        assert "来源片段" in response.text
+        assert "狗狗粪便管理" in response.text
+        assert '{"detail"' not in response.text
+    finally:
+        restore_runtime(server, original)
+
+
+def test_clear_knowledge_resets_index(tmp_path):
+    import server
+
+    original = install_temp_runtime(server, tmp_path, "test_clear_api")
+    client = TestClient(app)
+
+    try:
+        response = client.post("/api/ingest/text", json={"text": "测试数据"})
+        assert response.status_code == 200
+        before = client.get("/api/stats").json()
+        assert before["total_chunks"] >= 1
+
+        response = client.post("/api/ingest/clear")
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "ok"
+        after = client.get("/api/stats").json()
+        assert after["total_chunks"] == 0
+        assert after["indexed_files"] == 0
+    finally:
+        restore_runtime(server, original)
+
+
+def test_config_endpoint_updates_runtime_config(tmp_path, monkeypatch):
+    import server
+
+    original_config = deepcopy(server.runtime.config)
+    monkeypatch.setattr(server, "CONFIG_PATH", tmp_path / "config.yaml")
+    client = TestClient(app)
+
+    try:
+        response = client.post(
+            "/api/config",
+            json={"generation": {"endpoint": "https://example.test", "api_key": "secret-value", "model": "m"}},
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["generation"]["api_key"] == "****alue"
+        assert body["generation"]["model"] == "m"
+        assert (tmp_path / "config.yaml").exists()
+    finally:
+        server.runtime.reload(original_config)
+
+
+def test_query_endpoint_passes_language_and_dual_model_config(monkeypatch):
+    import server
+
+    captured = {}
+    original_config = deepcopy(server.runtime.config)
+
+    class FakeRetriever:
+        def hybrid_search(self, question, top_k):
+            captured["retriever_question"] = question
+            captured["top_k"] = top_k
+            return [sample_chunk()]
+
+    async def fake_generate_answer(**kwargs):
+        captured["generate_kwargs"] = kwargs
+        yield 'data: {"type":"done"}\n\n'
+
+    monkeypatch.setattr(server, "HybridRetriever", lambda **kwargs: FakeRetriever())
+    monkeypatch.setattr(server, "generate_answer", fake_generate_answer)
+    server.runtime.config = {
+        **deepcopy(original_config),
+        "deepseek": {
+            "endpoint": "https://deepseek.example/v1/chat/completions",
+            "api_key": "deepseek-secret",
+            "model": "deepseek-v4-pro",
+        },
+        "generation": {
+            "endpoint": "",
+            "api_key": "",
+            "model": "codex-base",
+            "max_context_chunks": 10,
+        },
+    }
+    client = TestClient(app)
+
+    try:
+        response = client.post("/api/query", json={"question": "组织架构怎么调？", "language": "en"})
+
+        assert response.status_code == 200
+        assert captured["retriever_question"] == "组织架构怎么调？"
+        assert captured["generate_kwargs"]["language"] == "en"
+        assert captured["generate_kwargs"]["deepseek_endpoint"] == "https://deepseek.example/v1/chat/completions"
+        assert captured["generate_kwargs"]["deepseek_api_key"] == "deepseek-secret"
+        assert captured["generate_kwargs"]["deepseek_model"] == "deepseek-v4-pro"
+        assert captured["generate_kwargs"]["generation_model"] == "codex-base"
+    finally:
+        server.runtime.reload(original_config)
+
+
+def test_file_ingest_streams_uploaded_content_to_disk(tmp_path, monkeypatch):
+    import server
+    from engine.models import ParseResult
+
+    original = install_temp_runtime(server, tmp_path, "test_file_stream")
+    seen = {}
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+        seen["size"] = Path(file_path).stat().st_size
+        return ParseResult(
+            text="大文件内容",
+            source_name=Path(file_path).name,
+            source_type="txt",
+            metadata={},
+        )
+
+    try:
+        monkeypatch.setattr(server, "parse_file", fake_parse_file)
+        client = TestClient(app)
+        content = b"x" * (1024 * 1024 + 7)
+
+        response = client.post(
+            "/api/ingest/file",
+            files={"file": ("large.txt", content, "text/plain")},
+        )
+
+        assert response.status_code == 200
+        assert seen["size"] == len(content)
+    finally:
+        restore_runtime(server, original)
+
+
+def test_file_ingest_preserves_raw_file_path_in_source_lookup(tmp_path, monkeypatch):
+    import server
+    from engine.models import ParseResult
+
+    original = install_temp_runtime(server, tmp_path, "test_raw_file_path")
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+        return ParseResult(
+            text="附件中的组织架构调整方案",
+            source_name=Path(file_path).name,
+            source_type="pdf",
+            metadata={},
+        )
+
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    client = TestClient(app)
+
+    try:
+        response = client.post(
+            "/api/ingest/file",
+            files={"file": ("report.pdf", b"pdf bytes", "application/pdf")},
+        )
+        assert response.status_code == 200
+        chunk_id = response.json()["chunk_ids"][0]
+
+        source = client.get(f"/api/sources/{chunk_id}").json()
+
+        assert source["raw_file_path"].startswith("raw/")
+        assert source["raw_file_path"].endswith("report.pdf")
+    finally:
+        restore_runtime(server, original)
+
+
+def test_manual_text_has_no_raw_file_path(tmp_path):
+    import server
+
+    original = install_temp_runtime(server, tmp_path, "test_manual_raw_path")
+    client = TestClient(app)
+
+    try:
+        response = client.post("/api/ingest/text", json={"text": "纯文本来源"})
+        chunk_id = response.json()["chunk_ids"][0]
+        source = client.get(f"/api/sources/{chunk_id}").json()
+
+        assert source.get("raw_file_path", "") == ""
+    finally:
+        restore_runtime(server, original)
+
+
+def test_raw_file_download_returns_original_file(tmp_path):
+    import server
+
+    original_config = deepcopy(server.runtime.config)
+    data_dir = tmp_path / "data"
+    raw_file = data_dir / "raw" / "2026-06-04" / "report.pdf"
+    raw_file.parent.mkdir(parents=True)
+    raw_file.write_bytes(b"original pdf bytes")
+    server.runtime.config = {**deepcopy(original_config), "data_dir": str(data_dir)}
+    client = TestClient(app)
+
+    try:
+        response = client.get("/api/files/raw/2026-06-04/report.pdf")
+
+        assert response.status_code == 200
+        assert response.content == b"original pdf bytes"
+        assert response.headers["content-disposition"].endswith('filename="report.pdf"')
+    finally:
+        server.runtime.config = original_config
+
+
+def test_raw_file_path_traversal_blocked(tmp_path):
+    import server
+
+    original_config = deepcopy(server.runtime.config)
+    server.runtime.config = {**deepcopy(original_config), "data_dir": str(tmp_path / "data")}
+    client = TestClient(app)
+
+    try:
+        response = client.get("/api/files/..%2F..%2F..%2Fetc%2Fpasswd")
+
+        assert response.status_code == 403
+    finally:
+        server.runtime.config = original_config

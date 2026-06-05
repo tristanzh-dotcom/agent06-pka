@@ -1,0 +1,11 @@
+config.yaml
+PKA_Data/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.DS_Store
+.vector/
+.fts5/
+raw/
+chunks/
+

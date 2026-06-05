@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PKA 问答</title>
+  <link rel="stylesheet" href="static/style.css?v=20260605-ask-workbench">
+</head>
+<body data-page="ask">
+  <main class="ask-workbench">
+    <header class="ask-header">
+      <h1>知识库问答</h1>
+      <div class="exportbar" id="export-bar" style="display:none">
+        <button type="button" id="export-word">导出 Word</button>
+        <button type="button" id="export-ppt">导出 PPT</button>
+      </div>
+    </header>
+    <div id="conversation" class="ask-conversation">
+      <div id="empty-state" class="empty-chips">
+        <button type="button" class="empty-chip">我之前关于组织架构的看法是什么？</button>
+        <button type="button" class="empty-chip">总结一下我最近录入的所有内容</button>
+        <button type="button" class="empty-chip">基于我的笔记，给出当前的技术选型建议</button>
+      </div>
+    </div>
+    <form id="query-form" class="ask-input-bar">
+      <fieldset class="language-switch" id="language-switch">
+        <label><input type="radio" name="language" value="zh" checked> 中文建议</label>
+        <label><input type="radio" name="language" value="en"> English Report</label>
+      </fieldset>
+      <input id="question-input" type="text" placeholder="基于历史内容提问">
+      <button type="submit">发送</button>
+    </form>
+  </main>
+  <script src="static/app.js?v=20260605-ask-workbench"></script>
+</body>
+</html>
