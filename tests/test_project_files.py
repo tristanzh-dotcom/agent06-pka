@@ -81,6 +81,26 @@ def test_ingest_page_uses_separate_feedback_for_text_and_file_forms():
     assert 'setFeedback("feedback"' not in app_js
 
 
+def test_ingest_page_uses_single_screen_dual_entry_workbench():
+    root = Path(__file__).resolve().parents[1]
+    index_html = (root / "static/index.html").read_text(encoding="utf-8")
+    style_css = (root / "static/style.css").read_text(encoding="utf-8")
+
+    assert '<main class="ingest-workbench">' in index_html
+    assert 'class="ingest-grid"' in index_html
+    assert 'class="ingest-pane ingest-text-pane"' in index_html
+    assert 'class="ingest-pane ingest-upload-pane"' in index_html
+    assert '<main class="shell">' not in index_html
+
+    assert ".ingest-workbench" in style_css
+    assert "height: 100vh" in style_css
+    assert "grid-template-rows: auto minmax(0, 1fr)" in style_css
+    assert ".ingest-grid" in style_css
+    assert "grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr)" in style_css
+    assert ".ingest-feedback" in style_css
+    assert "max-height: 86px" in style_css
+
+
 def test_ingest_feedback_is_summarized_without_chunk_id_dump():
     root = Path(__file__).resolve().parents[1]
     app_js = (root / "static/app.js").read_text(encoding="utf-8")
@@ -256,7 +276,7 @@ def test_pka_pages_are_bare_embedded_panels_without_internal_topbar():
         assert '<a href="ask">问答</a>' not in html
         assert '<a class="topbar-settings" href="settings">设置</a>' not in html
 
-    assert '<main class="shell">' in (root / "static/index.html").read_text(encoding="utf-8")
+    assert '<main class="ingest-workbench">' in (root / "static/index.html").read_text(encoding="utf-8")
     assert '<main class="ask-workbench">' in (root / "static/ask.html").read_text(encoding="utf-8")
     assert '<main class="shell">' in (root / "static/settings.html").read_text(encoding="utf-8")
 

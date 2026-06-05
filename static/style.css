@@ -108,6 +108,109 @@ button[type="button"] {
   color: var(--muted);
 }
 
+.ingest-workbench {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 14px;
+  height: 100vh;
+  padding: 20px 24px;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.ingest-header {
+  flex-shrink: 0;
+}
+
+.ingest-header h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.ingest-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+  gap: 14px;
+  min-height: 0;
+}
+
+.ingest-pane {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--panel);
+  padding: 16px;
+}
+
+.ingest-pane-heading {
+  margin-bottom: 12px;
+}
+
+.ingest-pane-heading h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.ingest-pane-heading p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.ingest-form {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 10px;
+  min-height: 0;
+}
+
+.ingest-text-form textarea {
+  min-height: 0;
+  height: 100%;
+  resize: none;
+}
+
+.ingest-dropzone {
+  display: grid;
+  min-height: 0;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-card);
+  background: var(--conversation-bg);
+  color: var(--muted);
+  cursor: pointer;
+  text-align: center;
+  padding: 16px;
+}
+
+.ingest-dropzone input {
+  width: auto;
+}
+
+.ingest-dropzone span {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.ingest-dropzone small {
+  font-size: 12px;
+}
+
+.ingest-feedback {
+  min-height: 34px;
+  max-height: 86px;
+  margin: 10px 0 0;
+  overflow: auto;
+  font: inherit;
+  font-size: 12px;
+}
+
 .ask-workbench {
   display: flex;
   flex-direction: column;
@@ -314,6 +417,20 @@ button[type="button"] {
 }
 
 @media (max-width: 720px) {
+  .ingest-workbench {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  .ingest-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ingest-text-form textarea {
+    min-height: 180px;
+  }
+
   .settings-grid {
     grid-template-columns: 1fr;
   }

@@ -4,27 +4,42 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PKA 录入</title>
-  <link rel="stylesheet" href="static/style.css?v=20260605-ask-workbench">
+  <link rel="stylesheet" href="static/style.css?v=20260605-ingest-footer">
 </head>
 <body data-page="ingest">
-  <main class="shell">
-    <section class="panel">
+  <main class="ingest-workbench">
+    <header class="ingest-header">
       <h1>内容录入</h1>
-      <form id="text-form" class="stack">
+    </header>
+    <section class="ingest-grid" aria-label="知识库录入入口">
+      <article class="ingest-pane ingest-text-pane">
+        <div class="ingest-pane-heading">
+          <h2>文本录入</h2>
+          <p>粘贴笔记、复盘、报告片段</p>
+        </div>
+        <form id="text-form" class="ingest-form ingest-text-form">
         <textarea id="text-input" rows="10" placeholder="粘贴笔记、复盘、报告片段"></textarea>
-        <button type="submit">录入文本</button>
-      </form>
-      <pre id="text-feedback" class="feedback"></pre>
-    </section>
-    <section class="panel">
-      <h2>文件上传</h2>
-      <form id="file-form" class="dropzone">
-        <input id="file-input" type="file" accept=".txt,.md,.docx,.pptx,.pdf,.xlsx,.png,.jpg,.jpeg,.webp">
-        <button type="submit">上传并解析</button>
-      </form>
-      <pre id="file-feedback" class="feedback"></pre>
+          <button type="submit">录入文本</button>
+        </form>
+        <pre id="text-feedback" class="feedback ingest-feedback"></pre>
+      </article>
+      <article class="ingest-pane ingest-upload-pane">
+        <div class="ingest-pane-heading">
+          <h2>文件上传</h2>
+          <p>解析文档、表格、图片并写入知识库</p>
+        </div>
+        <form id="file-form" class="ingest-form ingest-file-form">
+          <label class="ingest-dropzone">
+            <input id="file-input" type="file" accept=".txt,.md,.docx,.pptx,.pdf,.xlsx,.png,.jpg,.jpeg,.webp">
+            <span>选择文件</span>
+            <small>支持 txt / md / docx / pptx / pdf / xlsx / 图片</small>
+          </label>
+          <button type="submit">上传并解析</button>
+        </form>
+        <pre id="file-feedback" class="feedback ingest-feedback"></pre>
+      </article>
     </section>
   </main>
-  <script src="static/app.js?v=20260605-ask-workbench"></script>
+  <script src="static/app.js?v=20260605-ingest-footer"></script>
 </body>
 </html>
