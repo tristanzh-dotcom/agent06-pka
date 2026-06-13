@@ -239,6 +239,20 @@ button[type="button"] {
   gap: 8px;
 }
 
+.exportbar button[type="button"] {
+  min-height: 38px;
+  background: var(--panel);
+  color: var(--accent);
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 18px rgba(31, 111, 104, 0.10);
+}
+
+.exportbar button[type="button"]:hover {
+  border-color: var(--accent);
+  background: var(--message-user-bg);
+  color: var(--ink);
+}
+
 .ask-conversation {
   flex: 1;
   min-height: 0;

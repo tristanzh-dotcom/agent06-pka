@@ -217,6 +217,24 @@ def test_ask_page_p0_interactions_hide_export_and_clear_empty_state():
     assert "empty.remove()" in app_js
 
 
+def test_ask_export_buttons_use_neutral_publishing_theme_style():
+    root = Path(__file__).resolve().parents[1]
+    ask_html = (root / "static/ask.html").read_text(encoding="utf-8")
+    style_css = (root / "static/style.css").read_text(encoding="utf-8")
+
+    assert '<button type="button" id="export-word">导出 Word</button>' in ask_html
+    assert '<button type="button" id="export-ppt">导出 PPT</button>' in ask_html
+    assert "button[type=\"button\"] {\n  background: var(--accent-2);" in style_css
+    assert ".exportbar button[type=\"button\"]" in style_css
+    export_button_rule = style_css[
+        style_css.index(".exportbar button[type=\"button\"]") : style_css.index(".ask-conversation")
+    ]
+    assert "background: var(--panel);" in export_button_rule
+    assert "color: var(--accent);" in export_button_rule
+    assert "border: 1px solid var(--line);" in export_button_rule
+    assert "background: var(--accent-2);" not in export_button_rule
+
+
 def test_ask_submit_shows_pending_feedback_before_stream_tokens():
     root = Path(__file__).resolve().parents[1]
     app_js = (root / "static/app.js").read_text(encoding="utf-8")
