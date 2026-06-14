@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from engine.generator import build_prompt, generate_answer
+from engine.generator import build_deepseek_analysis_prompt, build_prompt, generate_answer
 from engine.indexer import HybridIndexer
 from engine.models import RetrievedChunk
 from server import app
@@ -30,6 +30,57 @@ class FakeDeepSeekClient:
         yield '{"key_facts":[{"content":"组织架构调整方案","source":"org.txt","language":"zh"}],'
         yield '"terminology":[{"zh":"组织架构","en":"organizational structure"}],'
         yield '"logic_chain":"先明确职责边界，再调整组织。"}'
+
+
+class FakeNoAnswerDeepSeekClient:
+    def __init__(self):
+        self.prompts = []
+
+    async def stream(self, prompt):
+        self.prompts.append(prompt)
+        yield "目前的知识库中并没有关于特斯拉 Optimus 人形机器人的直接信息，"
+        yield "因此无法判断其具体关系或状态。来源：无适用资料"
+
+
+class FakeNoAnswerWithChunkCitationClient:
+    def __init__(self):
+        self.prompts = []
+
+    async def stream(self, prompt):
+        self.prompts.append(prompt)
+        yield "当前知识库缺少新能源汽车出海政策的信息，因此无法回答。\n\n"
+        yield "来源：org.txt#2"
+
+
+class FakeNoAnswerWithParenthesizedCitationClient:
+    def __init__(self):
+        self.prompts = []
+
+    async def stream(self, prompt):
+        self.prompts.append(prompt)
+        yield "当前知识库中并没有关于宠物医疗保险理赔流程的相关信息。"
+        yield "参考内容中提到了自动驾驶责任保险的早期探索（来源：org.txt#2）"
+
+
+class FakeNoAnswerWithoutCitationClient:
+    def __init__(self):
+        self.prompts = []
+
+    async def stream(self, prompt):
+        self.prompts.append(prompt)
+        yield "目前您的知识库中还没有与宠物医疗保险理赔流程直接相关的资料。"
+        yield "现有参考内容无法用来回答这个问题。"
+
+
+class FakeNoAnswerIrrelevantMaterialClient:
+    def __init__(self):
+        self.prompts = []
+
+    async def stream(self, prompt):
+        self.prompts.append(prompt)
+        yield "根据您当前提供的知识库内容，我无法为您解答关于宠物医疗保险理赔流程的问题。"
+        yield "这些材料与宠物医疗保险的理赔流程完全不相关，没有涵盖任何保险条款。"
+        yield "\n\n来源：org.txt#2"
 
 
 class FakeEmbeddingClient:
@@ -97,6 +148,27 @@ def test_build_prompt_includes_question_chunks_and_source_names():
     assert "怎么调整组织？" in prompt
 
 
+def test_deepseek_prompts_forbid_external_knowledge_when_no_answer():
+    zh_prompt = build_deepseek_analysis_prompt(
+        "宠物医疗保险理赔流程有哪些？",
+        [sample_chunk()],
+        include_chinese_advice=True,
+    )
+    report_prompt = build_deepseek_analysis_prompt(
+        "宠物医疗保险理赔流程有哪些？",
+        [sample_chunk()],
+        report_language="en",
+    )
+
+    required = (
+        '如果参考内容中没有任何与该问题相关的信息，请只输出：\n'
+        '"当前知识库缺少相关信息，无法回答该问题。建议补充相关资料后重新提问。"\n'
+        "不要给出外部知识、推测或通用建议。"
+    )
+    assert required in zh_prompt
+    assert required in report_prompt
+
+
 @pytest.mark.asyncio
 async def test_generate_answer_streams_tokens_sources_and_done():
     deepseek_client = FakeDeepSeekClient()
@@ -141,6 +213,107 @@ async def test_generate_answer_sources_include_raw_file_path():
 
     sources = next(event["sources"] for event in events if event["type"] == "sources")
     assert sources[0]["raw_file_path"] == "raw/2026-06-04/report.pdf"
+
+
+@pytest.mark.asyncio
+async def test_generate_answer_hides_sources_when_deepseek_returns_no_answer():
+    events = []
+    async for event in generate_answer(
+        question="特斯拉 Optimus 目前是什么关系？",
+        chunks=[sample_chunk()],
+        language="zh",
+        deepseek_endpoint="https://deepseek.example",
+        deepseek_api_key="deepseek-secret",
+        deepseek_model="deepseek-v4-pro",
+        deepseek_client=FakeNoAnswerDeepSeekClient(),
+    ):
+        events.append(json.loads(event.removeprefix("data: ").strip()))
+
+    sources_event = next(event for event in events if event["type"] == "sources")
+    assert sources_event["source_status"] == "no_answer"
+    assert sources_event["sources"] == []
+
+
+@pytest.mark.asyncio
+async def test_generate_answer_removes_no_answer_chunk_citations_from_token_text():
+    events = []
+    async for event in generate_answer(
+        question="新能源汽车出海政策有哪些？",
+        chunks=[sample_chunk()],
+        language="zh",
+        deepseek_endpoint="https://deepseek.example",
+        deepseek_api_key="deepseek-secret",
+        deepseek_model="deepseek-v4-pro",
+        deepseek_client=FakeNoAnswerWithChunkCitationClient(),
+    ):
+        events.append(json.loads(event.removeprefix("data: ").strip()))
+
+    token_text = "".join(event.get("content", "") for event in events if event["type"] == "token")
+    sources_event = next(event for event in events if event["type"] == "sources")
+    assert "当前知识库缺少新能源汽车出海政策的信息" in token_text
+    assert "org.txt#2" not in token_text
+    assert sources_event["source_status"] == "no_answer"
+    assert sources_event["sources"] == []
+
+
+@pytest.mark.asyncio
+async def test_generate_answer_removes_parenthesized_no_answer_citation_tail():
+    events = []
+    async for event in generate_answer(
+        question="宠物医疗保险理赔流程有哪些？",
+        chunks=[sample_chunk()],
+        language="zh",
+        deepseek_endpoint="https://deepseek.example",
+        deepseek_api_key="deepseek-secret",
+        deepseek_model="deepseek-v4-pro",
+        deepseek_client=FakeNoAnswerWithParenthesizedCitationClient(),
+    ):
+        events.append(json.loads(event.removeprefix("data: ").strip()))
+
+    token_text = "".join(event.get("content", "") for event in events if event["type"] == "token")
+    assert "来源" not in token_text
+    assert "org.txt#2" not in token_text
+    assert not token_text.endswith("（")
+
+
+@pytest.mark.asyncio
+async def test_generate_answer_marks_directly_unrelated_material_as_no_answer():
+    events = []
+    async for event in generate_answer(
+        question="宠物医疗保险理赔流程有哪些？",
+        chunks=[sample_chunk()],
+        language="zh",
+        deepseek_endpoint="https://deepseek.example",
+        deepseek_api_key="deepseek-secret",
+        deepseek_model="deepseek-v4-pro",
+        deepseek_client=FakeNoAnswerWithoutCitationClient(),
+    ):
+        events.append(json.loads(event.removeprefix("data: ").strip()))
+
+    sources_event = next(event for event in events if event["type"] == "sources")
+    assert sources_event["source_status"] == "no_answer"
+    assert sources_event["sources"] == []
+
+
+@pytest.mark.asyncio
+async def test_generate_answer_marks_irrelevant_material_language_as_no_answer():
+    events = []
+    async for event in generate_answer(
+        question="宠物医疗保险理赔流程有哪些？",
+        chunks=[sample_chunk()],
+        language="zh",
+        deepseek_endpoint="https://deepseek.example",
+        deepseek_api_key="deepseek-secret",
+        deepseek_model="deepseek-v4-pro",
+        deepseek_client=FakeNoAnswerIrrelevantMaterialClient(),
+    ):
+        events.append(json.loads(event.removeprefix("data: ").strip()))
+
+    token_text = "".join(event.get("content", "") for event in events if event["type"] == "token")
+    sources_event = next(event for event in events if event["type"] == "sources")
+    assert "来源" not in token_text
+    assert sources_event["source_status"] == "no_answer"
+    assert sources_event["sources"] == []
 
 
 @pytest.mark.asyncio
@@ -731,7 +904,7 @@ def test_file_ingest_preserves_raw_file_path_in_source_lookup(tmp_path, monkeypa
 
     async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
         return ParseResult(
-            text="附件中的组织架构调整方案",
+            text="附件中的组织架构调整方案已经完成，包含岗位职责、汇报关系和跨部门协作边界说明。",
             source_name=Path(file_path).name,
             source_type="pdf",
             metadata={},

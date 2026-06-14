@@ -40,6 +40,77 @@ def test_plain_text_splits_by_paragraph():
     assert all(chunk.source_name == "note.txt" for chunk in chunks)
 
 
+def test_pdf_chunks_filter_short_titles_and_dotted_toc_lines_only_for_pdf():
+    text = "第一章 概述\n\n............................ 23\n\n这是一个足够长的 PDF 正文段落，用于验证目录和短标题不会进入知识库检索索引。"
+
+    pdf_chunks = chunk_text(text, "report.pdf", "pdf", max_chunk_size=200, chunk_overlap=20)
+    txt_chunks = chunk_text(text, "note.txt", "txt", max_chunk_size=200, chunk_overlap=20)
+
+    assert [chunk.text for chunk in pdf_chunks] == [
+        "这是一个足够长的 PDF 正文段落，用于验证目录和短标题不会进入知识库检索索引。"
+    ]
+    assert "第一章 概述" in [chunk.text for chunk in txt_chunks]
+    assert "............................ 23" in [chunk.text for chunk in txt_chunks]
+
+
+def test_pdf_chunks_filter_multiline_mixed_dotted_leader_toc_block():
+    toc = "\n".join(
+        [
+            "3.1.1 法规：从“沙盒试点”到“司法互信” ................................... 27",
+            "3.1.2 技术：从单车智能到车路云协同 ................................... 30",
+            "3.1.3 商业：Robotaxi 单车盈利验证 ................................... 35",
+        ]
+    )
+    text = f"{toc}\n\n这是一个足够长的 PDF 正文段落，用于验证混合目录块不会进入知识库检索索引。"
+
+    chunks = chunk_text(text, "report.pdf", "pdf", max_chunk_size=500, chunk_overlap=20)
+
+    assert [chunk.text for chunk in chunks] == [
+        "这是一个足够长的 PDF 正文段落，用于验证混合目录块不会进入知识库检索索引。"
+    ]
+
+
+def test_pdf_chunks_keep_body_when_only_one_line_is_dotted_leader():
+    text = "\n".join(
+        [
+            "这一段正文讨论 L3 自动驾驶准入、DSSAD 数据记录、保险责任划分和司法采信流程。",
+            "3.1.1 法规：从“沙盒试点”到“司法互信” ................................... 27",
+            "由于只有一行目录样式内容混入正文，整段仍应保留，避免误删可用上下文。",
+        ]
+    )
+
+    chunks = chunk_text(text, "report.pdf", "pdf", max_chunk_size=500, chunk_overlap=20)
+
+    assert [chunk.text for chunk in chunks] == [text]
+
+
+def test_mixed_dotted_leader_filter_only_applies_to_pdf():
+    text = "\n".join(
+        [
+            "第一章 行业概述 ······························· 5",
+            "第二章 市场规模 ······························· 18",
+            "第三章 竞争格局 ······························· 32",
+        ]
+    )
+
+    txt_chunks = chunk_text(text, "note.txt", "txt", max_chunk_size=500, chunk_overlap=20)
+    md_chunks = chunk_text(text, "note.md", "md", max_chunk_size=500, chunk_overlap=20)
+
+    assert [chunk.text for chunk in txt_chunks] == [text]
+    assert [chunk.text for chunk in md_chunks] == [text]
+
+
+def test_pdf_chunks_keep_numeric_market_paragraph_without_dotted_leader():
+    text = (
+        "2025年至2030年，中国智能座舱市场规模预计从1580亿元增长至2730亿元，"
+        "年均复合增长率约11.6%，HUD市场从2020年的17亿元增长至2025年的47亿元。"
+    )
+
+    chunks = chunk_text(text, "report.pdf", "pdf", max_chunk_size=500, chunk_overlap=20)
+
+    assert [chunk.text for chunk in chunks] == [text]
+
+
 def test_long_paragraph_uses_overlapping_windows():
     text = "甲" * 220
 

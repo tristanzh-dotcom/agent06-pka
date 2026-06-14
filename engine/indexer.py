@@ -1,4 +1,5 @@
 import json
+import re
 import sqlite3
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -145,7 +146,7 @@ class HybridIndexer:
             connection.execute("DELETE FROM chunks_fts")
 
     def search_fts(self, query: str, top_k: int = 10) -> List[Dict[str, Any]]:
-        tokens = _tokenize(query)
+        tokens = _safe_fts_query(_tokenize(query))
         if not tokens:
             return []
         with self._connect() as connection:
@@ -246,6 +247,15 @@ def _tokenize(text: str) -> str:
     except Exception:
         tokens = [text]
     return " ".join(tokens)
+
+
+def _safe_fts_query(tokens: str) -> str:
+    """Remove FTS5 syntax characters and quote terms before MATCH."""
+    safe = re.sub(r"[、，,;；:：\-\(\)\[\]{}]", " ", tokens)
+    terms = [term.strip() for term in safe.split() if term.strip()]
+    if not terms:
+        return ""
+    return " OR ".join(f'"{term}"' for term in terms[:10])
 
 
 def _distance_to_score(distance: float) -> float:

@@ -1,9 +1,15 @@
 import json
+import re
 from typing import Any, AsyncGenerator, Iterable, List, Optional
 
 import httpx
 
 from engine.models import RetrievedChunk
+
+
+NO_ANSWER_CONSTRAINT = """如果参考内容中没有任何与该问题相关的信息，请只输出：
+"当前知识库缺少相关信息，无法回答该问题。建议补充相关资料后重新提问。"
+不要给出外部知识、推测或通用建议。"""
 
 
 def build_prompt(question: str, chunks: List[RetrievedChunk]) -> str:
@@ -53,6 +59,7 @@ def build_deepseek_analysis_prompt(
 3. 给出具体、可执行的中文个人建议
 4. 在回答末尾列出来源，格式为“来源：文件名#段落号”
 5. 如果资料不足，明确说明当前知识库缺少哪些信息
+{NO_ANSWER_CONSTRAINT}
 
 [参考内容]
 {chr(10).join(references)}
@@ -80,6 +87,7 @@ English Report mode:
 1. 从材料中提取与问题相关的关键事实，分别标注原文语言
 2. 列出关键术语中英对照表
 3. 梳理材料之间的逻辑关系（因果、时间线、对比等）
+{NO_ANSWER_CONSTRAINT}
 
 输出 JSON 格式：
 {{
@@ -210,10 +218,12 @@ async def generate_answer(
                 client=deepseek_client,
                 include_chinese_advice=True,
             )
-            yield _sse({"type": "token", "content": _format_chinese_answer(analysis, chunks)})
+            answer = _format_chinese_answer(analysis, chunks)
+            yield _sse({"type": "token", "content": answer})
         except Exception as exc:
             yield _sse({"type": "error", "content": f"DeepSeek 调用失败: {exc}"})
-        yield _sse({"type": "sources", "sources": _sources(chunks)})
+            answer = ""
+        yield _sse(_sources_event(chunks, answer))
         yield _sse({"type": "done"})
         return
 
@@ -243,7 +253,7 @@ async def generate_answer(
         if generation_model == "codex-base":
             for token in _generate_codex_base_english_report(question, analysis, chunks):
                 yield _sse({"type": "token", "content": token})
-            yield _sse({"type": "sources", "sources": _sources(chunks)})
+            yield _sse(_sources_event(chunks, analysis))
             yield _sse({"type": "done"})
             return
         yield _sse({"type": "token", "content": "英文输出模型未配置。"})
@@ -258,7 +268,7 @@ async def generate_answer(
             yield _sse({"type": "token", "content": token})
     except Exception as exc:
         yield _sse({"type": "error", "content": f"LLM 调用失败: {exc}"})
-    yield _sse({"type": "sources", "sources": _sources(chunks)})
+    yield _sse(_sources_event(chunks, analysis))
     yield _sse({"type": "done"})
 
 
@@ -273,6 +283,66 @@ def _sources(chunks: Iterable[RetrievedChunk]) -> List[dict]:
         }
         for chunk in chunks
     ]
+
+
+def _source_refs(chunks: Iterable[RetrievedChunk]) -> List[str]:
+    refs = []
+    for chunk in chunks:
+        source = f"{chunk.source_name}#{chunk.chunk_index}"
+        if source not in refs:
+            refs.append(source)
+    return refs
+
+
+def _sources_event(chunks: Iterable[RetrievedChunk], answer: str = "") -> dict:
+    if _is_no_answer(answer):
+        return {"type": "sources", "source_status": "no_answer", "sources": []}
+    return {"type": "sources", "source_status": "grounded", "sources": _sources(chunks)}
+
+
+def _is_no_answer(answer: str) -> bool:
+    text = " ".join(str(answer or "").split())
+    if not text:
+        return False
+    head = text[:500]
+    no_answer_markers = [
+        "无法回答",
+        "暂无相关内容",
+        "无匹配来源",
+        "没有匹配来源",
+        "没有任何信息涉及",
+        "没有直接涉及",
+        "无法为您解答",
+        "没有关于",
+        "没有与",
+        "还没有与",
+        "并没有关于",
+        "知识库缺少",
+        "当前知识库缺少",
+        "知识库中缺少",
+        "当前知识库缺失",
+        "知识库缺失",
+        "没有涉及",
+        "没有直接相关",
+        "无直接相关",
+        "未涉及",
+        "未提及",
+        "无法用来回答",
+        "无法判断",
+        "无适用资料",
+        "完全不包含",
+        "完全不相关",
+        "不包含相关主题",
+        "没有涵盖任何",
+        "资料不足",
+        "信息不足",
+    ]
+    return any(marker in head for marker in no_answer_markers)
+
+
+def _strip_source_references(answer: str) -> str:
+    stripped = re.split(r"(?:\n\s*)?来源[:：]", answer, maxsplit=1)[0].strip()
+    return re.sub(r"[（(【\[]\s*$", "", stripped).rstrip()
 
 
 def _generate_codex_base_fallback(question: str, chunks: List[RetrievedChunk]) -> Iterable[str]:
@@ -360,6 +430,9 @@ def _generate_codex_base_english_report(question: str, analysis: str, chunks: Li
 
 def _format_chinese_answer(raw_answer: str, chunks: List[RetrievedChunk]) -> str:
     answer = raw_answer.strip()
+    if _is_no_answer(answer):
+        return _strip_source_references(answer)
+
     parsed = _parse_json_object(answer)
     if not isinstance(parsed, dict):
         return answer
@@ -384,10 +457,7 @@ def _format_chinese_answer(raw_answer: str, chunks: List[RetrievedChunk]) -> str
             if not isinstance(fact, dict):
                 continue
             content = str(fact.get("content", "")).strip()
-            source = str(fact.get("source", "")).strip()
-            if content and source:
-                lines.append(f"{index}. {content}（来源：{source}）")
-            elif content:
+            if content:
                 lines.append(f"{index}. {content}")
 
     if terminology:
@@ -402,17 +472,7 @@ def _format_chinese_answer(raw_answer: str, chunks: List[RetrievedChunk]) -> str
         if term_lines:
             lines.extend(["", "相关术语：", *term_lines])
 
-    sources = []
-    for fact in facts:
-        if isinstance(fact, dict):
-            source = str(fact.get("source", "")).strip()
-            if source and source not in sources:
-                sources.append(source)
-    if not sources:
-        for chunk in chunks:
-            source = f"{chunk.source_name}#{chunk.chunk_index}"
-            if source not in sources:
-                sources.append(source)
+    sources = _source_refs(chunks)
     if sources:
         lines.extend(["", "来源：", *[f"- {source}" for source in sources]])
 

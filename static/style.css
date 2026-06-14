@@ -249,16 +249,6 @@ button.upload-slot {
   background: var(--message-user-bg);
 }
 
-.upload-slot.is-ocr {
-  border-color: rgba(52, 152, 219, 0.55);
-  background: rgba(52, 152, 219, 0.08);
-}
-
-.upload-slot.is-low {
-  border-color: rgba(230, 126, 34, 0.6);
-  background: rgba(230, 126, 34, 0.08);
-}
-
 .upload-slot.is-skipped {
   border-color: var(--accent-2);
   background: rgba(178, 59, 46, 0.08);
@@ -291,6 +281,104 @@ button.upload-slot {
   white-space: nowrap;
   color: var(--muted);
   font-size: 11px;
+}
+
+.upload-quality-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.quality-badge {
+  min-height: 24px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 0 7px;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 22px;
+  cursor: pointer;
+}
+
+button.quality-full,
+.quality-full {
+  border-color: rgba(59, 132, 91, 0.42);
+  background: rgba(59, 132, 91, 0.12);
+  color: #2f704b;
+}
+
+button.quality-ocr,
+button.quality-ocr-partial,
+.quality-ocr,
+.quality-ocr-partial {
+  border-color: rgba(43, 116, 175, 0.38);
+  background: rgba(43, 116, 175, 0.12);
+  color: #246492;
+}
+
+.quality-ocr-partial {
+  border-style: dashed;
+}
+
+button.quality-full-low,
+button.quality-low,
+.quality-full-low,
+.quality-low {
+  border-color: rgba(210, 120, 38, 0.42);
+  background: rgba(210, 120, 38, 0.13);
+  color: #9a5a17;
+}
+
+button.quality-blocked,
+.quality-blocked {
+  border-color: rgba(178, 59, 46, 0.42);
+  background: rgba(178, 59, 46, 0.12);
+  color: #9d3429;
+}
+
+button.quality-failed,
+.quality-failed {
+  border-color: rgba(109, 106, 100, 0.38);
+  background: rgba(109, 106, 100, 0.12);
+  color: var(--muted);
+}
+
+.upload-raw-link {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.upload-raw-link:hover {
+  text-decoration: underline;
+}
+
+.upload-quality-detail {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 8px;
+  margin: 0;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.upload-quality-detail dt {
+  font-weight: 900;
+  color: var(--ink);
+}
+
+.upload-quality-detail dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .upload-slot-head {
@@ -524,6 +612,11 @@ button:disabled,
 .ask-sources-title {
   font-weight: 700;
   color: var(--ink);
+}
+
+.ask-source-notice {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .ask-source-chip {

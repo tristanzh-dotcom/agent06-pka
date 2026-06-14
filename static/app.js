@@ -18,6 +18,7 @@ const askState = {
 
 let selectedFiles = [];
 let fileUploadResults = [];
+let expandedQualityFiles = new Set();
 const MAX_UPLOAD_FILES = 6;
 const MAX_UPLOAD_FEEDBACK = "最多上传 6 个文件，请先移除一个文件。";
 
@@ -134,8 +135,8 @@ function formatIngestFeedback(result, actionLabel) {
 function qualityStatusMessage(result) {
   const quality = result?.quality || {};
   const action = quality.action;
-  if (action === "direct") return "已全文入库";
-  if (action === "cleaned") return "已清洗入库";
+  if ((action === "direct" || action === "cleaned") && quality.status === "low") return "全文入库，低信度";
+  if (action === "direct" || action === "cleaned") return "全文入库";
   if (action === "low_indexed") return "低质量入库";
   if (action === "ocr") {
     if (quality.ocr_partial) {
@@ -147,26 +148,63 @@ function qualityStatusMessage(result) {
           : processed
             ? `仅 OCR 前 ${processed} 页`
             : "仅完成部分页面 OCR";
-      return `部分 OCR 入库 · ${pageText}`;
+      return `OCR 部分入库 · ${pageText}`;
     }
     return "OCR 入库";
   }
-  if (action === "needs_ocr_skipped") return "需 OCR 未入库 · 未进入主知识库，避免污染检索";
+  if (action === "needs_ocr_skipped") return "未入库，需 OCR · 未进入主知识库，避免污染检索";
   if (action === "ocr_failed_skipped") return "OCR 失败未入库 · 未进入主知识库，避免污染检索";
   if (action === "ocr_timeout_skipped") return "OCR 超时未入库 · 未进入主知识库，避免污染检索";
   return "";
 }
 
 function qualityBadge(result) {
-  const action = result?.quality?.action;
-  const text = qualityStatusMessage(result);
-  if (action === "ocr") return { className: "is-ocr", text: text || "OCR 入库" };
-  if (action === "low_indexed") return { className: "is-low", text: text || "低质量入库" };
-  if (action === "needs_ocr_skipped" || action === "ocr_failed_skipped" || action === "ocr_timeout_skipped") {
-    return { className: "is-skipped", text: text || "需 OCR 未入库" };
+  if (result?.status === "error") return { className: "quality-failed", text: "解析失败" };
+  const quality = result?.quality || {};
+  const action = quality.action;
+  if ((action === "direct" || action === "cleaned") && quality.status === "high") {
+    return { className: "quality-full", text: "全文入库" };
   }
-  if (action === "direct" || action === "cleaned") return { className: "is-complete", text };
+  if ((action === "direct" || action === "cleaned") && quality.status === "low") {
+    return { className: "quality-full-low", text: "全文入库，低信度" };
+  }
+  if (action === "ocr" && quality.ocr_partial) {
+    const processed = Number(quality.ocr_pages_processed) || 0;
+    return { className: "quality-ocr-partial", text: processed ? `OCR 部分入库（前 ${processed} 页）` : "OCR 部分入库" };
+  }
+  if (action === "ocr") return { className: "quality-ocr", text: "OCR 入库" };
+  if (action === "low_indexed" && quality.status === "low") {
+    return { className: "quality-low", text: "低质量入库" };
+  }
+  if (["needs_ocr_skipped", "ocr_failed_skipped", "ocr_timeout_skipped"].includes(action)) {
+    return { className: "quality-blocked", text: "未入库，需 OCR" };
+  }
   return null;
+}
+
+function formatQualityPercent(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "";
+  return `${Math.round(number * 100)}%`;
+}
+
+function qualityDetails(result) {
+  const quality = result?.quality || {};
+  const rows = [];
+  const reasons = Array.isArray(quality.reasons) && quality.reasons.length ? quality.reasons : ["无额外原因"];
+  rows.push({ label: "原因", value: reasons.join("；") });
+  const validRatio = formatQualityPercent(quality.valid_ratio);
+  if (validRatio) rows.push({ label: "有效文本占比", value: validRatio });
+  if (Number.isFinite(Number(quality.effective_chars_per_page))) {
+    rows.push({ label: "每页有效字符", value: String(Math.round(Number(quality.effective_chars_per_page))) });
+  }
+  if (quality.ocr_provider) rows.push({ label: "OCR 服务", value: String(quality.ocr_provider) });
+  return rows;
+}
+
+function rawFileHref(result) {
+  if (!result?.raw_file_path) return "";
+  return `api/files/${result.raw_file_path.split("/").map(encodeURIComponent).join("/")}`;
 }
 
 function formatErrorFeedback(actionLabel, error) {
@@ -217,10 +255,56 @@ function uploadSlotStatus(result) {
   if (!result) return "pending";
   if (result.status === "error") return "error";
   if (result.status === "skipped") return "skipped";
-  const badge = qualityBadge(result);
-  if (badge?.className === "is-low") return "low";
-  if (badge?.className === "is-ocr") return "ocr";
   return "complete";
+}
+
+function renderQualityBadge(row, result, fileKey) {
+  const badge = qualityBadge(result);
+  const href = rawFileHref(result);
+  if (!badge && !href) return;
+
+  const qualityRow = document.createElement("div");
+  qualityRow.className = "upload-quality-row";
+  if (badge) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `quality-badge ${badge.className}`;
+    button.textContent = badge.text;
+    button.setAttribute("aria-expanded", expandedQualityFiles.has(fileKey) ? "true" : "false");
+    button.addEventListener("click", () => {
+      if (expandedQualityFiles.has(fileKey)) {
+        expandedQualityFiles.delete(fileKey);
+      } else {
+        expandedQualityFiles.add(fileKey);
+      }
+      renderUploadSlots();
+      publishEmbeddedSnapshot();
+    });
+    qualityRow.appendChild(button);
+  }
+  if (href) {
+    const link = document.createElement("a");
+    link.className = "upload-raw-link";
+    link.href = href;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    link.textContent = "查看原文件";
+    qualityRow.appendChild(link);
+  }
+  row.appendChild(qualityRow);
+
+  if (badge && expandedQualityFiles.has(fileKey)) {
+    const detail = document.createElement("dl");
+    detail.className = "upload-quality-detail";
+    for (const item of qualityDetails(result)) {
+      const term = document.createElement("dt");
+      term.textContent = item.label;
+      const description = document.createElement("dd");
+      description.textContent = item.value;
+      detail.append(term, description);
+    }
+    row.appendChild(detail);
+  }
 }
 
 function summarizeBatchFeedback(result) {
@@ -294,6 +378,7 @@ function renderUploadSlots() {
     remove.addEventListener("click", () => {
       selectedFiles.splice(index, 1);
       fileUploadResults = fileUploadResults.filter((item) => item.filename !== file.name);
+      expandedQualityFiles.delete(file.name);
       renderUploadSlots();
       publishEmbeddedSnapshot();
     });
@@ -304,15 +389,17 @@ function renderUploadSlots() {
     name.title = file.name;
     const meta = document.createElement("span");
     meta.className = "upload-slot-meta";
-    const qualityMessage = qualityStatusMessage(result);
     meta.textContent =
       status === "error"
         ? "失败"
         : status === "skipped"
-          ? qualityMessage || "需 OCR 未入库"
-          : qualityMessage || (status === "complete" ? "完成" : formatBytes(file.size));
+          ? "未入库"
+          : status === "complete" && result
+            ? `${result.chunks || 0} 个片段`
+            : formatBytes(file.size);
     meta.title = meta.textContent;
     row.append(head, name, meta);
+    renderQualityBadge(row, result, result?.raw_file_path || file.name);
     list.appendChild(row);
   }
 }
@@ -351,6 +438,7 @@ function setupIngest() {
     if (acceptedFiles.length) {
       selectedFiles = selectedFiles.concat(acceptedFiles);
       fileUploadResults = [];
+      expandedQualityFiles = new Set();
     }
     fileInput.value = "";
     renderUploadSlots();
@@ -359,6 +447,7 @@ function setupIngest() {
   clearSelectedFiles?.addEventListener("click", () => {
     selectedFiles = [];
     fileUploadResults = [];
+    expandedQualityFiles = new Set();
     renderUploadSlots();
     setFeedback("file-feedback", "");
     publishEmbeddedSnapshot();
@@ -424,6 +513,13 @@ function appendSources(answer, displaySources) {
   answer.appendChild(sources);
 }
 
+function appendSourceNotice(answer, text) {
+  const sources = document.createElement("div");
+  sources.className = "ask-sources ask-source-notice";
+  sources.textContent = text;
+  answer.appendChild(sources);
+}
+
 function restoreAskConversation(state) {
   const box = document.getElementById("conversation");
   if (!box || !state || typeof state !== "object") return;
@@ -438,13 +534,16 @@ function restoreAskConversation(state) {
       role: message.role === "user" ? "user" : "assistant",
       text: message.text,
       sources: Array.isArray(message.sources) ? message.sources : [],
+      sourceStatus: typeof message.sourceStatus === "string" ? message.sourceStatus : "",
     }));
   if (!askState.messages.length) return;
   box.innerHTML = "";
   askState.messages.forEach((message, index) => {
     const node = appendMessage(message.text, message.role, { skipState: true });
     node.dataset.messageIndex = String(index);
-    if (message.role === "assistant" && message.sources.length) {
+    if (message.role === "assistant" && message.sourceStatus === "no_answer") {
+      appendSourceNotice(node, "知识库缺失，未使用参考来源");
+    } else if (message.role === "assistant" && message.sources.length) {
       appendSources(node, normalizeSourceList(message.sources));
     }
   });
@@ -556,8 +655,15 @@ function setupAsk() {
             publishEmbeddedSnapshot();
           }
           if (payload.type === "sources") {
-            askState.sources = payload.sources;
-            askState.messages[messageIndex].sources = payload.sources;
+            const sourceStatus = payload.source_status || "grounded";
+            askState.sources = sourceStatus === "no_answer" ? [] : payload.sources;
+            askState.messages[messageIndex].sources = askState.sources;
+            askState.messages[messageIndex].sourceStatus = sourceStatus;
+            if (payload.source_status === "no_answer") {
+              appendSourceNotice(answer, "知识库缺失，未使用参考来源");
+              publishEmbeddedSnapshot();
+              continue;
+            }
             const displaySources = normalizeSourceList(payload.sources);
             appendSources(answer, displaySources);
             if ((payload.sources || []).length > displaySources.length) {

@@ -229,8 +229,78 @@ def test_ingest_upload_displays_quality_and_skipped_status():
     assert "result.skipped" in app_js
     assert 'result.status === "skipped"' in app_js
     assert ".upload-slot.is-skipped" in style_css
-    assert ".upload-slot.is-low" in style_css
-    assert ".upload-slot.is-ocr" in style_css
+    assert ".quality-badge" in style_css
+    assert ".quality-full" in style_css
+    assert ".quality-ocr" in style_css
+    assert ".quality-low" in style_css
+    assert ".quality-blocked" in style_css
+    assert ".quality-failed" in style_css
+    assert "button.quality-full" in style_css
+    assert "button.quality-low" in style_css
+    assert "button.quality-blocked" in style_css
+    assert "button.quality-failed" in style_css
+    assert ".upload-slot.is-low" not in style_css
+    assert ".upload-slot.is-ocr" not in style_css
+
+
+def test_quality_badge_mapping_uses_existing_quality_fields_without_upload_slot_colors():
+    root = Path(__file__).resolve().parents[1]
+    app_js = (root / "static/app.js").read_text(encoding="utf-8")
+
+    assert "全文入库，低信度" in app_js
+    assert "全文入库" in app_js
+    assert "OCR 入库" in app_js
+    assert "OCR 部分入库" in app_js
+    assert "低质量入库" in app_js
+    assert "未入库，需 OCR" in app_js
+    assert '"quality-full"' in app_js
+    assert '"quality-full-low"' in app_js
+    assert '"quality-ocr"' in app_js
+    assert '"quality-ocr-partial"' in app_js
+    assert '"quality-low"' in app_js
+    assert '"quality-blocked"' in app_js
+    assert '"is-ocr"' not in app_js
+    assert '"is-low"' not in app_js
+
+
+def test_quality_badge_independent_of_upload_status():
+    root = Path(__file__).resolve().parents[1]
+    app_js = (root / "static/app.js").read_text(encoding="utf-8")
+
+    error_guard = 'if (result?.status === "error") return { className: "quality-failed", text: "解析失败" };'
+    quality_read = "const quality = result?.quality || {};"
+    quality_badge_body = app_js[app_js.index("function qualityBadge") : app_js.index("function formatQualityPercent")]
+    assert error_guard in quality_badge_body
+    assert quality_badge_body.index(error_guard) < quality_badge_body.index(quality_read)
+
+
+def test_ingest_upload_quality_details_expand_inline_and_link_raw_file():
+    root = Path(__file__).resolve().parents[1]
+    app_js = (root / "static/app.js").read_text(encoding="utf-8")
+    style_css = (root / "static/style.css").read_text(encoding="utf-8")
+
+    assert "function qualityDetails" in app_js
+    assert "function formatQualityPercent" in app_js
+    assert "Math.round" in app_js
+    assert "valid_ratio" in app_js
+    assert "effective_chars_per_page" in app_js
+    assert "ocr_provider" in app_js
+    assert "reasons" in app_js
+    assert "查看原文件" in app_js
+    assert "raw_file_path" in app_js
+    assert "api/files/" in app_js
+    assert "upload-quality-detail" in app_js
+    assert ".upload-quality-detail" in style_css
+
+
+def test_ingest_upload_slot_meta_does_not_duplicate_quality_badge_text():
+    root = Path(__file__).resolve().parents[1]
+    app_js = (root / "static/app.js").read_text(encoding="utf-8")
+    render_body = app_js[app_js.index("function renderUploadSlots") : app_js.index("const renderSelectedFiles")]
+
+    assert 'const qualityMessage = qualityStatusMessage(result);' not in render_body
+    assert 'result.chunks || 0} 个片段' in render_body
+    assert '"未入库"' in render_body
 
 
 def test_ingest_upload_quality_status_explains_partial_ocr_and_skipped_indexing():
@@ -241,7 +311,7 @@ def test_ingest_upload_quality_status_explains_partial_ocr_and_skipped_indexing(
     assert "ocr_partial" in app_js
     assert "ocr_pages_processed" in app_js
     assert "source_page_count" in app_js
-    assert "部分 OCR 入库" in app_js
+    assert "OCR 部分入库" in app_js
     assert "仅 OCR 前" in app_js
     assert "未进入主知识库，避免污染检索" in app_js
     assert "OCR 失败未入库" in app_js
@@ -434,7 +504,8 @@ def test_ask_embedded_state_preserves_answer_transcript_across_shell_switches():
     assert "function restoreAskConversation" in app_js
     assert "restoreAskConversation(state.ask)" in app_js
     assert "appendSources(answer, displaySources)" in app_js
-    assert "askState.messages[messageIndex].sources = payload.sources" in app_js
+    assert "askState.messages[messageIndex].sources = askState.sources" in app_js
+    assert "askState.messages[messageIndex].sourceStatus = sourceStatus" in app_js
     assert "askState.messages[messageIndex].text = askState.answer" in app_js
 
 
@@ -527,6 +598,19 @@ def test_ask_page_sources_are_deduplicated_and_readable():
     assert "手动录入" in app_js
     assert "displaySources.slice(0, 5)" in app_js
     assert '${source.source_name} #${source.chunk_index}' not in app_js
+
+
+def test_ask_page_marks_no_answer_sources_as_unused():
+    root = Path(__file__).resolve().parents[1]
+    app_js = (root / "static/app.js").read_text(encoding="utf-8")
+    style_css = (root / "static/style.css").read_text(encoding="utf-8")
+
+    assert "appendSourceNotice" in app_js
+    assert 'payload.source_status === "no_answer"' in app_js
+    assert "知识库缺失，未使用参考来源" in app_js
+    assert "sourceStatus" in app_js
+    assert "ask-source-notice" in app_js
+    assert ".ask-source-notice" in style_css
 
 
 def test_frontend_uses_relative_paths_for_agent06_prefix_proxy():

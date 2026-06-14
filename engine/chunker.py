@@ -1,7 +1,12 @@
 from datetime import datetime, timezone
+import re
 from typing import Iterable, List, Tuple
 
 from engine.models import Chunk
+
+
+_PDF_TOC_LINE_RE = re.compile(r"^[\.\s·…\d]+$")
+_PDF_DOTTED_LEADER_RE = re.compile(r"[\.\s·…\d]{20,}")
 
 
 def chunk_text(
@@ -18,6 +23,8 @@ def chunk_text(
     chunk_records: List[Tuple[str, str]] = []
     for section, breadcrumb in sections:
         for window in _window_text(section, max_chunk_size, chunk_overlap):
+            if _skip_pdf_noise_chunk(window, source_type):
+                continue
             embedding_text = (
                 f"[BREADCRUMB]{breadcrumb}[/BREADCRUMB]\n\n{window}"
                 if breadcrumb
@@ -39,6 +46,21 @@ def chunk_text(
         for index, (chunk, embedding_text) in enumerate(chunk_records)
         if chunk.strip()
     ]
+
+
+def _skip_pdf_noise_chunk(chunk: str, source_type: str) -> bool:
+    if source_type != "pdf":
+        return False
+    stripped = chunk.strip()
+    if len(stripped) < 30:
+        return True
+    if _PDF_TOC_LINE_RE.fullmatch(stripped):
+        return True
+    lines = [line.strip() for line in stripped.splitlines() if line.strip()]
+    if not lines:
+        return False
+    dotted_leader_lines = sum(1 for line in lines if _PDF_DOTTED_LEADER_RE.search(line))
+    return dotted_leader_lines / len(lines) > 0.5
 
 
 def _looks_like_markdown(text: str) -> bool:

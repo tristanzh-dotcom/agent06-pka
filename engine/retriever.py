@@ -29,7 +29,18 @@ def reciprocal_rank_fusion(
 
     add(results_a, "rank_fts5")
     add(results_b, "rank_vector")
-    return sorted(merged.values(), key=lambda item: item["score"], reverse=True)
+    def sort_key(item: Dict[str, Any]):
+        rank_fts5 = item.get("rank_fts5")
+        rank_vector = item.get("rank_vector")
+        dual_channel = rank_fts5 is not None and rank_vector is not None
+        return (
+            -item["score"],
+            not dual_channel,
+            rank_vector if rank_vector is not None else float("inf"),
+            rank_fts5 if rank_fts5 is not None else float("inf"),
+        )
+
+    return sorted(merged.values(), key=sort_key)
 
 
 class HybridRetriever:

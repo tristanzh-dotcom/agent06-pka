@@ -62,6 +62,21 @@ def test_indexer_writes_chunks_and_keyword_search_finds_chinese_terms(tmp_path):
     assert not (tmp_path / "vector" / "test_collection.json").exists()
 
 
+def test_fts_search_escapes_hud_ar_hud_query_syntax(tmp_path):
+    indexer = HybridIndexer(
+        fts_db_path=str(tmp_path / "pka.db"),
+        vector_dir=str(tmp_path / "vector"),
+        collection_name="test_collection",
+        embedding_client=FakeEmbeddingClient(),
+    )
+    indexer.upsert([make_chunk("display.pdf#0", "HUD AR-HUD 车载显示的发展重点", 0)])
+
+    results = indexer.search_fts("HUD、AR-HUD 或车载显示的发展重点是什么？", top_k=5)
+
+    assert results
+    assert results[0]["chunk_id"] == "display.pdf#0"
+
+
 def test_indexer_clear_all_removes_vector_and_fts_entries(tmp_path):
     indexer = HybridIndexer(
         fts_db_path=str(tmp_path / "pka.db"),
@@ -136,6 +151,41 @@ def test_rrf_ranks_intersection_above_single_list_results():
     assert fused[0]["chunk_id"] == "shared"
     assert fused[0]["rank_fts5"] == 2
     assert fused[0]["rank_vector"] == 1
+
+
+def test_rrf_tie_break_prefers_vector_rank_over_fts_insertion_order():
+    fused = reciprocal_rank_fusion(
+        [{"chunk_id": "fts_only", "text": "F"}],
+        [{"chunk_id": "vector_only", "text": "V"}],
+        k=60,
+    )
+
+    assert [item["chunk_id"] for item in fused] == ["vector_only", "fts_only"]
+    assert fused[0]["score"] == fused[1]["score"]
+
+
+def test_rrf_ordering_respects_score_before_tie_break_components():
+    fused = reciprocal_rank_fusion(
+        [
+            {"chunk_id": "fts_rank_1", "text": "F1"},
+            {"chunk_id": "dual", "text": "D"},
+            {"chunk_id": "fts_rank_3", "text": "F3"},
+        ],
+        [
+            {"chunk_id": "dual", "text": "D"},
+            {"chunk_id": "vector_rank_2", "text": "V2"},
+            {"chunk_id": "vector_rank_3", "text": "V3"},
+        ],
+        k=60,
+    )
+
+    assert [item["chunk_id"] for item in fused] == [
+        "dual",
+        "fts_rank_1",
+        "vector_rank_2",
+        "vector_rank_3",
+        "fts_rank_3",
+    ]
 
 
 def test_empty_search_returns_empty_list(tmp_path):
