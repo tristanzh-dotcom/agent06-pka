@@ -4,39 +4,34 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PKA 配置</title>
-  <link rel="stylesheet" href="static/style.css?v=20260605-ingest-footer">
+  <link rel="stylesheet" href="static/style.css?v=20260613-settings-diagnostics">
 </head>
 <body data-page="settings">
   <main class="shell">
-    <section class="panel">
-      <h1>模型配置</h1>
-      <form id="settings-form" class="settings-grid">
-        <h2>DeepSeek 分析模型</h2>
-        <label>DeepSeek Endpoint<input name="deepseek.endpoint" type="url"></label>
-        <label>DeepSeek API Key<input name="deepseek.api_key" type="password" autocomplete="new-password"></label>
-        <label>DeepSeek 模型名称<input name="deepseek.model" type="text"></label>
-        <h2>英文输出模型</h2>
-        <label>英文输出 Endpoint<input name="generation.endpoint" type="url"></label>
-        <label>英文输出 API Key<input name="generation.api_key" type="password" autocomplete="new-password"></label>
-        <label>英文输出模型名称<select name="generation.model"><option value="codex-base">Codex 基座模型</option></select></label>
-        <label>OCR Endpoint<input name="ocr.endpoint" type="url"></label>
-        <label>OCR API Key<input name="ocr.api_key" type="password" autocomplete="new-password"></label>
-        <label>Embedding 模型<input name="embedding.model" type="text"></label>
-        <label>检索结果数量<input name="retrieval.final_top_k" type="number" min="1" max="30"></label>
-        <div class="actions">
-          <button type="submit">保存</button>
-          <button type="button" id="test-connection">测试连接</button>
-        </div>
-      </form>
-      <pre id="settings-feedback" class="feedback"></pre>
+    <section class="panel diagnostic-panel">
+      <h1>连接诊断</h1>
+      <p class="diagnostic-copy">测试问答链路所需组件的当前可用状态。固定模型栈在页面底部状态栏展示。</p>
+      <div class="diagnostic-actions">
+        <button type="button" id="test-connection">测试连通性</button>
+      </div>
+      <pre id="settings-feedback" class="feedback diagnostic-list">点击“测试连通性”查看 DeepSeek、OCR 与本地向量检索状态。</pre>
     </section>
-    <section class="panel danger-zone">
-      <h2>危险操作</h2>
-      <p>清空知识库中所有已索引的内容。此操作不可撤销。</p>
-      <button type="button" id="clear-knowledge">清空知识库</button>
-      <pre id="clear-feedback" class="feedback"></pre>
-    </section>
+    <details class="panel danger-zone">
+      <summary class="danger-summary">
+        <span class="danger-title">危险操作</span>
+        <span class="danger-meta">测试或维护时展开，清空全部已索引内容。</span>
+      </summary>
+      <section class="danger-body">
+        <p>清空知识库中所有已索引的内容。此操作不可撤销。</p>
+        <label class="danger-confirm">
+          输入“清空知识库”确认
+          <input id="clear-confirmation" data-confirm-phrase="清空知识库" type="text" autocomplete="off">
+        </label>
+        <button type="button" id="clear-knowledge" disabled>清空知识库</button>
+        <pre id="clear-feedback" class="feedback"></pre>
+      </section>
+    </details>
   </main>
-  <script src="static/app.js?v=20260605-ingest-footer"></script>
+  <script src="static/app.js?v=20260613-settings-diagnostics"></script>
 </body>
 </html>

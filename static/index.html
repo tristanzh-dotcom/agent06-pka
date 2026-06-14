@@ -4,13 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PKA 录入</title>
-  <link rel="stylesheet" href="static/style.css?v=20260605-ingest-footer">
+  <link rel="stylesheet" href="static/style.css?v=20260613-six-slot-upload">
 </head>
 <body data-page="ingest">
-  <main class="ingest-workbench">
-    <header class="ingest-header">
-      <h1>内容录入</h1>
-    </header>
+  <main class="ingest-workbench" aria-label="内容录入">
     <section class="ingest-grid" aria-label="知识库录入入口">
       <article class="ingest-pane ingest-text-pane">
         <div class="ingest-pane-heading">
@@ -29,17 +26,18 @@
           <p>解析文档、表格、图片并写入知识库</p>
         </div>
         <form id="file-form" class="ingest-form ingest-file-form">
-          <label class="ingest-dropzone">
-            <input id="file-input" type="file" accept=".txt,.md,.docx,.pptx,.pdf,.xlsx,.png,.jpg,.jpeg,.webp">
-            <span>选择文件</span>
-            <small>支持 txt / md / docx / pptx / pdf / xlsx / 图片</small>
-          </label>
+          <input id="file-input" type="file" multiple class="upload-native-input" accept=".txt,.md,.docx,.pptx,.pdf,.xlsx,.png,.jpg,.jpeg,.webp">
+          <div id="file-list" class="upload-slot-board" data-upload-slot-board data-upload-max-files="6" aria-live="polite"></div>
+          <div class="upload-actions">
+            <span id="file-summary" class="upload-summary">未选择文件</span>
+            <button type="button" id="clear-selected-files" class="secondary-action" hidden>清空选择</button>
+          </div>
           <button type="submit">上传并解析</button>
         </form>
-        <pre id="file-feedback" class="feedback ingest-feedback"></pre>
+        <pre id="file-feedback" class="feedback ingest-feedback upload-feedback"></pre>
       </article>
     </section>
   </main>
-  <script src="static/app.js?v=20260605-ingest-footer"></script>
+  <script src="static/app.js?v=20260613-six-slot-upload"></script>
 </body>
 </html>

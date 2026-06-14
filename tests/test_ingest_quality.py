@@ -1,0 +1,355 @@
+from io import BytesIO
+from pathlib import Path
+import asyncio
+
+import pytest
+from fastapi import UploadFile
+
+import server
+from engine.models import ParseQuality, ParseResult
+from engine.ocr import OCRAttempt, OCRChainResult
+
+
+class RecordingIndexer:
+    def __init__(self):
+        self.upsert_calls = []
+
+    def upsert(self, chunks, raw_file_paths=None):
+        self.upsert_calls.append((chunks, raw_file_paths))
+        return len(chunks)
+
+    def count_chunks(self):
+        return sum(len(chunks) for chunks, _ in self.upsert_calls)
+
+
+def _needs_ocr_quality(action="needs_ocr_skipped"):
+    return ParseQuality(
+        status="needs_ocr",
+        action=action,
+        valid_ratio=0.0,
+        short_line_ratio=1.0,
+        watermark_ratio=0.0,
+        unique_line_ratio=0.0,
+        non_empty_pages=0,
+        page_count=10,
+        non_empty_page_ratio=0.0,
+        effective_chars_per_page=0.0,
+        cleaned_chars_ratio=0.0,
+        reasons=["文本层为空或有效正文不足，OCR 未配置，未写入知识库"],
+    )
+
+
+def _high_quality(action="direct"):
+    return ParseQuality(
+        status="high",
+        action=action,
+        valid_ratio=1.0,
+        short_line_ratio=0.0,
+        watermark_ratio=0.0,
+        unique_line_ratio=1.0,
+        non_empty_pages=3,
+        page_count=3,
+        non_empty_page_ratio=1.0,
+        effective_chars_per_page=180.0,
+        cleaned_chars_ratio=1.0,
+        reasons=[],
+    )
+
+
+def _low_quality():
+    return ParseQuality(
+        status="low",
+        action="low_indexed",
+        valid_ratio=0.8,
+        short_line_ratio=0.7,
+        watermark_ratio=0.2,
+        unique_line_ratio=0.6,
+        non_empty_pages=3,
+        page_count=3,
+        non_empty_page_ratio=1.0,
+        effective_chars_per_page=120.0,
+        cleaned_chars_ratio=0.8,
+        reasons=["极短行占比 70.0%，超过 60%"],
+    )
+
+
+@pytest.mark.asyncio
+async def test_needs_ocr_without_ocr_is_skipped_and_not_indexed(monkeypatch, tmp_path):
+    indexer = RecordingIndexer()
+    monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
+    monkeypatch.setattr(server.runtime, "indexer", indexer)
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+        return ParseResult(
+            text="",
+            source_name=Path(file_path).name,
+            source_type="pdf",
+            metadata={"page_count": 10, "non_empty_pages": 0},
+            quality=_needs_ocr_quality(),
+        )
+
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    upload = UploadFile(filename="scan.pdf", file=BytesIO(b"%PDF empty scan"), headers=None)
+
+    result = await server._ingest_upload_file(upload, ocr=None)
+
+    assert result["status"] == "skipped"
+    assert result["chunks"] == 0
+    assert result["chunk_ids"] == []
+    assert result["quality"]["action"] == "needs_ocr_skipped"
+    assert indexer.count_chunks() == 0
+
+
+@pytest.mark.asyncio
+async def test_needs_ocr_with_successful_pdf_ocr_is_indexed(monkeypatch, tmp_path):
+    indexer = RecordingIndexer()
+    monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
+    monkeypatch.setattr(server.runtime, "indexer", indexer)
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+        return ParseResult(
+            text="",
+            source_name=Path(file_path).name,
+            source_type="pdf",
+            metadata={"page_count": 10, "non_empty_pages": 0},
+            quality=_needs_ocr_quality(),
+        )
+
+    class FakePDFOCR:
+        endpoint = "configured"
+        api_key = "secret"
+
+        async def extract_pdf(self, pdf_path, max_pages=50):
+            return "\n".join(
+                ["OCR 转写正文，包含 2026 年市场规模和 23.7% 渗透率，供应链能力持续提升。"] * 20
+            )
+
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    upload = UploadFile(filename="scan.pdf", file=BytesIO(b"%PDF empty scan"), headers=None)
+
+    result = await server._ingest_upload_file(upload, ocr=FakePDFOCR())
+
+    assert result["status"] == "ok"
+    assert result["quality"]["action"] == "ocr"
+    assert result["chunks"] > 0
+    assert indexer.count_chunks() == result["chunks"]
+
+
+@pytest.mark.asyncio
+async def test_needs_ocr_uses_provider_chain_and_records_provider(monkeypatch, tmp_path):
+    indexer = RecordingIndexer()
+    monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
+    monkeypatch.setattr(server.runtime, "indexer", indexer)
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+        return ParseResult(
+            text="",
+            source_name=Path(file_path).name,
+            source_type="pdf",
+            metadata={"page_count": 3, "non_empty_pages": 0},
+            quality=_needs_ocr_quality(),
+        )
+
+    class FakeOCRChain:
+        calls = 0
+
+        async def extract_pdf_until_usable(self, pdf_path, *, page_count, max_pages):
+            self.calls += 1
+            return OCRChainResult(
+                text="\n".join(["OCR 转写正文包含 2026 年市场规模和 23.7% 渗透率。"] * 12),
+                quality=_high_quality(),
+                provider="paddle",
+                attempts=[OCRAttempt(provider="paddle", status="accepted", quality=_high_quality())],
+                source_page_count=40,
+                pages_processed=10,
+                page_limit_reached=True,
+                partial=True,
+            )
+
+    ocr_chain = FakeOCRChain()
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    upload = UploadFile(filename="scan.pdf", file=BytesIO(b"%PDF empty scan"), headers=None)
+
+    result = await server._ingest_upload_file(upload, ocr=ocr_chain)
+
+    assert ocr_chain.calls == 1
+    assert result["status"] == "ok"
+    assert result["quality"]["action"] == "ocr"
+    assert result["quality"]["provider"] == "paddle"
+    assert result["quality"]["attempts"] == [{"provider": "paddle", "status": "accepted", "error": ""}]
+    assert result["quality"]["ocr_pages_processed"] == 10
+    assert result["quality"]["ocr_page_limit_reached"] is True
+    assert result["quality"]["ocr_partial"] is True
+    assert result["chunks"] > 0
+    assert indexer.count_chunks() == result["chunks"]
+
+
+@pytest.mark.asyncio
+async def test_needs_ocr_provider_chain_timeout_skips_without_indexing(monkeypatch, tmp_path):
+    indexer = RecordingIndexer()
+    monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
+    monkeypatch.setitem(server.runtime.config["ocr"], "timeout_seconds", 0.01)
+    monkeypatch.setattr(server.runtime, "indexer", indexer)
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+        return ParseResult(
+            text="",
+            source_name=Path(file_path).name,
+            source_type="pdf",
+            metadata={"page_count": 40, "non_empty_pages": 0},
+            quality=_needs_ocr_quality(),
+        )
+
+    class SlowOCRChain:
+        async def extract_pdf_until_usable(self, pdf_path, *, page_count, max_pages):
+            await asyncio.sleep(1)
+            return OCRChainResult(
+                text="too late",
+                quality=_high_quality(),
+                provider="paddle",
+                attempts=[],
+            )
+
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    upload = UploadFile(filename="scan.pdf", file=BytesIO(b"%PDF empty scan"), headers=None)
+
+    result = await server._ingest_upload_file(upload, ocr=SlowOCRChain())
+
+    assert result["status"] == "skipped"
+    assert result["quality"]["action"] == "ocr_timeout_skipped"
+    assert result["chunks"] == 0
+    assert indexer.count_chunks() == 0
+
+
+@pytest.mark.asyncio
+async def test_needs_ocr_provider_chain_failure_skips_without_indexing(monkeypatch, tmp_path):
+    indexer = RecordingIndexer()
+    monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
+    monkeypatch.setattr(server.runtime, "indexer", indexer)
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+        return ParseResult(
+            text="",
+            source_name=Path(file_path).name,
+            source_type="pdf",
+            metadata={"page_count": 3, "non_empty_pages": 0},
+            quality=_needs_ocr_quality(),
+        )
+
+    class FakeOCRChain:
+        async def extract_pdf_until_usable(self, pdf_path, *, page_count, max_pages):
+            return None
+
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    upload = UploadFile(filename="scan.pdf", file=BytesIO(b"%PDF empty scan"), headers=None)
+
+    result = await server._ingest_upload_file(upload, ocr=FakeOCRChain())
+
+    assert result["status"] == "skipped"
+    assert result["quality"]["action"] == "ocr_failed_skipped"
+    assert result["chunks"] == 0
+    assert indexer.count_chunks() == 0
+
+
+@pytest.mark.asyncio
+async def test_low_quality_pdf_does_not_trigger_ocr_chain(monkeypatch, tmp_path):
+    indexer = RecordingIndexer()
+    monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
+    monkeypatch.setattr(server.runtime, "indexer", indexer)
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+        return ParseResult(
+            text="\n".join(["低质量但仍有正文，包含企业战略、市场份额和供应链变化。"] * 10),
+            source_name=Path(file_path).name,
+            source_type="pdf",
+            metadata={"page_count": 3, "non_empty_pages": 3},
+            quality=_low_quality(),
+        )
+
+    class FailingIfCalledOCRChain:
+        async def extract_pdf_until_usable(self, pdf_path, *, page_count, max_pages):
+            raise AssertionError("low quality PDFs must not trigger OCR")
+
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    upload = UploadFile(filename="low.pdf", file=BytesIO(b"%PDF low quality"), headers=None)
+
+    result = await server._ingest_upload_file(upload, ocr=FailingIfCalledOCRChain())
+
+    assert result["status"] == "ok"
+    assert result["quality"]["action"] == "low_indexed"
+    assert result["chunks"] > 0
+    assert indexer.count_chunks() == result["chunks"]
+
+
+@pytest.mark.asyncio
+async def test_ocr_failure_is_skipped_not_degraded_indexed(monkeypatch, tmp_path):
+    indexer = RecordingIndexer()
+    monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
+    monkeypatch.setattr(server.runtime, "indexer", indexer)
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+        return ParseResult(
+            text="",
+            source_name=Path(file_path).name,
+            source_type="pdf",
+            metadata={"page_count": 10, "non_empty_pages": 0},
+            quality=_needs_ocr_quality(),
+        )
+
+    class FailingPDFOCR:
+        endpoint = "configured"
+        api_key = "secret"
+
+        async def extract_pdf(self, pdf_path, max_pages=50):
+            raise RuntimeError("OCR failed")
+
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    upload = UploadFile(filename="scan.pdf", file=BytesIO(b"%PDF empty scan"), headers=None)
+
+    result = await server._ingest_upload_file(upload, ocr=FailingPDFOCR())
+
+    assert result["status"] == "skipped"
+    assert result["quality"]["action"] == "ocr_failed_skipped"
+    assert result["chunks"] == 0
+    assert indexer.count_chunks() == 0
+
+
+@pytest.mark.asyncio
+async def test_batch_counts_skipped_separately_from_failed(monkeypatch):
+    async def fake_ingest_upload_file(file, ocr):
+        if file.filename == "ok.txt":
+            return {
+                "status": "ok",
+                "chunks": 2,
+                "source_name": "ok.txt",
+                "content_type": "text/plain",
+                "raw_file_path": "raw/ok.txt",
+                "chunk_ids": ["ok.txt#0", "ok.txt#1"],
+                "quality": None,
+            }
+        if file.filename == "scan.pdf":
+            return {
+                "status": "skipped",
+                "chunks": 0,
+                "source_name": "scan.pdf",
+                "content_type": "application/pdf",
+                "raw_file_path": "raw/scan.pdf",
+                "chunk_ids": [],
+                "quality": {"status": "needs_ocr", "action": "needs_ocr_skipped"},
+            }
+        raise ValueError("broken file")
+
+    monkeypatch.setattr(server, "_ingest_upload_file", fake_ingest_upload_file)
+    monkeypatch.setattr(server, "_build_ocr_client", lambda: None)
+    uploads = [
+        UploadFile(filename="ok.txt", file=BytesIO(b"ok"), headers=None),
+        UploadFile(filename="scan.pdf", file=BytesIO(b"scan"), headers=None),
+        UploadFile(filename="broken.docx", file=BytesIO(b"broken"), headers=None),
+    ]
+
+    response = await server.ingest_files(uploads)
+
+    assert response["succeeded"] == 1
+    assert response["skipped"] == 1
+    assert response["failed"] == 1
+    assert response["total_chunks"] == 2

@@ -43,18 +43,63 @@ def test_gitignore_protects_local_data_and_secrets():
         assert pattern in gitignore
 
 
-def test_settings_page_exposes_both_model_sections():
+def test_settings_page_hides_fallback_english_generation_section():
     root = Path(__file__).resolve().parents[1]
     settings_html = (root / "static/settings.html").read_text(encoding="utf-8")
 
-    assert "DeepSeek 分析模型" in settings_html
-    assert 'name="deepseek.endpoint"' in settings_html
-    assert 'name="deepseek.api_key"' in settings_html
-    assert 'name="deepseek.model"' in settings_html
-    assert "英文输出模型" in settings_html
-    assert '<select name="generation.model">' in settings_html
-    assert '<option value="codex-base">Codex 基座模型</option>' in settings_html
-    assert settings_html.count('<option value=') == 1
+    assert "连接诊断" in settings_html
+    assert "DeepSeek 分析模型" not in settings_html
+    assert 'name="deepseek.endpoint"' not in settings_html
+    assert 'name="deepseek.api_key"' not in settings_html
+    assert 'name="deepseek.model"' not in settings_html
+    assert "英文输出模型" not in settings_html
+    assert 'name="generation.endpoint"' not in settings_html
+    assert 'name="generation.api_key"' not in settings_html
+    assert 'name="generation.model"' not in settings_html
+    assert "Codex 基座模型" not in settings_html
+
+
+def test_settings_page_keeps_fixed_model_stack_out_of_maintenance_controls():
+    root = Path(__file__).resolve().parents[1]
+    settings_html = (root / "static/settings.html").read_text(encoding="utf-8")
+    style_css = (root / "static/style.css").read_text(encoding="utf-8")
+    app_js = (root / "static/app.js").read_text(encoding="utf-8")
+
+    assert "OCR 与向量检索" not in settings_html
+    assert 'name="ocr.endpoint"' not in settings_html
+    assert 'name="ocr.api_key"' not in settings_html
+    assert 'name="retrieval.final_top_k"' not in settings_html
+    assert "bge-m3" not in settings_html
+    assert "智谱向量模型" not in settings_html
+    assert 'class="embedding-field"' not in settings_html
+    assert 'id="settings-form"' not in settings_html
+    assert 'id="test-connection"' in settings_html
+    assert 'id="settings-feedback"' in settings_html
+    assert "diagnostic-list" in settings_html
+    assert "#test-connection" in style_css
+    test_button_rule = style_css[style_css.index("#test-connection") : style_css.index(".danger-zone")]
+    assert "background: var(--panel);" in test_button_rule
+    assert "color: var(--ink);" in test_button_rule
+    assert "border: 1px solid var(--line);" in test_button_rule
+    assert "background: var(--accent-2);" not in test_button_rule
+    assert "function formatSettingsFeedback" in app_js
+    assert 'setFeedback("settings-feedback", formatSettingsFeedback(result))' in app_js
+    assert "checks.map" in app_js
+    assert "20260613-settings-diagnostics" in settings_html
+
+
+def test_settings_page_uses_readable_diagnostic_text_colors():
+    root = Path(__file__).resolve().parents[1]
+    style_css = (root / "static/style.css").read_text(encoding="utf-8")
+
+    assert ".diagnostic-panel" in style_css
+    diagnostic_rule = style_css[style_css.index(".diagnostic-panel") : style_css.index(".diagnostic-actions")]
+    assert "min-height: 0;" in diagnostic_rule
+    assert ".diagnostic-list" in style_css
+    list_rule = style_css[style_css.index(".diagnostic-list") : style_css.index(".diagnostic-actions")]
+    assert "color: var(--ink);" in list_rule
+    feedback_rule = style_css[style_css.index(".feedback") : style_css.index(".ingest-workbench")]
+    assert "color: var(--ink);" in feedback_rule
 
 
 def test_settings_page_exposes_clear_knowledge_action():
@@ -66,7 +111,35 @@ def test_settings_page_exposes_clear_knowledge_action():
     assert "清空知识库" in settings_html
     assert 'id="clear-feedback"' in settings_html
     assert 'postJSON("api/ingest/clear", {})' in app_js
-    assert "确定清空全部知识库" in app_js
+    assert "formatClearFeedback" in app_js
+    assert 'setFeedback("clear-feedback", formatClearFeedback(result))' in app_js
+    assert 'id="clear-confirmation"' in settings_html
+    assert 'data-confirm-phrase="清空知识库"' in settings_html
+    assert 'id="clear-knowledge" disabled' in settings_html
+    assert "setupClearKnowledgeGuard" in app_js
+    assert 'confirm(' not in app_js
+
+
+def test_settings_danger_zone_is_collapsed_to_a_two_line_maintenance_control():
+    root = Path(__file__).resolve().parents[1]
+    settings_html = (root / "static/settings.html").read_text(encoding="utf-8")
+    style_css = (root / "static/style.css").read_text(encoding="utf-8")
+
+    assert '<details class="panel danger-zone">' in settings_html
+    assert '<details class="panel danger-zone" open>' not in settings_html
+    assert '<summary class="danger-summary">' in settings_html
+    assert 'class="danger-title"' in settings_html
+    assert 'class="danger-meta"' in settings_html
+    assert 'class="danger-body"' in settings_html
+    assert settings_html.index('class="danger-summary"') < settings_html.index('class="danger-body"')
+    assert ".danger-zone {" in style_css
+    danger_zone_rule = style_css[style_css.index(".danger-zone {") : style_css.index(".danger-summary")]
+    assert "padding: 0;" in danger_zone_rule
+    assert "overflow: hidden;" in danger_zone_rule
+    danger_summary_rule = style_css[style_css.index(".danger-summary") : style_css.index(".danger-summary::-webkit-details-marker")]
+    assert "min-height: 64px;" in danger_summary_rule
+    assert "display: flex;" in danger_summary_rule
+    assert ".danger-body" in style_css
 
 
 def test_ingest_page_uses_separate_feedback_for_text_and_file_forms():
@@ -86,7 +159,9 @@ def test_ingest_page_uses_single_screen_dual_entry_workbench():
     index_html = (root / "static/index.html").read_text(encoding="utf-8")
     style_css = (root / "static/style.css").read_text(encoding="utf-8")
 
-    assert '<main class="ingest-workbench">' in index_html
+    assert '<main class="ingest-workbench" aria-label="内容录入">' in index_html
+    assert '<header class="ingest-header">' not in index_html
+    assert '<h1>内容录入</h1>' not in index_html
     assert 'class="ingest-grid"' in index_html
     assert 'class="ingest-pane ingest-text-pane"' in index_html
     assert 'class="ingest-pane ingest-upload-pane"' in index_html
@@ -94,11 +169,127 @@ def test_ingest_page_uses_single_screen_dual_entry_workbench():
 
     assert ".ingest-workbench" in style_css
     assert "height: 100vh" in style_css
-    assert "grid-template-rows: auto minmax(0, 1fr)" in style_css
+    assert "grid-template-rows: minmax(0, 1fr)" in style_css
+    assert ".ingest-header" not in style_css
     assert ".ingest-grid" in style_css
     assert "grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr)" in style_css
     assert ".ingest-feedback" in style_css
-    assert "max-height: 86px" in style_css
+    assert "max-height: 48px" in style_css
+
+
+def test_ingest_upload_feedback_has_reserved_non_overlapping_status_row():
+    root = Path(__file__).resolve().parents[1]
+    index_html = (root / "static/index.html").read_text(encoding="utf-8")
+    style_css = (root / "static/style.css").read_text(encoding="utf-8")
+
+    assert 'id="file-feedback" class="feedback ingest-feedback upload-feedback"' in index_html
+    pane_rule = style_css[style_css.index(".ingest-pane {") : style_css.index(".ingest-pane-heading")]
+    assert "gap: 10px;" in pane_rule
+    form_rule = style_css[style_css.index(".ingest-form {") : style_css.index(".ingest-text-form textarea")]
+    assert "overflow: hidden;" in form_rule
+    file_form_rule = style_css[style_css.index(".ingest-file-form {") : style_css.index(".upload-native-input")]
+    assert "grid-template-rows: minmax(0, 1fr) auto auto;" in file_form_rule
+    feedback_rule = style_css[style_css.index(".ingest-feedback {") : style_css.index(".ask-workbench")]
+    assert "margin: 0;" in feedback_rule
+    assert "min-height: 40px;" in feedback_rule
+    assert "max-height: 48px;" in feedback_rule
+    assert "line-height: 1.45;" in feedback_rule
+    assert ".upload-feedback" in style_css
+
+
+def test_ingest_upload_supports_multi_file_queue_and_batch_endpoint():
+    root = Path(__file__).resolve().parents[1]
+    index_html = (root / "static/index.html").read_text(encoding="utf-8")
+    app_js = (root / "static/app.js").read_text(encoding="utf-8")
+    style_css = (root / "static/style.css").read_text(encoding="utf-8")
+
+    assert 'id="file-input" type="file" multiple' in index_html
+    assert 'data-upload-slot-board' in index_html
+    assert 'id="file-list"' in index_html
+    assert 'id="file-summary"' in index_html
+    assert 'id="clear-selected-files" class="secondary-action" hidden' in index_html
+    assert "renderSelectedFiles" in app_js
+    assert "selectedFiles" in app_js
+    assert 'fetch("api/ingest/files"' in app_js
+    assert "clearButton.hidden = true" in app_js
+    assert "clearButton.hidden = false" in app_js
+    assert "if (clearButton) clearButton.disabled" not in app_js
+    assert "input.files[0]" not in app_js
+    assert ".upload-slot-board" in style_css
+    assert ".upload-slot" in style_css
+
+
+def test_ingest_upload_displays_quality_and_skipped_status():
+    root = Path(__file__).resolve().parents[1]
+    app_js = (root / "static/app.js").read_text(encoding="utf-8")
+    style_css = (root / "static/style.css").read_text(encoding="utf-8")
+
+    assert "qualityBadge" in app_js
+    assert "需 OCR 未入库" in app_js
+    assert "result.skipped" in app_js
+    assert 'result.status === "skipped"' in app_js
+    assert ".upload-slot.is-skipped" in style_css
+    assert ".upload-slot.is-low" in style_css
+    assert ".upload-slot.is-ocr" in style_css
+
+
+def test_ingest_upload_quality_status_explains_partial_ocr_and_skipped_indexing():
+    root = Path(__file__).resolve().parents[1]
+    app_js = (root / "static/app.js").read_text(encoding="utf-8")
+
+    assert "qualityStatusMessage" in app_js
+    assert "ocr_partial" in app_js
+    assert "ocr_pages_processed" in app_js
+    assert "source_page_count" in app_js
+    assert "部分 OCR 入库" in app_js
+    assert "仅 OCR 前" in app_js
+    assert "未进入主知识库，避免污染检索" in app_js
+    assert "OCR 失败未入库" in app_js
+    assert "OCR 超时未入库" in app_js
+    assert 'action === "ocr_timeout_skipped"' in app_js
+    assert 'qualityStatusMessage(item)' in app_js
+
+
+def test_ingest_upload_uses_six_slot_board_interaction_contract():
+    root = Path(__file__).resolve().parents[1]
+    index_html = (root / "static/index.html").read_text(encoding="utf-8")
+    app_js = (root / "static/app.js").read_text(encoding="utf-8")
+    style_css = (root / "static/style.css").read_text(encoding="utf-8")
+
+    assert 'data-upload-slot-board' in index_html
+    assert 'data-upload-max-files="6"' in index_html
+    assert "upload-picker" not in index_html
+    assert "选择多个文件" not in index_html
+    assert "const MAX_UPLOAD_FILES = 6;" in app_js
+    assert "function renderUploadSlots" in app_js
+    assert "index < MAX_UPLOAD_FILES" in app_js
+    assert "selectedFiles.length >= MAX_UPLOAD_FILES" in app_js
+    assert "fileInput.disabled = selectedFiles.length >= MAX_UPLOAD_FILES" in app_js
+    assert "最多上传 6 个文件，请先移除一个文件。" in app_js
+    assert "uploadSlotStatus" in app_js
+    assert "上传槽" in app_js
+    assert "upload-slot-hint" not in app_js
+    assert "txt / md / docx / pptx / pdf / xlsx / 图片" not in app_js
+    assert ".upload-slot-board" in style_css
+    slot_board_rule = style_css[style_css.index(".upload-slot-board") : style_css.index(".upload-slot {")]
+    assert "grid-template-columns: repeat(3, minmax(0, 1fr));" in slot_board_rule
+    assert "overflow-x: hidden;" in slot_board_rule
+    assert ".upload-slot.is-empty" in style_css
+    assert ".upload-slot.is-filled" in style_css
+    assert ".upload-slot.is-complete" in style_css
+    assert ".upload-slot.is-error" in style_css
+
+
+def test_ingest_upload_errors_are_readable_and_not_restored_as_stale_state():
+    root = Path(__file__).resolve().parents[1]
+    app_js = (root / "static/app.js").read_text(encoding="utf-8")
+
+    assert "function humanizeErrorMessage" in app_js
+    assert "function isStaleUploadFailure" in app_js
+    assert "JSON.parse" in app_js
+    assert "接口未找到，请刷新后重试" in app_js
+    assert 'id === "file-feedback" && isStaleUploadFailure(value)' in app_js
+    assert 'setFeedback("file-feedback", formatErrorFeedback("上传", error))' in app_js
 
 
 def test_ingest_feedback_is_summarized_without_chunk_id_dump():
@@ -235,6 +426,18 @@ def test_ask_export_buttons_use_neutral_publishing_theme_style():
     assert "background: var(--accent-2);" not in export_button_rule
 
 
+def test_ask_embedded_state_preserves_answer_transcript_across_shell_switches():
+    root = Path(__file__).resolve().parents[1]
+    app_js = (root / "static/app.js").read_text(encoding="utf-8")
+
+    assert "messages: askState.messages" in app_js
+    assert "function restoreAskConversation" in app_js
+    assert "restoreAskConversation(state.ask)" in app_js
+    assert "appendSources(answer, displaySources)" in app_js
+    assert "askState.messages[messageIndex].sources = payload.sources" in app_js
+    assert "askState.messages[messageIndex].text = askState.answer" in app_js
+
+
 def test_ask_submit_shows_pending_feedback_before_stream_tokens():
     root = Path(__file__).resolve().parents[1]
     app_js = (root / "static/app.js").read_text(encoding="utf-8")
@@ -294,7 +497,7 @@ def test_pka_pages_are_bare_embedded_panels_without_internal_topbar():
         assert '<a href="ask">问答</a>' not in html
         assert '<a class="topbar-settings" href="settings">设置</a>' not in html
 
-    assert '<main class="ingest-workbench">' in (root / "static/index.html").read_text(encoding="utf-8")
+    assert '<main class="ingest-workbench" aria-label="内容录入">' in (root / "static/index.html").read_text(encoding="utf-8")
     assert '<main class="ask-workbench">' in (root / "static/ask.html").read_text(encoding="utf-8")
     assert '<main class="shell">' in (root / "static/settings.html").read_text(encoding="utf-8")
 
@@ -348,3 +551,33 @@ def test_frontend_uses_relative_paths_for_agent06_prefix_proxy():
     assert "postJSON(\"/api/" not in app_js
     assert "postJSON('/api/" not in app_js
     assert "fetch(`/api/" not in app_js
+
+
+def test_frontend_notifies_agent06_after_knowledge_mutations_and_supports_embedded_state():
+    root = Path(__file__).resolve().parents[1]
+    app_js = (root / "static/app.js").read_text(encoding="utf-8")
+
+    assert "agent06:knowledge-updated" in app_js
+    assert "ingest:text" in app_js
+    assert "ingest:file" in app_js
+    assert "clear" in app_js
+    assert "web-publishing:embedded-state:snapshot" in app_js
+    assert "web-publishing:embedded-state:restore" in app_js
+    assert "web-publishing:embedded-state:request-snapshot" in app_js
+    assert "file-input" in app_js
+    assert ".files =" not in app_js
+    assert ".value = state.file" not in app_js
+
+
+def test_agent06_shell_uses_agent04_style_workflow_switch_contract():
+    web_root = Path(__file__).resolve().parents[2] / "web"
+    server_mjs = (web_root / "server.mjs").read_text(encoding="utf-8")
+    agent06_css = (web_root / "app/agent06.css").read_text(encoding="utf-8")
+
+    assert 'class="agent06-info-switch"' in server_mjs
+    assert "<small>功能切换</small>" in server_mjs
+    assert "agent06-tab-switch" in server_mjs
+    assert "agent06-tab-switch__button" in server_mjs
+    assert ".agent06-info-switch" in agent06_css
+    assert ".agent06-tab-switch" in agent06_css
+    assert ".agent06-tab-switch__button.is-active" in agent06_css

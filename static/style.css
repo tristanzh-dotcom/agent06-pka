@@ -105,28 +105,17 @@ button[type="button"] {
 .feedback {
   min-height: 42px;
   white-space: pre-wrap;
-  color: var(--muted);
+  color: var(--ink);
 }
 
 .ingest-workbench {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 14px;
+  grid-template-rows: minmax(0, 1fr);
   height: 100vh;
   padding: 20px 24px;
   box-sizing: border-box;
   overflow: hidden;
   background: var(--bg);
-}
-
-.ingest-header {
-  flex-shrink: 0;
-}
-
-.ingest-header h1 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 700;
 }
 
 .ingest-grid {
@@ -139,6 +128,7 @@ button[type="button"] {
 .ingest-pane {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px;
   min-height: 0;
   border: 1px solid var(--line);
   border-radius: var(--radius-card);
@@ -147,7 +137,7 @@ button[type="button"] {
 }
 
 .ingest-pane-heading {
-  margin-bottom: 12px;
+  margin-bottom: 0;
 }
 
 .ingest-pane-heading h2 {
@@ -166,6 +156,7 @@ button[type="button"] {
   grid-template-rows: minmax(0, 1fr) auto;
   gap: 10px;
   min-height: 0;
+  overflow: hidden;
 }
 
 .ingest-text-form textarea {
@@ -189,8 +180,211 @@ button[type="button"] {
   padding: 16px;
 }
 
-.ingest-dropzone input {
-  width: auto;
+.ingest-file-form {
+  grid-template-rows: minmax(0, 1fr) auto auto;
+}
+
+.upload-native-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.upload-slot-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-content: start;
+  gap: 8px;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.upload-slot {
+  width: 100%;
+  min-width: 0;
+  min-height: 92px;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-control);
+  background: var(--conversation-bg);
+  color: var(--ink);
+  padding: 10px;
+  text-align: left;
+}
+
+button.upload-slot {
+  min-height: 92px;
+  background: var(--conversation-bg);
+  color: var(--ink);
+  border: 1px dashed var(--line);
+  cursor: pointer;
+}
+
+.upload-slot.is-empty {
+  place-items: center;
+  text-align: center;
+  color: var(--muted);
+}
+
+.upload-slot.is-empty:hover {
+  border-color: var(--accent);
+  background: var(--message-user-bg);
+  color: var(--ink);
+}
+
+.upload-slot.is-filled {
+  border-style: solid;
+  background: var(--message-bg);
+}
+
+.upload-slot.is-complete {
+  border-color: var(--accent);
+  background: var(--message-user-bg);
+}
+
+.upload-slot.is-ocr {
+  border-color: rgba(52, 152, 219, 0.55);
+  background: rgba(52, 152, 219, 0.08);
+}
+
+.upload-slot.is-low {
+  border-color: rgba(230, 126, 34, 0.6);
+  background: rgba(230, 126, 34, 0.08);
+}
+
+.upload-slot.is-skipped {
+  border-color: var(--accent-2);
+  background: rgba(178, 59, 46, 0.08);
+}
+
+.upload-slot.is-error {
+  border-color: var(--accent-2);
+  background: rgba(178, 59, 46, 0.08);
+}
+
+.upload-slot-plus {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.upload-slot-label,
+.upload-slot-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 800;
+}
+
+.upload-slot-meta {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.upload-slot-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.upload-slot-type {
+  border-radius: 4px;
+  background: var(--message-user-bg);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 22px;
+  min-width: 44px;
+  padding: 0 6px;
+  text-align: center;
+}
+
+.upload-slot-remove {
+  min-height: 26px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--panel);
+  color: var(--accent);
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.upload-file-row {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--message-bg);
+  padding: 8px;
+}
+
+.upload-file-type {
+  border-radius: 4px;
+  background: var(--message-user-bg);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 24px;
+  text-align: center;
+}
+
+.upload-file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.upload-file-meta {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.upload-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.upload-summary {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+button.secondary-action,
+button.upload-file-remove {
+  min-height: 32px;
+  background: var(--panel);
+  color: var(--accent);
+  border: 1px solid var(--line);
+  padding: 0 10px;
+}
+
+button:disabled,
+.secondary-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .ingest-dropzone span {
@@ -203,12 +397,17 @@ button[type="button"] {
 }
 
 .ingest-feedback {
-  min-height: 34px;
-  max-height: 86px;
-  margin: 10px 0 0;
+  min-height: 40px;
+  max-height: 48px;
+  margin: 0;
   overflow: auto;
   font: inherit;
   font-size: 12px;
+  line-height: 1.45;
+}
+
+.upload-feedback {
+  display: block;
 }
 
 .ask-workbench {
@@ -398,6 +597,7 @@ button[type="button"] {
 
 .settings-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
 }
 
 .settings-grid h2 {
@@ -405,11 +605,71 @@ button[type="button"] {
   margin: 8px 0 0;
 }
 
+.settings-row {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 12px;
+  align-items: start;
+}
+
+.settings-row--ocr {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.settings-grid input,
+.settings-grid select {
+  height: 42px;
+  min-height: 42px;
+  padding: 8px 12px;
+}
+
+.settings-grid input[type="hidden"] {
+  display: none;
+}
+
 .settings-grid label {
   display: grid;
   gap: 6px;
-  color: var(--muted);
+  align-self: start;
+  color: var(--ink);
   font-size: 13px;
+}
+
+.diagnostic-panel {
+  display: grid;
+  gap: 12px;
+  min-height: 0;
+}
+
+.diagnostic-panel h1 {
+  margin-bottom: 0;
+}
+
+.diagnostic-copy {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.diagnostic-list {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.7;
+}
+
+.diagnostic-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.field-note {
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.ocr-vector-note {
+  max-width: 58ch;
 }
 
 .actions {
@@ -418,16 +678,89 @@ button[type="button"] {
   gap: 10px;
 }
 
-.danger-zone {
-  border-color: var(--accent-2);
+#test-connection {
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 18px rgba(31, 111, 104, 0.10);
 }
 
-.danger-zone h2 {
+#test-connection:hover {
+  border-color: var(--accent);
+  background: var(--message-user-bg);
+  color: var(--ink);
+}
+
+.danger-zone {
+  border-color: var(--accent-2);
+  padding: 0;
+  overflow: hidden;
+}
+
+.danger-summary {
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 22px;
+  cursor: pointer;
+  color: var(--ink);
+}
+
+.danger-summary::-webkit-details-marker {
+  display: none;
+}
+
+.danger-summary::after {
+  content: "展开";
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  padding: 4px 10px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.danger-zone[open] .danger-summary::after {
+  content: "收起";
+}
+
+.danger-title {
   color: var(--accent-2);
+  font-weight: 800;
+}
+
+.danger-meta {
+  min-width: 0;
+  flex: 1;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.danger-body {
+  display: grid;
+  gap: 10px;
+  max-width: 640px;
+  padding: 0 22px 18px;
+}
+
+.danger-body p {
+  margin: 0;
+}
+
+.danger-confirm {
+  display: grid;
+  gap: 8px;
+  max-width: 360px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 #clear-knowledge {
   background: var(--accent-2);
+  margin-top: 12px;
 }
 
 @media (max-width: 720px) {
@@ -447,6 +780,10 @@ button[type="button"] {
 
   .settings-grid {
     grid-template-columns: 1fr;
+  }
+
+  .upload-slot-board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .ask-input-bar {

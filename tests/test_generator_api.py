@@ -247,6 +247,33 @@ async def test_generate_answer_with_language_en_uses_deepseek_then_codex():
 
 
 @pytest.mark.asyncio
+async def test_english_report_asks_deepseek_for_english_report_facing_analysis():
+    deepseek_client = FakeDeepSeekClient()
+    events = []
+
+    async for event in generate_answer(
+        question="What did I think about the organization design?",
+        chunks=[sample_chunk()],
+        language="en",
+        deepseek_endpoint="https://deepseek.example",
+        deepseek_api_key="deepseek-secret",
+        deepseek_model="deepseek-v4-pro",
+        generation_endpoint="",
+        generation_api_key="",
+        generation_model="codex-base",
+        deepseek_client=deepseek_client,
+    ):
+        events.append(json.loads(event.removeprefix("data: ").strip()))
+
+    assert len(deepseek_client.prompts) == 1
+    prompt = deepseek_client.prompts[0]
+    assert "Write all report-facing JSON values in English" in prompt
+    assert "content" in prompt
+    assert "logic_chain" in prompt
+    assert "Keep language as the original source language marker" in prompt
+
+
+@pytest.mark.asyncio
 async def test_query_without_deepseek_returns_config_error_for_zh():
     events = []
 
@@ -289,6 +316,47 @@ async def test_query_without_generation_returns_config_error_for_en():
     token_text = "".join(event.get("content", "") for event in events if event["type"] == "token")
     assert "英文输出模型未配置" in token_text
     assert [event["type"] for event in events][-2:] == ["sources", "done"]
+
+
+@pytest.mark.asyncio
+async def test_english_report_codex_base_fallback_is_readable_not_raw_analysis_dump():
+    events = []
+
+    async for event in generate_answer(
+        question="Create an English report from these interview materials.",
+        chunks=[
+            RetrievedChunk(
+                chunk_id="interview_case.xlsx#0",
+                text="候选人在中英双语材料中展示了组织设计、跨部门协作和复盘能力。",
+                source_name="interview_case.xlsx",
+                source_type="xlsx",
+                chunk_index=0,
+                score=0.9,
+                rank_fts5=1,
+                rank_vector=1,
+                raw_file_path="raw/2026-06-13/interview_case.xlsx",
+            )
+        ],
+        language="en",
+        deepseek_endpoint="https://deepseek.example",
+        deepseek_api_key="deepseek-secret",
+        deepseek_model="deepseek-v4-pro",
+        generation_endpoint="",
+        generation_api_key="",
+        generation_model="codex-base",
+        deepseek_client=FakeDeepSeekClient(),
+    ):
+        events.append(json.loads(event.removeprefix("data: ").strip()))
+
+    token_text = "".join(event.get("content", "") for event in events if event["type"] == "token")
+    assert "English Report" in token_text
+    assert "Executive Summary" in token_text
+    assert "Key Findings" in token_text
+    assert "Sources" in token_text
+    assert "DeepSeek analysis:" not in token_text
+    assert "Reference excerpts:" not in token_text
+    assert "key_facts" not in token_text
+    assert not token_text.lstrip().startswith("{")
 
 
 def test_web_pages_and_core_api_routes_are_available():
@@ -419,6 +487,162 @@ def test_config_endpoint_updates_runtime_config(tmp_path, monkeypatch):
         server.runtime.reload(original_config)
 
 
+def test_connection_endpoint_returns_readable_component_diagnostics(monkeypatch):
+    import server
+
+    original_config = deepcopy(server.runtime.config)
+
+    class FakeEmbeddingClient:
+        def embed(self, texts):
+            assert texts == ["连接测试"]
+            return [[0.1, 0.2, 0.3]]
+
+    class FakeOCRChain:
+        providers = []
+
+    server.runtime.config = {
+        **deepcopy(original_config),
+        "deepseek": {
+            "endpoint": "https://deepseek.example/v1/chat/completions",
+            "api_key": "deepseek-secret",
+            "model": "deepseek-v4-pro",
+        },
+        "ocr": {
+            "endpoint": "",
+            "api_key": "",
+            "model": "doubao-1-5-vision-pro-32k",
+            "max_images_per_request": 10,
+        },
+        "embedding": {"host": "http://localhost:11434", "model": "bge-m3"},
+    }
+    monkeypatch.setattr(server.runtime.indexer, "embedding_client", FakeEmbeddingClient())
+    monkeypatch.setattr(server, "build_ocr_provider_chain", lambda config: FakeOCRChain())
+    client = TestClient(app)
+
+    try:
+        response = client.post("/api/test-connection")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "partial"
+        checks = {item["id"]: item for item in body["checks"]}
+        assert checks["deepseek"]["status"] == "ok"
+        assert checks["deepseek"]["label"] == "DeepSeek 中文语义分析"
+        assert "deepseek-v4-pro" in checks["deepseek"]["detail"]
+        assert checks["embedding"]["status"] == "ok"
+        assert checks["embedding"]["label"] == "bge-m3 向量检索"
+        assert "Ollama" in checks["embedding"]["detail"]
+        assert checks["ocr"]["status"] == "warn"
+        assert checks["ocr"]["label"] == "OCR 图片解析"
+        assert "未配置" in checks["ocr"]["detail"]
+    finally:
+        server.runtime.reload(original_config)
+
+
+def test_connection_endpoint_recognizes_nested_volcengine_ocr_config(monkeypatch):
+    import server
+
+    original_config = deepcopy(server.runtime.config)
+
+    class FakeEmbeddingClient:
+        def embed(self, texts):
+            return [[0.1, 0.2, 0.3]]
+
+    server.runtime.config = {
+        **deepcopy(original_config),
+        "deepseek": {
+            "endpoint": "https://deepseek.example/v1/chat/completions",
+            "api_key": "deepseek-secret",
+            "model": "deepseek-v4-pro",
+        },
+        "ocr": {
+            "endpoint": "",
+            "api_key": "",
+            "model": "doubao-1-5-vision-pro-32k",
+            "provider_order": ["paddle", "volcengine"],
+            "paddle": {"enabled": True, "lang": "ch", "use_angle_cls": True, "dpi": 150},
+            "volcengine": {
+                "enabled": True,
+                "endpoint": "https://ocr.example/v1/chat/completions",
+                "api_key": "ocr-secret",
+                "model": "doubao-1-5-vision-pro-32k",
+                "max_images_per_request": 10,
+            },
+        },
+        "embedding": {"host": "http://localhost:11434", "model": "bge-m3"},
+    }
+    monkeypatch.setattr(server.runtime.indexer, "embedding_client", FakeEmbeddingClient())
+    client = TestClient(app)
+
+    try:
+        response = client.post("/api/test-connection")
+
+        assert response.status_code == 200
+        checks = {item["id"]: item for item in response.json()["checks"]}
+        assert checks["ocr"]["status"] == "ok"
+        assert checks["ocr"]["label"] == "OCR 图片解析"
+        assert "doubao-1-5-vision-pro-32k" in checks["ocr"]["detail"]
+    finally:
+        server.runtime.reload(original_config)
+
+
+def test_connection_endpoint_recognizes_local_paddle_ocr_provider(monkeypatch):
+    import server
+
+    original_config = deepcopy(server.runtime.config)
+
+    class FakeEmbeddingClient:
+        def embed(self, texts):
+            return [[0.1, 0.2, 0.3]]
+
+    class FakeProvider:
+        name = "paddle"
+
+        def available(self):
+            return True
+
+    class FakeOCRChain:
+        providers = [FakeProvider()]
+
+    server.runtime.config = {
+        **deepcopy(original_config),
+        "deepseek": {
+            "endpoint": "https://deepseek.example/v1/chat/completions",
+            "api_key": "deepseek-secret",
+            "model": "deepseek-v4-pro",
+        },
+        "ocr": {
+            "endpoint": "",
+            "api_key": "",
+            "model": "doubao-1-5-vision-pro-32k",
+            "provider_order": ["paddle", "volcengine"],
+            "paddle": {"enabled": True, "lang": "ch", "use_angle_cls": True, "dpi": 150},
+            "volcengine": {
+                "enabled": True,
+                "endpoint": "",
+                "api_key": "",
+                "model": "doubao-1-5-vision-pro-32k",
+                "max_images_per_request": 10,
+            },
+        },
+        "embedding": {"host": "http://localhost:11434", "model": "bge-m3"},
+    }
+    monkeypatch.setattr(server.runtime.indexer, "embedding_client", FakeEmbeddingClient())
+    monkeypatch.setattr(server, "build_ocr_provider_chain", lambda config: FakeOCRChain())
+    client = TestClient(app)
+
+    try:
+        response = client.post("/api/test-connection")
+
+        assert response.status_code == 200
+        checks = {item["id"]: item for item in response.json()["checks"]}
+        assert checks["ocr"]["status"] == "ok"
+        assert checks["ocr"]["label"] == "OCR 图片解析"
+        assert "PaddleOCR 本地可用" in checks["ocr"]["detail"]
+    finally:
+        server.runtime.reload(original_config)
+
+
 def test_query_endpoint_passes_language_and_dual_model_config(monkeypatch):
     import server
 
@@ -528,6 +752,92 @@ def test_file_ingest_preserves_raw_file_path_in_source_lookup(tmp_path, monkeypa
 
         assert source["raw_file_path"].startswith("raw/")
         assert source["raw_file_path"].endswith("report.pdf")
+    finally:
+        restore_runtime(server, original)
+
+
+def test_bulk_file_ingest_returns_per_file_results_and_preserves_raw_files(tmp_path, monkeypatch):
+    import server
+    from engine.models import ParseResult
+
+    original = install_temp_runtime(server, tmp_path, "test_bulk_files")
+    parsed_files = []
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+        parsed_files.append((Path(file_path).name, mime_type))
+        return ParseResult(
+            text=f"{Path(file_path).stem} 里的知识内容",
+            source_name=Path(file_path).name,
+            source_type=Path(file_path).suffix.removeprefix(".") or "txt",
+            metadata={},
+        )
+
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    client = TestClient(app)
+
+    try:
+        response = client.post(
+            "/api/ingest/files",
+            files=[
+                ("files", ("alpha.txt", b"alpha", "text/plain")),
+                ("files", ("beta.md", b"beta", "text/markdown")),
+            ],
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "ok"
+        assert body["total_files"] == 2
+        assert body["succeeded"] == 2
+        assert body["failed"] == 0
+        assert body["total_chunks"] >= 2
+        assert [item["filename"] for item in body["files"]] == ["alpha.txt", "beta.md"]
+        assert all(item["status"] == "ok" for item in body["files"])
+        assert all(item["chunks"] >= 1 for item in body["files"])
+        assert all(item["raw_file_path"].startswith("raw/") for item in body["files"])
+        assert parsed_files == [("alpha.txt", "text/plain"), ("beta.md", "text/markdown")]
+    finally:
+        restore_runtime(server, original)
+
+
+def test_bulk_file_ingest_keeps_successes_when_one_file_fails(tmp_path, monkeypatch):
+    import server
+    from engine.models import ParseResult
+
+    original = install_temp_runtime(server, tmp_path, "test_bulk_partial")
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+        if Path(file_path).name == "bad.pdf":
+            raise ValueError("无法解析文件内容")
+        return ParseResult(
+            text="可入库内容",
+            source_name=Path(file_path).name,
+            source_type="txt",
+            metadata={},
+        )
+
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    client = TestClient(app)
+
+    try:
+        response = client.post(
+            "/api/ingest/files",
+            files=[
+                ("files", ("good.txt", b"good", "text/plain")),
+                ("files", ("bad.pdf", b"bad", "application/pdf")),
+            ],
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "partial"
+        assert body["total_files"] == 2
+        assert body["succeeded"] == 1
+        assert body["failed"] == 1
+        assert body["total_chunks"] >= 1
+        assert body["files"][0]["status"] == "ok"
+        assert body["files"][1]["status"] == "error"
+        assert body["files"][1]["error"] == "无法解析文件内容"
     finally:
         restore_runtime(server, original)
 

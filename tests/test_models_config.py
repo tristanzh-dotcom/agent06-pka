@@ -70,6 +70,11 @@ def test_config_loads_defaults_and_expands_data_paths(tmp_path):
     assert config["deepseek"]["endpoint"] == ""
     assert config["deepseek"]["api_key"] == ""
     assert config["deepseek"]["model"] == "deepseek-v4-pro"
+    assert config["ocr"]["provider_order"] == ["paddle", "volcengine"]
+    assert config["ocr"]["max_pdf_pages"] == 10
+    assert config["ocr"]["paddle"]["enabled"] is True
+    assert config["ocr"]["paddle"]["lang"] == "ch"
+    assert config["ocr"]["volcengine"]["enabled"] is True
 
 
 def test_config_update_persists_and_sanitizes_api_keys(tmp_path):
@@ -107,11 +112,56 @@ def test_config_update_persists_and_sanitizes_api_keys(tmp_path):
     assert sanitized["deepseek"]["api_key"] == "****cret"
 
 
+def test_legacy_volcengine_ocr_config_is_mirrored_to_nested_provider(tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "ocr:",
+                "  endpoint: https://legacy-ocr.example/v1/chat/completions",
+                "  api_key: legacy-ocr-secret",
+                "  model: legacy-vision-model",
+                "  max_images_per_request: 8",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    config = load_config(config_path)
+
+    assert config["ocr"]["volcengine"]["endpoint"] == "https://legacy-ocr.example/v1/chat/completions"
+    assert config["ocr"]["volcengine"]["api_key"] == "legacy-ocr-secret"
+    assert config["ocr"]["volcengine"]["model"] == "legacy-vision-model"
+    assert config["ocr"]["volcengine"]["max_images_per_request"] == 8
+
+
+def test_sanitize_config_masks_nested_volcengine_key(tmp_path):
+    config = load_config(tmp_path / "config.yaml")
+    config["ocr"]["api_key"] = "legacy-secret"
+    config["ocr"]["volcengine"]["api_key"] = "nested-secret"
+
+    sanitized = sanitize_config(config)
+
+    assert sanitized["ocr"]["api_key"] == "****cret"
+    assert sanitized["ocr"]["volcengine"]["api_key"] == "****cret"
+
+
 def test_config_example_declares_deepseek_section():
     example = (Path(__file__).resolve().parents[1] / "config.example.yaml").read_text(encoding="utf-8")
 
     assert "deepseek:" in example
     assert 'model: "deepseek-v4-pro"' in example
+
+
+def test_config_example_declares_ocr_provider_chain():
+    example = (Path(__file__).resolve().parents[1] / "config.example.yaml").read_text(encoding="utf-8")
+
+    assert "provider_order:" in example
+    assert "- paddle" in example
+    assert "- volcengine" in example
+    assert "paddle:" in example
+    assert "volcengine:" in example
+    assert "max_pdf_pages: 10" in example
 
 
 def test_mask_secret_does_not_reveal_short_values():

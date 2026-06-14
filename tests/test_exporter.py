@@ -44,7 +44,8 @@ def test_export_to_word_creates_readable_docx_with_answer_and_source_table(tmp_p
     assert "deck.pptx#2" in table_text
 
 
-def test_export_to_ppt_without_agent05_writes_markdown_fallback(tmp_path):
+def test_export_to_ppt_creates_readable_pptx_with_answer_and_sources(tmp_path):
+    pptx = pytest.importorskip("pptx")
     output_path = tmp_path / "answer.pptx"
 
     returned_path = export_to_ppt(
@@ -54,10 +55,17 @@ def test_export_to_ppt_without_agent05_writes_markdown_fallback(tmp_path):
         output_path=str(output_path),
     )
 
-    fallback = Path(returned_path)
-    assert fallback.suffix == ".md"
-    assert fallback.exists()
-    content = fallback.read_text(encoding="utf-8")
-    assert "PPT 导出需要 Agent05" in content
-    assert "怎么做组织调整？" in content
-    assert "组织架构调整方案.pptx" in content
+    assert returned_path == str(output_path)
+    assert Path(returned_path).suffix == ".pptx"
+    assert Path(returned_path).exists()
+    presentation = pptx.Presentation(returned_path)
+    slide_text = "\n".join(
+        shape.text
+        for slide in presentation.slides
+        for shape in slide.shapes
+        if hasattr(shape, "text")
+    )
+    assert "PKA 问答导出" in slide_text
+    assert "怎么做组织调整？" in slide_text
+    assert "先识别关键岗位。" in slide_text
+    assert "组织架构调整方案.pptx" in slide_text

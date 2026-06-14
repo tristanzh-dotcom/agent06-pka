@@ -1,5 +1,21 @@
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
+
+
+@dataclass(frozen=True)
+class ParseQuality:
+    status: str
+    action: str
+    valid_ratio: float
+    short_line_ratio: float
+    watermark_ratio: float
+    unique_line_ratio: float
+    non_empty_pages: int
+    page_count: int
+    non_empty_page_ratio: float
+    effective_chars_per_page: float
+    cleaned_chars_ratio: float
+    reasons: List[str]
 
 
 @dataclass(frozen=True)
@@ -8,6 +24,7 @@ class ParseResult:
     source_name: str
     source_type: str
     metadata: Dict[str, Any]
+    quality: Optional[ParseQuality] = None
 
 
 @dataclass(frozen=True)
@@ -18,6 +35,7 @@ class Chunk:
     source_type: str
     chunk_index: int
     created_at: str
+    embedding_text: str = ""
 
 
 @dataclass(frozen=True)

@@ -52,3 +52,24 @@ def test_long_paragraph_uses_overlapping_windows():
 
 def test_empty_text_returns_no_chunks():
     assert chunk_text("", "empty.txt", "txt") == []
+
+
+def test_breadcrumb_goes_to_embedding_text_not_display_text():
+    text = "# 行业分析\n\n## 市场规模\n\n2026 年市场规模达到 1200 亿元。"
+
+    chunks = chunk_text(text, "report.md", "md", max_chunk_size=200, chunk_overlap=20)
+
+    content_chunk = chunks[-1]
+    assert "BREADCRUMB" not in content_chunk.text
+    assert "行业分析" in content_chunk.embedding_text
+    assert "市场规模" in content_chunk.embedding_text
+
+
+def test_sentence_boundary_windowing_makes_progress_without_punctuation():
+    text = "甲" * 2300
+
+    chunks = chunk_text(text, "long.txt", "txt", max_chunk_size=1024, chunk_overlap=128)
+
+    assert chunks
+    assert all(len(chunk.text) <= 1024 for chunk in chunks)
+    assert [chunk.chunk_index for chunk in chunks] == list(range(len(chunks)))

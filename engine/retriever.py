@@ -39,16 +39,21 @@ class HybridRetriever:
         fts5_top_k: int = 10,
         vector_top_k: int = 10,
         rrf_k: int = 60,
+        reranker=None,
+        rerank_candidate_top_k: int = 20,
     ):
         self.indexer = indexer
         self.fts5_top_k = fts5_top_k
         self.vector_top_k = vector_top_k
         self.rrf_k = rrf_k
+        self.reranker = reranker
+        self.rerank_candidate_top_k = rerank_candidate_top_k
 
     def hybrid_search(self, query: str, top_k: int = 10) -> List[RetrievedChunk]:
         fts_results = self.indexer.search_fts(query, self.fts5_top_k)
         vector_results = self.indexer.search_vector(query, self.vector_top_k)
         fused = reciprocal_rank_fusion(fts_results, vector_results, self.rrf_k)
+        fused = self._rerank(query, fused)
         return [
             RetrievedChunk(
                 chunk_id=item["chunk_id"],
@@ -63,3 +68,26 @@ class HybridRetriever:
             )
             for item in fused[:top_k]
         ]
+
+    def _rerank(self, query: str, fused: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        if not self.reranker or not fused:
+            return fused
+        candidates = fused[: self.rerank_candidate_top_k]
+        remainder = fused[self.rerank_candidate_top_k :]
+        try:
+            reranked = self.reranker.rerank(query, candidates)
+        except Exception:
+            return fused
+        candidate_map = {item["chunk_id"]: item for item in candidates}
+        seen = set()
+        ordered: List[Dict[str, Any]] = []
+        for result in reranked:
+            item = candidate_map.get(result.chunk_id)
+            if item is None:
+                continue
+            updated = {**item, "score": float(result.score)}
+            ordered.append(updated)
+            seen.add(result.chunk_id)
+        ordered.extend(item for item in candidates if item["chunk_id"] not in seen)
+        ordered.extend(remainder)
+        return ordered

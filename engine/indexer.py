@@ -9,15 +9,25 @@ from engine.models import Chunk
 
 
 class OllamaEmbeddingClient:
-    def __init__(self, host: str = "http://localhost:11434", model: str = "bge-m3"):
+    def __init__(
+        self,
+        host: str = "http://localhost:11434",
+        model: str = "bge-m3",
+        query_prefix: str = "",
+    ):
         self.host = host
         self.model = model
+        self.query_prefix = query_prefix
 
     def embed(self, texts: List[str]) -> List[List[float]]:
         vectors = []
         for text in texts:
             vectors.append(self._embed_one(text))
         return vectors
+
+    def embed_query(self, query: str) -> List[float]:
+        prompt = f"{self.query_prefix}{query}" if self.query_prefix else query
+        return self._embed_one(prompt)
 
     def _embed_one(self, text: str) -> List[float]:
         request = urllib.request.Request(
@@ -90,7 +100,7 @@ class HybridIndexer:
             return 0
         if raw_file_paths is not None and len(raw_file_paths) != len(chunks):
             raise ValueError("raw_file_paths length must match chunks length")
-        vectors = self.embedding_client.embed([chunk.text for chunk in chunks])
+        vectors = self.embedding_client.embed([chunk.embedding_text or chunk.text for chunk in chunks])
         with self._connect() as connection:
             for chunk in chunks:
                 connection.execute("DELETE FROM chunks_fts WHERE chunk_id = ?", (chunk.id,))
@@ -166,7 +176,10 @@ class HybridIndexer:
     def search_vector(self, query: str, top_k: int = 10) -> List[Dict[str, Any]]:
         if self.collection.count() == 0:
             return []
-        query_vector = self.embedding_client.embed([query])[0]
+        if hasattr(self.embedding_client, "embed_query"):
+            query_vector = self.embedding_client.embed_query(query)
+        else:
+            query_vector = self.embedding_client.embed([query])[0]
         results = self.collection.query(
             query_embeddings=[query_vector],
             n_results=top_k,

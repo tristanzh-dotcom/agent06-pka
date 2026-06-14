@@ -94,20 +94,32 @@ def _parse_pptx(path: Path) -> ParseResult:
 
 def _parse_pdf(path: Path) -> ParseResult:
     import fitz
+    from engine.quality import assess_pdf_quality, clean_pdf_text
 
     document = fitz.open(path)
     pages = []
     try:
-        for page_index, page in enumerate(document, start=1):
-            pages.append(f"## Page {page_index}\n{page.get_text().strip()}")
+        for page in document:
+            page_text = page.get_text().strip()
+            if page_text:
+                pages.append(page_text)
         page_count = document.page_count
     finally:
         document.close()
+    raw_text = "\n\n".join(pages)
+    cleaned_text = clean_pdf_text(raw_text, page_texts=pages, page_count=page_count)
+    quality = assess_pdf_quality(raw_text, cleaned_text, page_count, len(pages))
     return ParseResult(
-        text="\n\n".join(page for page in pages if page.strip()),
+        text=cleaned_text,
         source_name=path.name,
         source_type="pdf",
-        metadata={"page_count": page_count},
+        metadata={
+            "page_count": page_count,
+            "non_empty_pages": len(pages),
+            "quality_status": quality.status,
+            "quality_action": quality.action,
+        },
+        quality=quality,
     )
 
 

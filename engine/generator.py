@@ -30,7 +30,12 @@ def build_prompt(question: str, chunks: List[RetrievedChunk]) -> str:
 """
 
 
-def build_deepseek_analysis_prompt(question: str, chunks: List[RetrievedChunk], include_chinese_advice: bool = False) -> str:
+def build_deepseek_analysis_prompt(
+    question: str,
+    chunks: List[RetrievedChunk],
+    include_chinese_advice: bool = False,
+    report_language: str = "zh",
+) -> str:
     references = []
     for index, chunk in enumerate(chunks, start=1):
         references.append(
@@ -57,8 +62,19 @@ def build_deepseek_analysis_prompt(question: str, chunks: List[RetrievedChunk], 
 
 请用中文回答：
 """
+    english_report_instruction = ""
+    if report_language == "en":
+        english_report_instruction = """
+English Report mode:
+- Write all report-facing JSON values in English.
+- Translate Chinese source meaning into fluent English for key_facts.content and logic_chain.
+- Keep language as the original source language marker: "zh" for Chinese source text and "en" for English source text.
+- Keep terminology.zh in Chinese when relevant, but terminology.en must be natural English.
+- Do not output Chinese prose in key_facts.content or logic_chain unless it is a proper noun, title, or unavoidable source term.
+"""
     return f"""你是一个跨语言个人知识库分析助手。用户给出了一个问题，以及从其个人资料库中检索到的相关材料。
 材料中包含中文文档（个人简历、笔记、心得）和英文文档（外部报告、组织架构图）。
+{english_report_instruction}
 
 请完成以下分析：
 1. 从材料中提取与问题相关的关键事实，分别标注原文语言
@@ -143,9 +159,15 @@ async def analyze_with_deepseek(
     model_name: str,
     client: Optional[Any] = None,
     include_chinese_advice: bool = False,
+    report_language: str = "zh",
 ) -> str:
     deepseek = client or RemoteLLMClient(endpoint, api_key, model_name)
-    prompt = build_deepseek_analysis_prompt(question, chunks, include_chinese_advice=include_chinese_advice)
+    prompt = build_deepseek_analysis_prompt(
+        question,
+        chunks,
+        include_chinese_advice=include_chinese_advice,
+        report_language=report_language,
+    )
     parts = []
     async for token in deepseek.stream(prompt):
         parts.append(token)
@@ -203,6 +225,7 @@ async def generate_answer(
             deepseek_api_key,
             deepseek_model,
             client=deepseek_client,
+            report_language="en",
         )
     except Exception as exc:
         yield _sse({"type": "error", "content": f"DeepSeek 调用失败: {exc}"})
@@ -268,19 +291,70 @@ def _generate_codex_base_fallback(question: str, chunks: List[RetrievedChunk]) -
 
 
 def _generate_codex_base_english_report(question: str, analysis: str, chunks: List[RetrievedChunk]) -> Iterable[str]:
+    parsed = _parse_json_object(analysis)
+    facts = parsed.get("key_facts") if isinstance(parsed, dict) and isinstance(parsed.get("key_facts"), list) else []
+    terminology = parsed.get("terminology") if isinstance(parsed, dict) and isinstance(parsed.get("terminology"), list) else []
+    logic_chain = parsed.get("logic_chain") if isinstance(parsed, dict) and isinstance(parsed.get("logic_chain"), str) else ""
+
     lines = [
-        "English report draft based on DeepSeek analysis.\n\n",
-        f"Question: {question}\n\n",
-        "DeepSeek analysis:\n",
-        analysis,
-        "\n\nReference excerpts:\n",
+        "English Report\n\n",
+        "Executive Summary\n",
+        f"This report answers the user question: {question}\n",
     ]
-    for index, chunk in enumerate(chunks[:5], start=1):
-        excerpt = " ".join(chunk.text.split())
-        if len(excerpt) > 220:
-            excerpt = excerpt[:220] + "..."
-        lines.append(f"{index}. {excerpt} (Source: {chunk.source_name}#{chunk.chunk_index})\n")
-    lines.append("\nUse these points as a grounded first draft for an English report.\n")
+    if logic_chain:
+        lines.append(f"{logic_chain.strip()}\n")
+    elif facts:
+        first_fact = facts[0] if isinstance(facts[0], dict) else {}
+        content = str(first_fact.get("content", "")).strip()
+        if content:
+            lines.append(f"The most relevant evidence is: {content}\n")
+    else:
+        summary = _compact_text(analysis, 260)
+        if summary:
+            lines.append(f"The retrieved materials indicate the following: {summary}\n")
+
+    if facts:
+        lines.append("\nKey Findings\n")
+        for index, fact in enumerate(facts[:6], start=1):
+            if not isinstance(fact, dict):
+                continue
+            content = str(fact.get("content", "")).strip()
+            source = str(fact.get("source", "")).strip()
+            if not content:
+                continue
+            suffix = f" Source: {source}." if source else ""
+            lines.append(f"{index}. {content}{suffix}\n")
+    else:
+        lines.append("\nKey Findings\n")
+        for index, chunk in enumerate(chunks[:5], start=1):
+            excerpt = _compact_text(chunk.text, 180)
+            if excerpt:
+                lines.append(f"{index}. {excerpt} Source: {chunk.source_name}#{chunk.chunk_index}.\n")
+
+    term_lines = []
+    for term in terminology[:8]:
+        if not isinstance(term, dict):
+            continue
+        zh = str(term.get("zh", "")).strip()
+        en = str(term.get("en", "")).strip()
+        if zh and en:
+            term_lines.append(f"- {en}: {zh}\n")
+    if term_lines:
+        lines.extend(["\nTerminology\n", *term_lines])
+
+    lines.append("\nRecommended Use\n")
+    lines.append(
+        "Use this as a readable first draft. Where the source material is sparse or image-derived, verify the original file before making final decisions.\n"
+    )
+
+    lines.append("\nSources\n")
+    seen_sources = set()
+    for chunk in chunks[:8]:
+        label = f"{chunk.source_name}#{chunk.chunk_index}"
+        if label in seen_sources:
+            continue
+        seen_sources.add(label)
+        lines.append(f"- {label}\n")
     return lines
 
 
@@ -343,6 +417,13 @@ def _format_chinese_answer(raw_answer: str, chunks: List[RetrievedChunk]) -> str
         lines.extend(["", "来源：", *[f"- {source}" for source in sources]])
 
     return "\n".join(lines).strip()
+
+
+def _compact_text(text: str, limit: int) -> str:
+    compact = " ".join(str(text or "").split())
+    if len(compact) > limit:
+        return compact[:limit].rstrip() + "..."
+    return compact
 
 
 def _parse_json_object(text: str) -> Optional[dict]:

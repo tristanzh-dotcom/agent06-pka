@@ -80,7 +80,27 @@ async def test_parse_pdf_extracts_all_pages(tmp_path):
 
     assert parsed.source_type == "pdf"
     assert "PDF" in parsed.text
+    assert "## Page" not in parsed.text
     assert parsed.metadata["page_count"] == 2
+    assert parsed.metadata["non_empty_pages"] == 2
+    assert parsed.quality is not None
+
+
+async def test_parse_pdf_cleaning_reassesses_quality(tmp_path):
+    fitz = pytest.importorskip("fitz")
+    path = tmp_path / "paged.pdf"
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((72, 72), "Page 1\n智能座舱市场规模持续增长，2026 年预计达到 1200 亿元。")
+    doc.save(path)
+    doc.close()
+
+    parsed = await parse_file(str(path))
+
+    assert "Page 1" not in parsed.text
+    assert parsed.quality is not None
+    assert parsed.quality.status in {"high", "low"}
+    assert parsed.metadata["quality_status"] == parsed.quality.status
 
 
 async def test_parse_xlsx_converts_sheets_to_markdown_tables(tmp_path):

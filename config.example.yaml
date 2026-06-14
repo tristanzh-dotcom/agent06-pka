@@ -10,12 +10,29 @@ fts5:
 embedding:
   host: "http://localhost:11434"
   model: "bge-m3"
+  query_prefix: ""
 
 ocr:
+  provider_order:
+    - paddle
+    - volcengine
+  max_pdf_pages: 10
+  timeout_seconds: 120
   endpoint: ""
   api_key: ""
   model: "doubao-1-5-vision-pro-32k"
   max_images_per_request: 10
+  paddle:
+    enabled: true
+    lang: "ch"
+    use_angle_cls: true
+    dpi: 150
+  volcengine:
+    enabled: true
+    endpoint: ""
+    api_key: ""
+    model: "doubao-1-5-vision-pro-32k"
+    max_images_per_request: 10
 
 deepseek:
   endpoint: ""

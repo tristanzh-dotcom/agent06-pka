@@ -1,6 +1,8 @@
 from pathlib import Path
 from typing import Dict, List
 
+from pptx.util import Pt
+
 
 def export_to_word(question: str, answer: str, sources: List[Dict], output_path: str) -> str:
     import docx
@@ -34,42 +36,79 @@ def export_to_word(question: str, answer: str, sources: List[Dict], output_path:
 
 
 def export_to_ppt(question: str, answer: str, sources: List[Dict], output_path: str) -> str:
+    import pptx
+
     path = Path(output_path)
-    fallback_path = path.with_suffix(".md")
-    fallback_path.parent.mkdir(parents=True, exist_ok=True)
-    fallback_path.write_text(
-        _ppt_fallback_markdown(question, answer, sources),
-        encoding="utf-8",
-    )
-    return str(fallback_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    presentation = pptx.Presentation()
+    _add_title_slide(presentation, "PKA 问答导出", question)
+    _add_body_slide(presentation, "回答", answer)
+    _add_sources_slide(presentation, sources)
+    presentation.save(path)
+    return str(path)
 
 
-def _ppt_fallback_markdown(question: str, answer: str, sources: List[Dict]) -> str:
-    source_lines = []
-    for source in sources:
-        source_lines.append(
-            "- "
-            + str(source.get("source_name", ""))
-            + f" | chunk {source.get('chunk_index', '')}"
-            + (f" | {source.get('chunk_id')}" if source.get("chunk_id") else "")
-        )
-    return "\n".join(
-        [
-            "# PPT 导出需要 Agent05",
-            "",
-            "当前环境未接入 Agent05 PPT-maker，已生成可交给 Agent05 的 Markdown 大纲。",
-            "",
-            "## 问题",
-            question,
-            "",
-            "## 回答",
-            answer,
-            "",
-            "## 参考来源",
-            "\n".join(source_lines) if source_lines else "- 无",
-            "",
-        ]
-    )
+def _add_title_slide(presentation, title: str, subtitle: str) -> None:
+    slide = presentation.slides.add_slide(presentation.slide_layouts[0])
+    slide.shapes.title.text = title
+    slide.placeholders[1].text = subtitle
+
+
+def _add_body_slide(presentation, title: str, body: str) -> None:
+    slide = presentation.slides.add_slide(presentation.slide_layouts[1])
+    slide.shapes.title.text = title
+    text_frame = slide.placeholders[1].text_frame
+    text_frame.clear()
+    for index, paragraph_text in enumerate(_split_slide_paragraphs(body)):
+        paragraph = text_frame.paragraphs[0] if index == 0 else text_frame.add_paragraph()
+        paragraph.text = paragraph_text
+        paragraph.font.size = Pt(18)
+
+
+def _add_sources_slide(presentation, sources: List[Dict]) -> None:
+    slide = presentation.slides.add_slide(presentation.slide_layouts[1])
+    slide.shapes.title.text = "参考来源"
+    text_frame = slide.placeholders[1].text_frame
+    text_frame.clear()
+    source_lines = _source_lines(sources)
+    for index, line in enumerate(source_lines):
+        paragraph = text_frame.paragraphs[0] if index == 0 else text_frame.add_paragraph()
+        paragraph.text = line
+        paragraph.font.size = Pt(14)
+
+
+def _split_slide_paragraphs(text: str) -> List[str]:
+    paragraphs = [line.strip() for line in str(text or "").splitlines() if line.strip()]
+    if not paragraphs and text:
+        paragraphs = [str(text).strip()]
+    if not paragraphs:
+        return ["无回答内容"]
+    return [_truncate(paragraph, 320) for paragraph in paragraphs[:8]]
+
+
+def _source_lines(sources: List[Dict]) -> List[str]:
+    if not sources:
+        return ["无"]
+    lines = []
+    for source in sources[:12]:
+        source_name = str(source.get("source_name", "")).strip() or "未知来源"
+        chunk = str(source.get("chunk_index", "")).strip()
+        chunk_id = str(source.get("chunk_id", "")).strip()
+        relevance = _format_relevance(source.get("relevance"))
+        parts = [source_name]
+        if chunk:
+            parts.append(f"chunk {chunk}")
+        if relevance:
+            parts.append(f"相关度 {relevance}")
+        if chunk_id:
+            parts.append(chunk_id)
+        lines.append(" | ".join(parts))
+    return lines
+
+
+def _truncate(text: str, limit: int) -> str:
+    return text if len(text) <= limit else text[:limit].rstrip() + "..."
 
 
 def _format_relevance(value) -> str:

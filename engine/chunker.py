@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Iterable, List
+from typing import Iterable, List, Tuple
 
 from engine.models import Chunk
 
@@ -14,10 +14,16 @@ def chunk_text(
     if not text or not text.strip():
         return []
 
-    sections = _markdown_h2_sections(text) if _looks_like_markdown(text) else _paragraphs(text)
-    chunk_texts: List[str] = []
-    for section in sections:
-        chunk_texts.extend(_window_text(section, max_chunk_size, chunk_overlap))
+    sections = _markdown_sections(text) if _looks_like_markdown(text) else [(paragraph, "") for paragraph in _paragraphs(text)]
+    chunk_records: List[Tuple[str, str]] = []
+    for section, breadcrumb in sections:
+        for window in _window_text(section, max_chunk_size, chunk_overlap):
+            embedding_text = (
+                f"[BREADCRUMB]{breadcrumb}[/BREADCRUMB]\n\n{window}"
+                if breadcrumb
+                else ""
+            )
+            chunk_records.append((window, embedding_text))
 
     created_at = datetime.now(timezone.utc).astimezone().isoformat()
     return [
@@ -28,8 +34,9 @@ def chunk_text(
             source_type=source_type,
             chunk_index=index,
             created_at=created_at,
+            embedding_text=embedding_text,
         )
-        for index, chunk in enumerate(chunk_texts)
+        for index, (chunk, embedding_text) in enumerate(chunk_records)
         if chunk.strip()
     ]
 
@@ -38,14 +45,26 @@ def _looks_like_markdown(text: str) -> bool:
     return any(line.startswith("##") for line in text.splitlines())
 
 
-def _markdown_h2_sections(text: str) -> List[str]:
+def _markdown_sections(text: str) -> List[Tuple[str, str]]:
     sections: List[List[str]] = []
     current: List[str] = []
     saw_first_h2 = False
+    h1 = ""
+    h2 = ""
+    breadcrumbs: List[str] = []
+
+    def current_breadcrumb() -> str:
+        parts = [part for part in [h1, h2] if part]
+        return " > ".join(parts)
+
     for line in text.splitlines():
+        if line.startswith("# ") and not line.startswith("## "):
+            h1 = line
         if line.startswith("## "):
             if current:
                 sections.append(current)
+                breadcrumbs.append(current_breadcrumb())
+            h2 = line
             current = [line]
             saw_first_h2 = True
         elif not saw_first_h2:
@@ -54,7 +73,14 @@ def _markdown_h2_sections(text: str) -> List[str]:
             current.append(line)
     if current:
         sections.append(current)
-    return ["\n".join(section).strip() for section in sections] if sections else _paragraphs(text)
+        breadcrumbs.append(current_breadcrumb())
+    if not sections:
+        return [(paragraph, "") for paragraph in _paragraphs(text)]
+    return [
+        ("\n".join(section).strip(), breadcrumb)
+        for section, breadcrumb in zip(sections, breadcrumbs)
+        if "\n".join(section).strip()
+    ]
 
 
 def _paragraphs(text: str) -> List[str]:

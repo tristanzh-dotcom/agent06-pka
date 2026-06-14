@@ -1,3 +1,6 @@
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from datetime import datetime
 from html import escape
 from pathlib import Path
@@ -12,13 +15,16 @@ from engine.chunker import chunk_text
 from engine.config import load_config, sanitize_config, save_config, update_config
 from engine.exporter import export_to_ppt, export_to_word
 from engine.generator import generate_answer
-from engine.indexer import HybridIndexer
-from engine.ocr import VolcengineOCR
+from engine.indexer import HybridIndexer, OllamaEmbeddingClient
+from engine.ocr import build_ocr_provider_chain
 from engine.parser import parse_file, parse_text
+from engine.ppt_maker_adapter import export_to_quality_ppt
+from engine.quality import assess_pdf_quality, clean_pdf_text
 from engine.retriever import HybridRetriever
 
 
 CONFIG_PATH = Path("config.yaml")
+OCR_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="pka-ocr")
 app = FastAPI(title="PKA")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -45,10 +51,16 @@ class Runtime:
         self.last_updated = None
 
     def _build_indexer(self) -> HybridIndexer:
+        embedding_config = self.config.get("embedding", {})
         return HybridIndexer(
             fts_db_path=self.config["fts5"]["db_path"],
             vector_dir=self.config["chroma"]["persist_dir"],
             collection_name=self.config["chroma"]["collection_name"],
+            embedding_client=OllamaEmbeddingClient(
+                host=embedding_config.get("host", "http://localhost:11434"),
+                model=embedding_config.get("model", "bge-m3"),
+                query_prefix=embedding_config.get("query_prefix", ""),
+            ),
         )
 
     def reload(self, config: Dict[str, Any]) -> None:
@@ -93,34 +105,272 @@ async def ingest_text(request: TextIngestRequest):
 
 @app.post("/api/ingest/file")
 async def ingest_file(file: UploadFile = File(...)):
+    ocr = _build_ocr_client()
+    try:
+        result = await _ingest_upload_file(file, ocr)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if result["chunks"] > 0:
+        runtime.last_updated = datetime.now().isoformat()
+    return {
+        "status": result["status"],
+        "chunks": result["chunks"],
+        "source_name": result["source_name"],
+        "chunk_ids": result["chunk_ids"],
+        "raw_file_path": result.get("raw_file_path", ""),
+        "quality": result.get("quality"),
+    }
+
+
+@app.post("/api/ingest/files")
+async def ingest_files(files: list[UploadFile] = File(...)):
+    if not files:
+        raise HTTPException(status_code=400, detail="files are required")
+    ocr = _build_ocr_client()
+    results = []
+    succeeded = 0
+    skipped = 0
+    failed = 0
+    total_chunks = 0
+    for file in files:
+        filename = Path(file.filename or "upload").name
+        try:
+            result = await _ingest_upload_file(file, ocr)
+            if result.get("status") == "skipped":
+                skipped += 1
+            else:
+                succeeded += 1
+                total_chunks += result["chunks"]
+            results.append({"filename": filename, **result})
+        except Exception as exc:
+            failed += 1
+            results.append({
+                "filename": filename,
+                "content_type": file.content_type,
+                "status": "error",
+                "error": str(exc),
+            })
+    if total_chunks > 0:
+        runtime.last_updated = datetime.now().isoformat()
+    return {
+        "status": "ok" if failed == 0 and skipped == 0 else "partial",
+        "total_files": len(files),
+        "succeeded": succeeded,
+        "skipped": skipped,
+        "failed": failed,
+        "total_chunks": total_chunks,
+        "files": results,
+    }
+
+
+def _build_ocr_client():
+    return build_ocr_provider_chain(runtime.config)
+
+
+async def _ingest_upload_file(file: UploadFile, ocr):
     raw_dir = Path(runtime.config["data_dir"]) / "raw" / datetime.now().strftime("%Y-%m-%d")
     raw_dir.mkdir(parents=True, exist_ok=True)
     output_path = raw_dir / Path(file.filename or "upload").name
+    output_path = _dedupe_upload_path(output_path)
     with output_path.open("wb") as output:
         while True:
             chunk = await file.read(1024 * 1024)
             if not chunk:
                 break
             output.write(chunk)
-    ocr = VolcengineOCR(
-        runtime.config["ocr"]["endpoint"],
-        runtime.config["ocr"]["api_key"],
-        runtime.config["ocr"]["model"],
-    )
-    try:
-        parsed = await parse_file(str(output_path), mime_type=file.content_type, ocr_client=ocr)
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    chunks = _chunk(parsed.text, parsed.source_name, parsed.source_type)
+    parsed = await parse_file(str(output_path), mime_type=file.content_type, ocr_client=ocr)
     raw_file_path = str(output_path.relative_to(Path(runtime.config["data_dir"])))
+    quality = parsed.quality
+    if quality is not None and quality.status == "needs_ocr":
+        ocr_chain_extract = getattr(ocr, "extract_pdf_until_usable", None)
+        if ocr_chain_extract is not None:
+            timeout_seconds = float(runtime.config.get("ocr", {}).get("timeout_seconds", 120))
+            max_pages = int(runtime.config.get("ocr", {}).get("max_pdf_pages", 10))
+            page_count = int(parsed.metadata.get("page_count", 1) or 1)
+            try:
+                result = await _run_ocr_chain_with_timeout(
+                    ocr_chain_extract,
+                    str(output_path),
+                    page_count=page_count,
+                    max_pages=max_pages,
+                    timeout_seconds=timeout_seconds,
+                )
+            except asyncio.TimeoutError:
+                return _skipped_ingest_result(
+                    parsed,
+                    file.content_type,
+                    raw_file_path,
+                    replace(
+                        quality,
+                        action="ocr_timeout_skipped",
+                        reasons=quality.reasons + [f"OCR 超过 {timeout_seconds:.0f} 秒，已跳过入库"],
+                    ),
+                )
+            if result is None:
+                return _skipped_ingest_result(
+                    parsed,
+                    file.content_type,
+                    raw_file_path,
+                    replace(quality, action="ocr_failed_skipped"),
+                )
+            parsed = replace(parsed, text=result.text, quality=replace(result.quality, action="ocr"))
+            quality = parsed.quality
+            ocr_provider = result.provider
+            ocr_attempts = result.attempts
+            ocr_result_meta = result
+        elif _ocr_pdf_available(ocr):
+            try:
+                ocr_text = await ocr.extract_pdf(
+                    str(output_path),
+                    max_pages=int(runtime.config.get("ocr", {}).get("max_pdf_pages", 50)),
+                )
+                cleaned_ocr_text = clean_pdf_text(ocr_text)
+                ocr_quality = assess_pdf_quality(
+                    ocr_text,
+                    cleaned_ocr_text,
+                    page_count=int(parsed.metadata.get("page_count", 1) or 1),
+                    non_empty_pages=int(parsed.metadata.get("page_count", 1) or 1),
+                )
+                if ocr_quality.status != "needs_ocr":
+                    parsed = replace(parsed, text=cleaned_ocr_text, quality=replace(ocr_quality, action="ocr"))
+                    quality = parsed.quality
+                    ocr_provider = getattr(ocr, "name", "")
+                    ocr_attempts = []
+                else:
+                    return _skipped_ingest_result(
+                        parsed,
+                        file.content_type,
+                        raw_file_path,
+                        replace(ocr_quality, action="ocr_failed_skipped"),
+                    )
+            except Exception:
+                return _skipped_ingest_result(
+                    parsed,
+                    file.content_type,
+                    raw_file_path,
+                    replace(quality, action="ocr_failed_skipped"),
+                )
+        else:
+            return _skipped_ingest_result(
+                parsed,
+                file.content_type,
+                raw_file_path,
+                replace(quality, action="needs_ocr_skipped"),
+            )
+    chunks = _chunk(parsed.text, parsed.source_name, parsed.source_type)
     count = runtime.indexer.upsert(chunks, raw_file_paths=[raw_file_path] * len(chunks))
-    runtime.last_updated = datetime.now().isoformat()
     return {
         "status": "ok",
         "chunks": count,
         "source_name": parsed.source_name,
+        "content_type": file.content_type,
+        "raw_file_path": raw_file_path,
         "chunk_ids": [chunk.id for chunk in chunks],
+        "quality": _quality_payload(
+            quality,
+            provider=locals().get("ocr_provider", ""),
+            attempts=locals().get("ocr_attempts", []),
+            ocr_result=locals().get("ocr_result_meta"),
+        ),
     }
+
+
+async def _run_ocr_chain_with_timeout(
+    ocr_chain_extract,
+    pdf_path: str,
+    *,
+    page_count: int,
+    max_pages: int,
+    timeout_seconds: float,
+):
+    loop = asyncio.get_running_loop()
+
+    def run_in_thread():
+        return asyncio.run(
+            ocr_chain_extract(
+                pdf_path,
+                page_count=page_count,
+                max_pages=max_pages,
+            )
+        )
+
+    return await asyncio.wait_for(
+        loop.run_in_executor(OCR_EXECUTOR, run_in_thread),
+        timeout=timeout_seconds,
+    )
+
+
+def _quality_payload(quality, provider="", attempts=None, ocr_result=None):
+    if quality is None:
+        return None
+    payload = {
+        "status": quality.status,
+        "action": quality.action,
+        "valid_ratio": quality.valid_ratio,
+        "short_line_ratio": quality.short_line_ratio,
+        "watermark_ratio": quality.watermark_ratio,
+        "unique_line_ratio": quality.unique_line_ratio,
+        "non_empty_pages": quality.non_empty_pages,
+        "page_count": quality.page_count,
+        "non_empty_page_ratio": quality.non_empty_page_ratio,
+        "effective_chars_per_page": quality.effective_chars_per_page,
+        "cleaned_chars_ratio": quality.cleaned_chars_ratio,
+        "reasons": quality.reasons,
+    }
+    if provider:
+        payload["provider"] = provider
+    if attempts:
+        payload["attempts"] = _attempts_payload(attempts)
+    if ocr_result is not None:
+        payload["source_page_count"] = ocr_result.source_page_count
+        payload["ocr_pages_processed"] = ocr_result.pages_processed
+        payload["ocr_page_limit_reached"] = ocr_result.page_limit_reached
+        payload["ocr_partial"] = ocr_result.partial
+    return payload
+
+
+def _ocr_pdf_available(ocr) -> bool:
+    return bool(
+        ocr is not None
+        and getattr(ocr, "endpoint", "")
+        and getattr(ocr, "api_key", "")
+        and hasattr(ocr, "extract_pdf")
+    )
+
+
+def _skipped_ingest_result(parsed, content_type, raw_file_path, quality):
+    return {
+        "status": "skipped",
+        "chunks": 0,
+        "source_name": parsed.source_name,
+        "content_type": content_type,
+        "raw_file_path": raw_file_path,
+        "chunk_ids": [],
+        "quality": _quality_payload(quality),
+    }
+
+
+def _attempts_payload(attempts):
+    return [
+        {
+            "provider": attempt.provider,
+            "status": attempt.status,
+            "error": attempt.error,
+        }
+        for attempt in attempts
+    ]
+
+
+def _dedupe_upload_path(path: Path) -> Path:
+    if not path.exists():
+        return path
+    stem = path.stem
+    suffix = path.suffix
+    for index in range(2, 1000):
+        candidate = path.with_name(f"{stem}-{index}{suffix}")
+        if not candidate.exists():
+            return candidate
+    return path.with_name(f"{stem}-{datetime.now().strftime('%H%M%S%f')}{suffix}")
 
 
 @app.post("/api/ingest/clear")
@@ -169,8 +419,15 @@ async def export_word(request: ExportRequest):
 async def export_ppt(request: ExportRequest):
     output_dir = Path(runtime.config["data_dir"]) / "exports"
     output_path = output_dir / f"pka_answer_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pptx"
-    path = export_to_ppt(request.question, request.answer, request.sources, str(output_path))
-    return FileResponse(path, media_type="text/markdown; charset=utf-8", filename=Path(path).name)
+    try:
+        path = export_to_quality_ppt(request.question, request.answer, request.sources, str(output_path), runtime.config)
+    except Exception:
+        path = export_to_ppt(request.question, request.answer, request.sources, str(output_path))
+    return FileResponse(
+        path,
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        filename=Path(path).name,
+    )
 
 
 @app.get("/api/stats")
@@ -247,7 +504,111 @@ async def serve_raw_file(raw_path: str):
 
 @app.post("/api/test-connection")
 async def test_connection():
-    return JSONResponse({"status": "ok", "message": "配置接口可用；外部模型请通过一次实际问答验证。"})
+    checks = [
+        _configured_check(
+            "deepseek",
+            "DeepSeek 中文语义分析",
+            runtime.config.get("deepseek", {}),
+            ("endpoint", "api_key", "model"),
+            "用于中文语义分析与问答结构化理解。",
+        ),
+        _ocr_check(),
+        _embedding_check(),
+    ]
+    statuses = {check["status"] for check in checks}
+    status = "error" if "error" in statuses else "partial" if "warn" in statuses else "ok"
+    return JSONResponse({"status": status, "checks": checks})
+
+
+def _ocr_check() -> Dict[str, str]:
+    config = runtime.config.get("ocr", {})
+    volcengine = config.get("volcengine", {}) if isinstance(config.get("volcengine", {}), dict) else {}
+    provider_order = config.get("provider_order", ["paddle", "volcengine"])
+    provider_label = " -> ".join(str(provider) for provider in provider_order)
+    try:
+        chain = build_ocr_provider_chain(runtime.config)
+        available_providers = [provider.name for provider in chain.providers if provider.available()]
+    except Exception:
+        available_providers = []
+    if available_providers:
+        details = [f"Provider 顺序: {provider_label}"]
+        if "paddle" in available_providers:
+            details.append("PaddleOCR 本地可用")
+        if "volcengine" in available_providers:
+            model = volcengine.get("model") or config.get("model", "")
+            details.append(f"Volcengine 模型 {model} 已配置")
+        return {
+            "id": "ocr",
+            "label": "OCR 图片解析",
+            "status": "ok",
+            "detail": "；".join(details) + "。",
+        }
+    endpoint = volcengine.get("endpoint") or config.get("endpoint", "")
+    api_key = volcengine.get("api_key") or config.get("api_key", "")
+    model = volcengine.get("model") or config.get("model", "")
+    if endpoint and api_key and model:
+        return {
+            "id": "ocr",
+            "label": "OCR 图片解析",
+            "status": "ok",
+            "detail": f"Provider 顺序: {provider_label}；Volcengine 模型 {model} 已配置。",
+        }
+    missing = [
+        name
+        for name, value in [("endpoint", endpoint), ("api_key", api_key), ("model", model)]
+        if not value
+    ]
+    return {
+        "id": "ocr",
+        "label": "OCR 图片解析",
+        "status": "warn",
+        "detail": f"未配置 Volcengine OCR ({', '.join(missing)})；PaddleOCR 未安装或不可用时，扫描 PDF 将跳过入库。",
+    }
+
+
+def _configured_check(
+    check_id: str,
+    label: str,
+    config: Dict[str, Any],
+    required_keys: tuple[str, ...],
+    ok_detail: str,
+    missing_status: str = "error",
+) -> Dict[str, str]:
+    missing = [key for key in required_keys if not str(config.get(key) or "").strip()]
+    if missing:
+        return {
+            "id": check_id,
+            "label": label,
+            "status": missing_status,
+            "detail": f"未配置 {', '.join(missing)}。",
+        }
+    model = str(config.get("model") or "").strip()
+    return {
+        "id": check_id,
+        "label": label,
+        "status": "ok",
+        "detail": f"{model} 已配置；{ok_detail}",
+    }
+
+
+def _embedding_check() -> Dict[str, str]:
+    config = runtime.config.get("embedding", {})
+    model = str(config.get("model") or "bge-m3").strip() or "bge-m3"
+    try:
+        vector = runtime.indexer.embedding_client.embed(["连接测试"])[0]
+    except Exception as exc:
+        return {
+            "id": "embedding",
+            "label": "bge-m3 向量检索",
+            "status": "error",
+            "detail": f"Ollama / {model} 不可用：{exc}",
+        }
+    return {
+        "id": "embedding",
+        "label": "bge-m3 向量检索",
+        "status": "ok",
+        "detail": f"Ollama / {model} 可用，返回 {len(vector)} 维向量。",
+    }
 
 
 def _chunk(text: str, source_name: str, source_type: str):

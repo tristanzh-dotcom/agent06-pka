@@ -5,6 +5,7 @@ import pytest
 
 from engine.indexer import HybridIndexer, OllamaEmbeddingClient
 from engine.models import Chunk
+from engine.reranker import RerankResult
 from engine.retriever import HybridRetriever, reciprocal_rank_fusion
 
 
@@ -19,6 +20,15 @@ class FakeEmbeddingClient:
             else:
                 vectors.append([0.0, 0.0, 1.0] + [0.0] * 1021)
         return vectors
+
+
+class CapturingEmbeddingClient:
+    def __init__(self):
+        self.texts = []
+
+    def embed(self, texts):
+        self.texts.extend(texts)
+        return [[1.0] + [0.0] * 1023 for _ in texts]
 
 
 def make_chunk(chunk_id, text, index):
@@ -197,3 +207,145 @@ def test_ollama_embedding_client_raises_instead_of_hash_fallback(monkeypatch):
 
     with pytest.raises(RuntimeError, match="Ollama embedding failed"):
         client.embed(["组织架构调整方案"])
+
+
+def test_embedding_text_used_only_for_vector_embedding(tmp_path):
+    embedding_client = CapturingEmbeddingClient()
+    indexer = HybridIndexer(
+        fts_db_path=str(tmp_path / "pka.db"),
+        vector_dir=str(tmp_path / "vector"),
+        collection_name="test_collection",
+        embedding_client=embedding_client,
+    )
+    chunk = Chunk(
+        id="report.pdf#0",
+        text="市场规模达到 1200 亿元。",
+        embedding_text="[BREADCRUMB]# 智能座舱 > ## 市场规模[/BREADCRUMB]\n\n市场规模达到 1200 亿元。",
+        source_name="report.pdf",
+        source_type="pdf",
+        chunk_index=0,
+        created_at="2026-06-13T12:00:00+08:00",
+    )
+
+    indexer.upsert([chunk])
+
+    assert embedding_client.texts[0].startswith("[BREADCRUMB]")
+    assert indexer.search_fts("BREADCRUMB", top_k=5) == []
+    assert indexer.get_chunk("report.pdf#0")["text"] == "市场规模达到 1200 亿元。"
+
+
+def test_query_embedding_uses_prefix_but_document_embedding_does_not(monkeypatch):
+    captured = []
+
+    def fake_embed_one(text):
+        captured.append(text)
+        return [0.1] * 1024
+
+    client = OllamaEmbeddingClient(
+        host="http://localhost:11434",
+        model="bge-m3",
+        query_prefix="Represent this sentence for searching relevant passages: ",
+    )
+    monkeypatch.setattr(client, "_embed_one", fake_embed_one)
+
+    client.embed(["入库文本"])
+    client.embed_query("查询文本")
+
+    assert captured[0] == "入库文本"
+    assert captured[1].startswith("Represent this sentence for searching relevant passages: ")
+
+
+class FakeSearchIndexer:
+    def search_fts(self, query, top_k):
+        return [
+            {
+                "chunk_id": "noise",
+                "text": "Page 12",
+                "source_name": "a.pdf",
+                "source_type": "pdf",
+                "chunk_index": 0,
+            },
+            {
+                "chunk_id": "answer",
+                "text": "组织架构调整存在品牌能力丢失风险。",
+                "source_name": "b.pdf",
+                "source_type": "pdf",
+                "chunk_index": 1,
+            },
+        ]
+
+    def search_vector(self, query, top_k):
+        return [
+            {
+                "chunk_id": "answer",
+                "text": "组织架构调整存在品牌能力丢失风险。",
+                "source_name": "b.pdf",
+                "source_type": "pdf",
+                "chunk_index": 1,
+            },
+            {
+                "chunk_id": "noise2",
+                "text": "© 水印",
+                "source_name": "c.pdf",
+                "source_type": "pdf",
+                "chunk_index": 2,
+            },
+        ]
+
+
+def test_hybrid_retriever_uses_reranker_after_rrf():
+    class FakeReranker:
+        def rerank(self, query, candidates):
+            return [
+                RerankResult(chunk_id="answer", score=0.98),
+                RerankResult(chunk_id="noise", score=0.05),
+                RerankResult(chunk_id="noise2", score=0.01),
+            ]
+
+    retriever = HybridRetriever(indexer=FakeSearchIndexer(), reranker=FakeReranker())
+    results = retriever.hybrid_search("我之前关于组织架构的看法是什么？", top_k=2)
+
+    assert results[0].chunk_id == "answer"
+    assert results[0].score == 0.98
+
+
+def test_hybrid_retriever_fails_open_when_reranker_errors():
+    class FailingReranker:
+        def rerank(self, query, candidates):
+            raise RuntimeError("reranker unavailable")
+
+    retriever = HybridRetriever(indexer=FakeSearchIndexer(), reranker=FailingReranker())
+    results = retriever.hybrid_search("组织架构", top_k=2)
+
+    assert len(results) == 2
+    assert {item.chunk_id for item in results}
+
+
+def test_reranker_receives_display_text_not_embedding_text():
+    captured = {}
+
+    class CapturingReranker:
+        def rerank(self, query, candidates):
+            captured["candidates"] = candidates
+            return [RerankResult(chunk_id=candidates[0]["chunk_id"], score=0.9)]
+
+    class DisplayTextIndexer:
+        def search_fts(self, query, top_k):
+            return [
+                {
+                    "chunk_id": "report.pdf#0",
+                    "text": "市场规模达到 1200 亿元。",
+                    "source_name": "report.pdf",
+                    "source_type": "pdf",
+                    "chunk_index": 0,
+                }
+            ]
+
+        def search_vector(self, query, top_k):
+            return []
+
+    retriever = HybridRetriever(indexer=DisplayTextIndexer(), reranker=CapturingReranker())
+    retriever.hybrid_search("市场规模", top_k=1)
+
+    assert captured["candidates"][0]["text"] == "市场规模达到 1200 亿元。"
+    assert "BREADCRUMB" not in captured["candidates"][0]["text"]
