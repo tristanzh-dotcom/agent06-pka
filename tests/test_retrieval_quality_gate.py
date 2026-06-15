@@ -12,81 +12,91 @@ from engine.retriever import HybridRetriever
 QUALITY_GATE_CASES = [
     {
         "id": "Q1",
-        "question": "座舱智能化的发展阶段和趋势是什么？",
-        "expected_top1": "智能座舱",
-        "must_include": ["智能座舱"],
+        "question": "Who is responsible for Off-cycle Concepts and Smart Cabin?",
+        "expected_top_source_type": "org_chart",
+        "must_include_source_types": ["org_chart"],
+        "must_contain": ["OFF-CYCLE", "SMART CABIN", "Nico Reimel"],
         "source_status": "grounded",
         "sources_empty": False,
     },
     {
         "id": "Q2",
-        "question": "中国智能座舱关键部件渗透率有什么变化？",
-        "expected_top1": "智能座舱",
-        "must_include": ["智能座舱"],
+        "question": "Who reports to Nico Reimel?",
+        "expected_top_source_type": "org_chart",
+        "must_include_source_types": ["org_chart"],
+        "must_contain": ["Nico Reimel", "OFF-CYCLE"],
         "source_status": "grounded",
         "sources_empty": False,
     },
     {
         "id": "Q3",
-        "question": "HUD 和 AR-HUD 在智能座舱中的发展情况如何？",
-        "expected_top1": "智能座舱",
-        "must_include": ["智能座舱"],
+        "question": "Who works with James Vallance in Concepts?",
+        "expected_top_source_type": "org_chart",
+        "must_include_source_types": ["org_chart"],
+        "must_contain": ["James Vallance", "Concept"],
         "source_status": "grounded",
         "sources_empty": False,
     },
     {
         "id": "Q4",
-        "question": "AI 大模型如何影响车载语音和智能座舱交互？",
-        "expected_top1": "智能座舱",
-        "must_include": ["智能座舱"],
+        "question": "What teams are under Software Defined Vehicle and Enterprise CI/CD?",
+        "expected_top_source_type": "org_chart",
+        "must_include_source_types": ["org_chart"],
+        "must_contain": ["SOFTWARE DEFINED VEHICLE", "ENTERPRISE CI/CD"],
         "source_status": "grounded",
         "sources_empty": False,
     },
     {
         "id": "Q5",
-        "question": "自动驾驶商业化落地面临哪些关键挑战？",
-        "expected_top1": "自动驾驶",
-        "must_include": ["自动驾驶"],
+        "question": "Who is associated with Architecture EDS and Cross Function?",
+        "expected_top_source_type": "org_chart",
+        "must_include_source_types": ["org_chart"],
+        "must_contain": ["ARCHITECTURE", "EDS", "CROSS FUNCTION"],
         "source_status": "grounded",
         "sources_empty": False,
     },
     {
         "id": "Q6",
-        "question": "Robotaxi 的发展现状和商业化路径是什么？",
-        "expected_top1": "自动驾驶",
-        "must_include": ["自动驾驶"],
+        "question": "How should the organisation charts be read?",
+        "expected_top_source_type": "pdf",
+        "must_include_source_types": ["pdf"],
+        "must_contain": ["HOW TO READ", "ORGANISATION CHARTS"],
         "source_status": "grounded",
         "sources_empty": False,
     },
     {
         "id": "Q7",
-        "question": "自动驾驶产业链或生态参与者包括哪些类型？",
-        "expected_top1": "自动驾驶",
-        "must_include": ["自动驾驶"],
+        "question": "What is the DP first line structure?",
+        "expected_top_source_type": "org_chart",
+        "must_include_source_types": ["org_chart"],
+        "must_contain": ["FIRST LINE STRUCTURE", "Digital Platform"],
         "source_status": "grounded",
         "sources_empty": False,
     },
     {
         "id": "Q8",
-        "question": "L2 到 L4 自动驾驶的发展差异体现在哪里？",
-        "expected_top1": "自动驾驶",
-        "must_include": ["自动驾驶"],
+        "question": "Who is connected to Infotainment and Connectivity?",
+        "expected_top_source_type": "org_chart",
+        "must_include_source_types": ["org_chart"],
+        "must_contain": ["INFOTAINMENT", "CONNECTIVITY"],
         "source_status": "grounded",
         "sources_empty": False,
     },
     {
         "id": "Q9",
-        "question": "座舱智能化与自动驾驶的融合趋势体现在哪些方面？",
-        "expected_top1": "智能座舱",
-        "must_include": ["智能座舱", "自动驾驶"],
+        "question": "What org chart pages mention Smart Cabin and SDV Enterprise?",
+        "expected_top_source_type": "org_chart",
+        "must_include_source_types": ["org_chart"],
+        "must_contain": ["Smart Cabin", "SDV", "Enterprise"],
         "source_status": "grounded",
         "sources_empty": False,
     },
     {
         "id": "Q10",
         "question": "宠物医疗保险理赔流程有哪些？",
-        "expected_top1": None,
-        "must_include": [],
+        "expected_top_source_type": None,
+        "must_include_source_types": [],
+        "must_contain": [],
         "source_status": "no_answer",
         "sources_empty": True,
     },
@@ -132,15 +142,21 @@ def retriever():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("case", QUALITY_GATE_CASES, ids=[case["id"] for case in QUALITY_GATE_CASES])
-async def test_retrieval_quality_gate_current_two_pdf_corpus(retriever, case):
+async def test_retrieval_quality_gate_current_jlr_org_chart_corpus(retriever, case):
     chunks = retriever.hybrid_search(case["question"], top_k=5)
-    source_labels = [_source_label(chunk.source_name) for chunk in chunks]
+    source_types = [chunk.source_type for chunk in chunks]
+    combined_text = "\n".join(chunk.text for chunk in chunks)
 
     assert chunks, f"{case['id']} returned no chunks"
-    if case["expected_top1"] is not None:
-        assert source_labels[0] == case["expected_top1"]
-    for required_source in case["must_include"]:
-        assert required_source in source_labels
+    if case["expected_top_source_type"] is not None:
+        assert source_types[0] == case["expected_top_source_type"]
+    for required_source_type in case["must_include_source_types"]:
+        assert required_source_type in source_types
+    for required_text in case["must_contain"]:
+        assert _compact(required_text) in _compact(combined_text)
+    if case["expected_top_source_type"] == "org_chart":
+        assert chunks[0].text.startswith("[ORG_CHART")
+        assert _has_org_chart_projection_features(chunks[0].text)
     assert [_noise_type(chunk.text) for chunk in chunks] == ["", "", "", "", ""]
 
     events = []
@@ -164,14 +180,6 @@ async def test_retrieval_quality_gate_current_two_pdf_corpus(retriever, case):
         assert all(source.get("chunk_id") for source in sources_event["sources"])
 
 
-def _source_label(source_name: str) -> str:
-    if "智能座舱" in source_name:
-        return "智能座舱"
-    if "自动驾驶" in source_name:
-        return "自动驾驶"
-    return "其他"
-
-
 def _noise_type(text: str) -> str:
     stripped = text.strip()
     if len(stripped) < 30:
@@ -182,3 +190,15 @@ def _noise_type(text: str) -> str:
     if lines and sum(1 for line in lines if _DOTTED_LEADER_RE.search(line)) / len(lines) > 0.5:
         return "mixed_toc"
     return ""
+
+
+def _compact(text: str) -> str:
+    return re.sub(r"[^A-Za-z0-9\u4e00-\u9fff]+", "", text).lower()
+
+
+def _has_org_chart_projection_features(text: str) -> bool:
+    return (
+        "Structure:" in text
+        or "Semantic Search Triggers:" in text
+        or "is structurally under" in text
+    )
