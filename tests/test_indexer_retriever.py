@@ -108,6 +108,27 @@ def test_indexer_preserves_raw_file_path_in_search_and_lookup(tmp_path):
     assert indexer.get_chunk("report.pdf#0")["raw_file_path"] == raw_path
 
 
+def test_search_vector_fails_open_when_chroma_query_errors(tmp_path):
+    indexer = HybridIndexer(
+        fts_db_path=str(tmp_path / "pka.db"),
+        vector_dir=str(tmp_path / "vector"),
+        collection_name="test_collection",
+        embedding_client=FakeEmbeddingClient(),
+    )
+    indexer.upsert([make_chunk("a.txt#0", "组织架构调整方案", 0)])
+
+    class BrokenCollection:
+        def count(self):
+            return 1
+
+        def query(self, **kwargs):
+            raise RuntimeError("Cannot return the results in a contigious 2D array")
+
+    indexer.collection = BrokenCollection()
+
+    assert indexer.search_vector("组织架构", top_k=10) == []
+
+
 def test_hybrid_retriever_returns_semantic_results_and_new_chunks_are_immediate(tmp_path):
     indexer = HybridIndexer(
         fts_db_path=str(tmp_path / "pka.db"),

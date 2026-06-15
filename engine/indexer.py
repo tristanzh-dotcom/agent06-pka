@@ -175,17 +175,21 @@ class HybridIndexer:
         ]
 
     def search_vector(self, query: str, top_k: int = 10) -> List[Dict[str, Any]]:
-        if self.collection.count() == 0:
+        collection_count = self.collection.count()
+        if collection_count == 0:
             return []
         if hasattr(self.embedding_client, "embed_query"):
             query_vector = self.embedding_client.embed_query(query)
         else:
             query_vector = self.embedding_client.embed([query])[0]
-        results = self.collection.query(
-            query_embeddings=[query_vector],
-            n_results=top_k,
-            include=["documents", "metadatas", "distances"],
-        )
+        try:
+            results = self.collection.query(
+                query_embeddings=[query_vector],
+                n_results=min(top_k, collection_count),
+                include=["documents", "metadatas", "distances"],
+            )
+        except RuntimeError:
+            return []
         ids = results.get("ids", [[]])[0]
         documents = results.get("documents", [[]])[0]
         metadatas = results.get("metadatas", [[]])[0]
