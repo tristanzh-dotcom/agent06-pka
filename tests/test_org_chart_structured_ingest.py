@@ -9,11 +9,14 @@ def _load_org_chart_api():
         PdfTextBlock,
         PreChunkedRecord,
         chunk_prepared_records,
+        clean_org_chart_blocks,
         generate_canonical_text,
         generate_projection_text,
         infer_layout_hierarchy,
         merge_pdf_blocks,
+        normalize_org_chart_block_text,
         normalize_org_chart_heading,
+        select_org_chart_title,
         split_large_tree_by_subdomain,
     )
 
@@ -23,11 +26,14 @@ def _load_org_chart_api():
         "PdfTextBlock": PdfTextBlock,
         "PreChunkedRecord": PreChunkedRecord,
         "chunk_prepared_records": chunk_prepared_records,
+        "clean_org_chart_blocks": clean_org_chart_blocks,
         "generate_canonical_text": generate_canonical_text,
         "generate_projection_text": generate_projection_text,
         "infer_layout_hierarchy": infer_layout_hierarchy,
         "merge_pdf_blocks": merge_pdf_blocks,
+        "normalize_org_chart_block_text": normalize_org_chart_block_text,
         "normalize_org_chart_heading": normalize_org_chart_heading,
+        "select_org_chart_title": select_org_chart_title,
         "split_large_tree_by_subdomain": split_large_tree_by_subdomain,
     }
 
@@ -91,6 +97,86 @@ def test_merge_pdf_blocks_merges_standard_aligned_node_without_semantic_labels()
     assert node.semantic_binding == "unresolved"
     assert not getattr(node, "name", None)
     assert not getattr(node, "role", None)
+
+
+def test_org_chart_noise_filter_removes_page_number_and_confidential_footer():
+    api = _load_org_chart_api()
+    blocks = [
+        _block(api, "25", 480, 20, 510, 35),
+        _block(api, "JLR Confidential ©2025", 360, 760, 560, 775),
+        _block(api, "STRICTLY CONFIDENTIAL", 350, 745, 560, 760),
+        _block(api, "Nico Reimel", 100, 250, 220, 265),
+    ]
+
+    cleaned = api["clean_org_chart_blocks"](blocks, page_height=800)
+
+    assert [block.text for block in cleaned] == ["Nico Reimel"]
+
+
+def test_org_chart_noise_filter_keeps_business_domain_root():
+    api = _load_org_chart_api()
+    blocks = [
+        _block(api, "OFF-CYCLE, CONCEPTS & SMART CABIN", 100, 95, 520, 120),
+        _block(api, "JLR Confidential ©2025", 360, 760, 560, 775),
+    ]
+
+    cleaned = api["clean_org_chart_blocks"](blocks, page_height=800)
+
+    assert [block.text for block in cleaned] == ["OFF-CYCLE, CONCEPTS & SMART CABIN"]
+
+
+def test_normalize_split_character_heading_and_names():
+    api = _load_org_chart_api()
+
+    assert api["normalize_org_chart_block_text"]("O F F - C Y C L E") == "OFF-CYCLE"
+    assert api["normalize_org_chart_block_text"]("S M A R T  C A B I N") == "SMART CABIN"
+    assert api["normalize_org_chart_block_text"]("N i c o  R e i m e l") == "Nico Reimel"
+    assert api["normalize_org_chart_block_text"]("A Plan") == "A Plan"
+    assert api["normalize_org_chart_block_text"]("I do") == "I do"
+
+
+def test_normalize_soft_wrapped_block_text():
+    api = _load_org_chart_api()
+
+    assert (
+        api["normalize_org_chart_block_text"]("Off-Cycle, \nConcepts & \nSmart Cabin")
+        == "Off-Cycle, Concepts & Smart Cabin"
+    )
+    assert (
+        api["normalize_org_chart_block_text"]("Software  \nArchitecture")
+        == "Software Architecture"
+    )
+
+
+def test_title_selection_skips_page_number_and_confidential_header():
+    api = _load_org_chart_api()
+    blocks = [
+        _block(api, "7", 480, 20, 510, 35, font_size=18),
+        _block(api, "JLR Confidential ©2025", 330, 42, 560, 55, font_size=10),
+        _block(api, "O F F - C Y C L E ,  C O N C E P T S  &  S M A R T  C A B I N", 90, 90, 760, 120, font_size=22),
+        _block(api, "Nico Reimel", 100, 250, 220, 265, font_size=11),
+    ]
+
+    title, remaining = api["select_org_chart_title"](blocks, page_height=800)
+
+    assert title == "OFF-CYCLE, CONCEPTS & SMART CABIN"
+    assert "7" not in [block.text for block in remaining]
+    assert "JLR Confidential ©2025" not in [block.text for block in remaining]
+
+
+def test_title_selection_does_not_remove_matching_domain_root_node():
+    api = _load_org_chart_api()
+    blocks = [
+        _block(api, "OFF-CYCLE, CONCEPTS & SMART CABIN", 90, 90, 760, 120, font_size=22),
+        _block(api, "OFF-CYCLE, CONCEPTS & SMART CABIN", 110, 180, 500, 210, font_size=14),
+        _block(api, "Nico Reimel", 120, 230, 260, 245, font_size=11),
+    ]
+
+    title, remaining = api["select_org_chart_title"](blocks, page_height=800)
+
+    assert title == "OFF-CYCLE, CONCEPTS & SMART CABIN"
+    assert [block.text for block in remaining].count("OFF-CYCLE, CONCEPTS & SMART CABIN") == 1
+    assert "Nico Reimel" in [block.text for block in remaining]
 
 
 def test_merge_pdf_blocks_rejects_y_axis_distance_above_threshold():

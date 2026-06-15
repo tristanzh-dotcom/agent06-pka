@@ -9,6 +9,7 @@ from engine.org_chart import (
     generate_projection_text,
     infer_layout_hierarchy,
     merge_pdf_blocks,
+    select_org_chart_title,
 )
 
 
@@ -120,6 +121,7 @@ def _parse_pdf(path: Path) -> ParseResult:
                             page_number=page_number,
                             page_text=page_text,
                             blocks=blocks,
+                            page_height=_page_height(page, blocks),
                         )
                     )
                     continue
@@ -205,6 +207,14 @@ def _pdf_text_blocks(raw_blocks, page_number: int) -> list[PdfTextBlock]:
     return blocks
 
 
+def _page_height(page, blocks: list[PdfTextBlock]) -> float:
+    rect = getattr(page, "rect", None)
+    height = getattr(rect, "height", None)
+    if height:
+        return float(height)
+    return max((block.y1 for block in blocks), default=0.0)
+
+
 def _detect_org_chart_page(page_text: str, blocks: list[PdfTextBlock]) -> bool:
     normalized = page_text.upper()
     if re.search(r"\bORG(?:ANISATION|ANIZATION)?\s+CHART\b", normalized):
@@ -236,10 +246,12 @@ def _org_chart_pre_chunks(
     page_number: int,
     page_text: str,
     blocks: list[PdfTextBlock],
+    page_height: float,
 ) -> list[PreChunkedParseRecord]:
-    nodes = merge_pdf_blocks(blocks)
+    title, cleaned_blocks = select_org_chart_title(blocks, page_height)
+    candidate_blocks = cleaned_blocks or blocks
+    nodes = merge_pdf_blocks(candidate_blocks)
     edges = infer_layout_hierarchy(nodes)
-    title = _org_chart_title(page_text)
     projection = generate_projection_text(
         source_name=source_name,
         source_page=page_number,

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 import re
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
@@ -86,6 +86,53 @@ class OrgChartChunk:
     created_at: str
     metadata: Dict[str, Any] = field(default_factory=dict)
     embedding_text: str = ""
+
+
+def normalize_org_chart_block_text(text: str) -> str:
+    normalized = re.sub(r"[\r\n]+", " ", text).strip()
+    if not normalized:
+        return ""
+    parts = [part for part in re.split(r"\s{2,}", normalized) if part.strip()]
+    if not parts:
+        return ""
+    return " ".join(_normalize_split_character_part(part) for part in parts).strip()
+
+
+def clean_org_chart_blocks(
+    blocks: Sequence[PdfTextBlock], page_height: float
+) -> List[PdfTextBlock]:
+    cleaned: List[PdfTextBlock] = []
+    for block in blocks:
+        text = normalize_org_chart_block_text(block.text)
+        if not text:
+            continue
+        normalized_block = replace(block, text=text)
+        if _is_noise_block(normalized_block, page_height):
+            continue
+        cleaned.append(normalized_block)
+    return cleaned
+
+
+def select_org_chart_title(
+    blocks: Sequence[PdfTextBlock], page_height: float
+) -> Tuple[str, List[PdfTextBlock]]:
+    cleaned = clean_org_chart_blocks(blocks, page_height)
+    if not cleaned:
+        return "ORG CHART", []
+    title_block = _best_title_block(cleaned, page_height)
+    title = title_block.text if title_block else cleaned[0].text
+    remaining = list(cleaned)
+    if title_block is not None:
+        matching_blocks = [
+            block
+            for block in cleaned
+            if block is not title_block and _same_title_text(block.text, title_block.text)
+        ]
+        if matching_blocks:
+            remaining = [block for block in cleaned if block is not title_block]
+        else:
+            remaining = [block for block in cleaned if block is not title_block]
+    return title, remaining
 
 
 def merge_pdf_blocks(blocks: Sequence[PdfTextBlock]) -> List[OrgChartNode]:
@@ -250,17 +297,61 @@ def split_large_tree_by_subdomain(
 
 
 def normalize_org_chart_heading(text: str) -> str:
-    parts = re.split(r"(\s{2,})", text.strip())
-    normalized: List[str] = []
-    for part in parts:
-        if not part.strip():
-            continue
-        letters = part.split()
-        if len(letters) > 1 and all(len(letter) == 1 for letter in letters):
-            normalized.append("".join(letters))
-        else:
-            normalized.append(part.strip())
-    return " ".join(normalized)
+    return normalize_org_chart_block_text(text)
+
+
+def _normalize_split_character_part(text: str) -> str:
+    collapsed = re.sub(r"\s+", " ", text.strip())
+    tokens = collapsed.split(" ")
+    if len(tokens) >= 3 and all(re.fullmatch(r"[A-Za-z0-9&/(),.-]", token) for token in tokens):
+        return "".join(tokens)
+    return collapsed
+
+
+def _is_noise_block(block: PdfTextBlock, page_height: float) -> bool:
+    text = block.text.strip()
+    if not _is_page_edge_block(block, page_height):
+        return False
+    if re.fullmatch(r"\d+(?:\s*/\s*\d+)?", text):
+        return True
+    if re.fullmatch(r"(?i)slide\s+\d+", text):
+        return True
+    return bool(
+        re.fullmatch(
+            r"(?i)(?:JLR\s+Confidential\s*)?(?:©\s*202\d|strictly confidential|internal use only|JLR\s+Confidential\s*©?\s*202\d?)",
+            text,
+        )
+    )
+
+
+def _is_page_edge_block(block: PdfTextBlock, page_height: float) -> bool:
+    if page_height <= 0:
+        return False
+    return block.y1 <= page_height * 0.15 or block.y0 >= page_height * 0.85
+
+
+def _best_title_block(
+    blocks: Sequence[PdfTextBlock], page_height: float
+) -> Optional[PdfTextBlock]:
+    structural = [block for block in blocks if _is_title_signal(block.text)]
+    if structural:
+        return min(structural, key=lambda block: (block.y0, -block.font_size))
+    top_limit = page_height * 0.15 if page_height > 0 else max(block.y1 for block in blocks)
+    top_blocks = [block for block in blocks if block.y0 <= top_limit]
+    candidates = top_blocks or list(blocks)
+    return max(candidates, key=lambda block: (block.font_size, (block.x1 - block.x0) * (block.y1 - block.y0)))
+
+
+def _is_title_signal(text: str) -> bool:
+    normalized = text.upper()
+    return bool(
+        re.search(r"\bORG(?:ANISATION|ANIZATION)?\s+CHART\b", normalized)
+        or "FIRST LINE STRUCTURE" in normalized
+    )
+
+
+def _same_title_text(first: str, second: str) -> bool:
+    return re.sub(r"\W+", "", first).upper() == re.sub(r"\W+", "", second).upper()
 
 
 def _should_merge_blocks(first: PdfTextBlock, second: PdfTextBlock) -> bool:
