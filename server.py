@@ -16,6 +16,7 @@ from engine.config import load_config, sanitize_config, save_config, update_conf
 from engine.exporter import export_to_ppt, export_to_word
 from engine.generator import generate_answer
 from engine.indexer import HybridIndexer, OllamaEmbeddingClient
+from engine.models import Chunk
 from engine.ocr import build_ocr_provider_chain
 from engine.parser import parse_file, parse_text
 from engine.ppt_maker_adapter import export_to_quality_ppt
@@ -258,20 +259,29 @@ async def _ingest_upload_file(file: UploadFile, ocr):
                 replace(quality, action="needs_ocr_skipped"),
             )
     chunks = _chunk(parsed.text, parsed.source_name, parsed.source_type)
+    pre_chunks = getattr(parsed, "pre_chunks", [])
+    chunks.extend(_pre_chunk_records(pre_chunks))
     count = runtime.indexer.upsert(chunks, raw_file_paths=[raw_file_path] * len(chunks))
+    org_chart_pages = [record.metadata.get("page") for record in pre_chunks if getattr(record, "metadata", None)]
+    quality_payload = _quality_payload(
+        quality,
+        provider=locals().get("ocr_provider", ""),
+        attempts=locals().get("ocr_attempts", []),
+        ocr_result=locals().get("ocr_result_meta"),
+    )
+    if quality_payload is not None and pre_chunks:
+        quality_payload["org_chart_chunks"] = len(pre_chunks)
+        quality_payload["org_chart_pages"] = org_chart_pages
+        quality_payload["org_chart_mode"] = "pdf_layout_fallback"
     return {
         "status": "ok",
         "chunks": count,
         "source_name": parsed.source_name,
         "content_type": file.content_type,
         "raw_file_path": raw_file_path,
+        "org_chart_chunks": len(pre_chunks),
         "chunk_ids": [chunk.id for chunk in chunks],
-        "quality": _quality_payload(
-            quality,
-            provider=locals().get("ocr_provider", ""),
-            attempts=locals().get("ocr_attempts", []),
-            ocr_result=locals().get("ocr_result_meta"),
-        ),
+        "quality": quality_payload,
     }
 
 
@@ -619,6 +629,27 @@ def _chunk(text: str, source_name: str, source_type: str):
         max_chunk_size=runtime.config["chunking"]["max_chunk_size"],
         chunk_overlap=runtime.config["chunking"]["chunk_overlap"],
     )
+
+
+def _pre_chunk_records(records):
+    created_at = datetime.now().astimezone().isoformat()
+    chunks = []
+    for index, record in enumerate(records):
+        if not getattr(record, "is_pre_chunked", False):
+            continue
+        text = record.text
+        chunks.append(
+            Chunk(
+                id=f"{record.source_name}#org_chart_{index}",
+                text=text,
+                source_name=record.source_name,
+                source_type=record.source_type,
+                chunk_index=index,
+                created_at=created_at,
+                embedding_text=text,
+            )
+        )
+    return chunks
 
 
 def _source_payload(chunk_id: str) -> dict:

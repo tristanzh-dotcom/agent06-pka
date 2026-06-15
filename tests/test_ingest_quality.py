@@ -1,6 +1,7 @@
 from io import BytesIO
 from pathlib import Path
 import asyncio
+from types import SimpleNamespace
 
 import pytest
 from fastapi import UploadFile
@@ -20,6 +21,21 @@ class RecordingIndexer:
 
     def count_chunks(self):
         return sum(len(chunks) for chunks, _ in self.upsert_calls)
+
+
+def _pre_chunk(text=None):
+    return SimpleNamespace(
+        text=text or "[ORG_CHART]\nStructure:\n- Field 1: Nico Reimel\n[/ORG_CHART]",
+        source_name="jlr_org.pdf",
+        source_type="org_chart",
+        is_pre_chunked=True,
+        metadata={
+            "page": 7,
+            "chart_id": "jlr_org.pdf#page_7#chart_1",
+            "confidence": "medium",
+            "org_chart_mode": "pdf_layout_fallback",
+        },
+    )
 
 
 def _needs_ocr_quality(action="needs_ocr_skipped"):
@@ -98,6 +114,69 @@ async def test_needs_ocr_without_ocr_is_skipped_and_not_indexed(monkeypatch, tmp
     assert result["chunk_ids"] == []
     assert result["quality"]["action"] == "needs_ocr_skipped"
     assert indexer.count_chunks() == 0
+
+
+@pytest.mark.asyncio
+async def test_ingest_upload_indexes_pre_chunks_without_chunk_text_split(monkeypatch, tmp_path):
+    indexer = RecordingIndexer()
+    monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
+    monkeypatch.setattr(server.runtime, "indexer", indexer)
+    projection = "[ORG_CHART]\n" + "\n".join(f"- Person {idx}" for idx in range(200)) + "\n[/ORG_CHART]"
+    pre_chunk = _pre_chunk(projection)
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+        return SimpleNamespace(
+            text="",
+            source_name=Path(file_path).name,
+            source_type="pdf",
+            metadata={"page_count": 1, "non_empty_pages": 1},
+            quality=None,
+            pre_chunks=[pre_chunk],
+        )
+
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    upload = UploadFile(filename="jlr_org.pdf", file=BytesIO(b"%PDF org chart"), headers=None)
+
+    result = await server._ingest_upload_file(upload, ocr=None)
+
+    assert result["status"] == "ok"
+    assert result["chunks"] == 1
+    chunks, raw_paths = indexer.upsert_calls[0]
+    assert len(chunks) == 1
+    assert chunks[0].text == projection
+    assert chunks[0].embedding_text == projection
+    assert chunks[0].source_type == "org_chart"
+    assert raw_paths == [result["raw_file_path"]]
+
+
+@pytest.mark.asyncio
+async def test_mixed_pdf_indexes_normal_chunks_and_org_chart_chunks(monkeypatch, tmp_path):
+    indexer = RecordingIndexer()
+    monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
+    monkeypatch.setattr(server.runtime, "indexer", indexer)
+    pre_chunk = _pre_chunk()
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+        return SimpleNamespace(
+            text="This normal PDF paragraph is long enough to survive PDF chunk noise filtering and be indexed.",
+            source_name=Path(file_path).name,
+            source_type="pdf",
+            metadata={"page_count": 2, "non_empty_pages": 2},
+            quality=None,
+            pre_chunks=[pre_chunk],
+        )
+
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    upload = UploadFile(filename="mixed.pdf", file=BytesIO(b"%PDF mixed"), headers=None)
+
+    result = await server._ingest_upload_file(upload, ocr=None)
+
+    assert result["status"] == "ok"
+    assert result["chunks"] == 2
+    chunks, raw_paths = indexer.upsert_calls[0]
+    assert [chunk.source_type for chunk in chunks] == ["pdf", "org_chart"]
+    assert chunks[1].text == pre_chunk.text
+    assert raw_paths == [result["raw_file_path"], result["raw_file_path"]]
 
 
 @pytest.mark.asyncio

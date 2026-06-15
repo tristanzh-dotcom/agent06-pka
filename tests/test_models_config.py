@@ -38,6 +38,35 @@ def test_parse_result_and_chunk_are_frozen_dataclasses():
         chunk.text = "changed"
 
 
+def test_parse_result_accepts_pre_chunk_records_as_bypass_contract():
+    from engine.models import PreChunkedParseRecord
+
+    pre_chunk = PreChunkedParseRecord(
+        text="[ORG_CHART]\nStructure:\n- Field 1: Nico Reimel\n[/ORG_CHART]",
+        source_name="jlr_org.pdf",
+        source_type="org_chart",
+        is_pre_chunked=True,
+        metadata={
+            "page": 7,
+            "chart_id": "jlr_org.pdf#page_7#chart_1",
+            "confidence": "medium",
+            "org_chart_mode": "pdf_layout_fallback",
+        },
+    )
+
+    parsed = ParseResult(
+        text="普通 PDF 正文",
+        source_name="jlr_org.pdf",
+        source_type="pdf",
+        metadata={"page_count": 2},
+        pre_chunks=[pre_chunk],
+    )
+
+    assert parsed.pre_chunks == [pre_chunk]
+    assert parsed.pre_chunks[0].is_pre_chunked is True
+    assert parsed.pre_chunks[0].source_type == "org_chart"
+
+
 def test_retrieved_chunk_exposes_rank_metadata():
     retrieved = RetrievedChunk(
         chunk_id="note.txt#0",

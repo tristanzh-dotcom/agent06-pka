@@ -1,8 +1,15 @@
 import mimetypes
 from pathlib import Path
+import re
 from typing import Any, Optional
 
-from engine.models import ParseResult
+from engine.models import ParseResult, PreChunkedParseRecord
+from engine.org_chart import (
+    PdfTextBlock,
+    generate_projection_text,
+    infer_layout_hierarchy,
+    merge_pdf_blocks,
+)
 
 
 TEXT_TYPES = {".txt": "txt", ".md": "md"}
@@ -98,10 +105,23 @@ def _parse_pdf(path: Path) -> ParseResult:
 
     document = fitz.open(path)
     pages = []
+    pre_chunks = []
     try:
-        for page in document:
+        for page_number, page in enumerate(document, start=1):
             page_text = page.get_text().strip()
+            raw_blocks = page.get_text("blocks")
             if page_text:
+                blocks = _pdf_text_blocks(raw_blocks, page_number)
+                if _detect_org_chart_page(page_text, blocks):
+                    pre_chunks.append(
+                        _org_chart_pre_chunk(
+                            source_name=path.name,
+                            page_number=page_number,
+                            page_text=page_text,
+                            blocks=blocks,
+                        )
+                    )
+                    continue
                 pages.append(page_text)
         page_count = document.page_count
     finally:
@@ -118,8 +138,12 @@ def _parse_pdf(path: Path) -> ParseResult:
             "non_empty_pages": len(pages),
             "quality_status": quality.status,
             "quality_action": quality.action,
+            "org_chart_pages": [record.metadata["page"] for record in pre_chunks],
+            "org_chart_chunks": len(pre_chunks),
+            "org_chart_mode": "pdf_layout_fallback" if pre_chunks else "",
         },
         quality=quality,
+        pre_chunks=pre_chunks,
     )
 
 
@@ -155,3 +179,96 @@ def _cell_to_text(value: Any) -> str:
     if value is None:
         return ""
     return str(value)
+
+
+def _pdf_text_blocks(raw_blocks, page_number: int) -> list[PdfTextBlock]:
+    blocks = []
+    for raw in raw_blocks or []:
+        if len(raw) < 5:
+            continue
+        x0, y0, x1, y1, text = raw[:5]
+        cleaned = str(text).strip()
+        if not cleaned:
+            continue
+        blocks.append(
+            PdfTextBlock(
+                text=cleaned,
+                x0=float(x0),
+                y0=float(y0),
+                x1=float(x1),
+                y1=float(y1),
+                font_size=max(1.0, min(18.0, float(y1) - float(y0))),
+                page=page_number,
+            )
+        )
+    return blocks
+
+
+def _detect_org_chart_page(page_text: str, blocks: list[PdfTextBlock]) -> bool:
+    normalized = page_text.upper()
+    if re.search(r"\bORG(?:ANISATION|ANIZATION)?\s+CHART\b", normalized):
+        return True
+    short_blocks = [block for block in blocks if len(block.text) <= 32]
+    if len(short_blocks) < 12:
+        return False
+    y_bands = _count_y_bands(short_blocks)
+    x_centers = {round(block.x_center / 80) for block in short_blocks}
+    short_ratio = len(short_blocks) / max(len(blocks), 1)
+    return short_ratio >= 0.65 and y_bands >= 3 and len(x_centers) >= 3
+
+
+def _count_y_bands(blocks: list[PdfTextBlock], tolerance: float = 10.0) -> int:
+    bands: list[float] = []
+    for block in sorted(blocks, key=lambda item: item.y_center):
+        for index, center in enumerate(bands):
+            if abs(block.y_center - center) <= tolerance:
+                bands[index] = (center + block.y_center) / 2
+                break
+        else:
+            bands.append(block.y_center)
+    return len(bands)
+
+
+def _org_chart_pre_chunk(
+    *,
+    source_name: str,
+    page_number: int,
+    page_text: str,
+    blocks: list[PdfTextBlock],
+) -> PreChunkedParseRecord:
+    nodes = merge_pdf_blocks(blocks)
+    edges = infer_layout_hierarchy(nodes)
+    projection = generate_projection_text(
+        source_name=source_name,
+        source_page=page_number,
+        title=_org_chart_title(page_text),
+        extraction_mode="pdf_layout_fallback",
+        confidence="medium",
+        nodes=nodes,
+        edges=edges,
+        warnings=[
+            "native_pptx_unavailable",
+            "connector_relationships_inferred",
+            "cross_page_links_not_supported_v1",
+        ],
+    )
+    return PreChunkedParseRecord(
+        text=projection,
+        source_name=source_name,
+        source_type="org_chart",
+        is_pre_chunked=True,
+        metadata={
+            "page": page_number,
+            "chart_id": f"{source_name}#page_{page_number}#chart_1",
+            "confidence": "medium",
+            "org_chart_mode": "pdf_layout_fallback",
+        },
+    )
+
+
+def _org_chart_title(page_text: str) -> str:
+    for line in page_text.splitlines():
+        stripped = line.strip()
+        if stripped:
+            return stripped
+    return "ORG CHART"

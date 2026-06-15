@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 
@@ -19,12 +19,22 @@ class ParseQuality:
 
 
 @dataclass(frozen=True)
+class PreChunkedParseRecord:
+    text: str
+    source_name: str
+    source_type: str
+    is_pre_chunked: bool
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class ParseResult:
     text: str
     source_name: str
     source_type: str
     metadata: Dict[str, Any]
     quality: Optional[ParseQuality] = None
+    pre_chunks: List[PreChunkedParseRecord] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

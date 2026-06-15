@@ -1,9 +1,57 @@
 from pathlib import Path
+from types import SimpleNamespace
+import sys
 
 import pytest
 
 from engine.models import ParseResult
 from engine.parser import parse_file, parse_text
+
+
+class FakePDFDocument:
+    def __init__(self, pages):
+        self.pages = pages
+        self.page_count = len(pages)
+        self.closed = False
+
+    def __iter__(self):
+        return iter(self.pages)
+
+    def close(self):
+        self.closed = True
+
+
+class FakePDFPage:
+    def __init__(self, plain_text, blocks):
+        self.plain_text = plain_text
+        self.blocks = blocks
+
+    def get_text(self, mode=None):
+        if mode == "blocks":
+            return self.blocks
+        return self.plain_text
+
+
+def _install_fake_fitz(monkeypatch, pages):
+    document = FakePDFDocument(pages)
+    monkeypatch.setitem(sys.modules, "fitz", SimpleNamespace(open=lambda path: document))
+    return document
+
+
+def _org_chart_blocks():
+    blocks = [
+        (450, 80, 550, 95, "ORG CHART", 0, 0),
+        (450, 100, 550, 115, "Nico Reimel", 1, 0),
+        (452, 116, 548, 130, "Off Cycle", 2, 0),
+    ]
+    for index, x_center in enumerate([220, 360, 500, 640, 780], start=3):
+        blocks.extend(
+            [
+                (x_center - 45, 250, x_center + 45, 265, f"Person {index}", index, 0),
+                (x_center - 45, 266, x_center + 45, 280, f"Role {index}", index + 20, 0),
+            ]
+        )
+    return blocks
 
 
 def test_parse_text_returns_manual_parse_result():
@@ -84,6 +132,94 @@ async def test_parse_pdf_extracts_all_pages(tmp_path):
     assert parsed.metadata["page_count"] == 2
     assert parsed.metadata["non_empty_pages"] == 2
     assert parsed.quality is not None
+
+
+async def test_parse_pdf_detects_org_chart_page_and_emits_pre_chunk(monkeypatch, tmp_path):
+    path = tmp_path / "jlr_org.pdf"
+    path.write_bytes(b"%PDF fake")
+    _install_fake_fitz(
+        monkeypatch,
+        [
+            FakePDFPage(
+                "ORG CHART\nNico Reimel\nOff Cycle\nJames Vallance\nConcepts",
+                _org_chart_blocks(),
+            )
+        ],
+    )
+
+    parsed = await parse_file(str(path))
+
+    assert len(parsed.pre_chunks) == 1
+    pre_chunk = parsed.pre_chunks[0]
+    assert pre_chunk.source_type == "org_chart"
+    assert pre_chunk.is_pre_chunked is True
+    assert "[ORG_CHART]" in pre_chunk.text
+    assert pre_chunk.metadata["page"] == 1
+    assert pre_chunk.metadata["org_chart_mode"] == "pdf_layout_fallback"
+
+
+async def test_org_chart_page_is_removed_from_normal_pdf_text(monkeypatch, tmp_path):
+    path = tmp_path / "mixed.pdf"
+    path.write_bytes(b"%PDF fake")
+    _install_fake_fitz(
+        monkeypatch,
+        [
+            FakePDFPage(
+                "ORG CHART\nNico Reimel\nOff Cycle\nJames Vallance\nConcepts",
+                _org_chart_blocks(),
+            ),
+            FakePDFPage(
+                "This normal paragraph discusses programme milestones and delivery risks in full sentences.",
+                [
+                    (
+                        72,
+                        72,
+                        500,
+                        96,
+                        "This normal paragraph discusses programme milestones and delivery risks in full sentences.",
+                        0,
+                        0,
+                    )
+                ],
+            ),
+        ],
+    )
+
+    parsed = await parse_file(str(path))
+
+    assert "This normal paragraph discusses programme milestones" in parsed.text
+    assert "Nico Reimel" not in parsed.text
+    assert "James Vallance" not in parsed.text
+
+
+async def test_non_org_chart_pdf_keeps_existing_parse_behavior(monkeypatch, tmp_path):
+    path = tmp_path / "normal.pdf"
+    path.write_bytes(b"%PDF fake")
+    _install_fake_fitz(
+        monkeypatch,
+        [
+            FakePDFPage(
+                "This is a normal PDF page with full paragraph text about vehicle programme delivery.",
+                [
+                    (
+                        72,
+                        72,
+                        500,
+                        96,
+                        "This is a normal PDF page with full paragraph text about vehicle programme delivery.",
+                        0,
+                        0,
+                    )
+                ],
+            )
+        ],
+    )
+
+    parsed = await parse_file(str(path))
+
+    assert parsed.source_type == "pdf"
+    assert parsed.pre_chunks == []
+    assert "normal PDF page" in parsed.text
 
 
 async def test_parse_pdf_cleaning_reassesses_quality(tmp_path):
