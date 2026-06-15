@@ -158,6 +158,38 @@ async def test_parse_pdf_detects_org_chart_page_and_emits_pre_chunk(monkeypatch,
     assert pre_chunk.metadata["org_chart_mode"] == "pdf_layout_fallback"
 
 
+async def test_parse_pdf_splits_large_org_chart_projection_for_embedding_safety(monkeypatch, tmp_path):
+    path = tmp_path / "large_org.pdf"
+    path.write_bytes(b"%PDF fake")
+    blocks = [(450, 80, 550, 95, "ORG CHART", 0, 0)]
+    for index in range(90):
+        x_center = 150 + (index % 6) * 130
+        y = 140 + index * 18
+        blocks.extend(
+            [
+                (x_center - 45, y, x_center + 45, y + 12, f"Person {index:02d}", index * 2 + 1, 0),
+                (x_center - 45, y + 13, x_center + 45, y + 25, f"Role {index:02d}", index * 2 + 2, 0),
+            ]
+        )
+    _install_fake_fitz(
+        monkeypatch,
+        [
+            FakePDFPage(
+                "ORG CHART\n" + "\n".join(f"Person {index:02d}\nRole {index:02d}" for index in range(90)),
+                blocks,
+            )
+        ],
+    )
+
+    parsed = await parse_file(str(path))
+
+    assert len(parsed.pre_chunks) > 1
+    assert all(record.source_type == "org_chart" for record in parsed.pre_chunks)
+    assert all(record.is_pre_chunked is True for record in parsed.pre_chunks)
+    assert all(len(record.text) <= 8000 for record in parsed.pre_chunks)
+    assert any("[ORG_CHART_SUBTREE]" in record.text for record in parsed.pre_chunks)
+
+
 async def test_org_chart_page_is_removed_from_normal_pdf_text(monkeypatch, tmp_path):
     path = tmp_path / "mixed.pdf"
     path.write_bytes(b"%PDF fake")

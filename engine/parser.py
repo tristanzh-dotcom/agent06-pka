@@ -14,6 +14,7 @@ from engine.org_chart import (
 
 TEXT_TYPES = {".txt": "txt", ".md": "md"}
 IMAGE_TYPES = {".png", ".jpg", ".jpeg", ".webp"}
+ORG_CHART_MAX_PRE_CHUNK_CHARS = 3500
 
 
 def parse_text(text: str, source_name: str = "manual_input") -> ParseResult:
@@ -113,8 +114,8 @@ def _parse_pdf(path: Path) -> ParseResult:
             if page_text:
                 blocks = _pdf_text_blocks(raw_blocks, page_number)
                 if _detect_org_chart_page(page_text, blocks):
-                    pre_chunks.append(
-                        _org_chart_pre_chunk(
+                    pre_chunks.extend(
+                        _org_chart_pre_chunks(
                             source_name=path.name,
                             page_number=page_number,
                             page_text=page_text,
@@ -229,19 +230,20 @@ def _count_y_bands(blocks: list[PdfTextBlock], tolerance: float = 10.0) -> int:
     return len(bands)
 
 
-def _org_chart_pre_chunk(
+def _org_chart_pre_chunks(
     *,
     source_name: str,
     page_number: int,
     page_text: str,
     blocks: list[PdfTextBlock],
-) -> PreChunkedParseRecord:
+) -> list[PreChunkedParseRecord]:
     nodes = merge_pdf_blocks(blocks)
     edges = infer_layout_hierarchy(nodes)
+    title = _org_chart_title(page_text)
     projection = generate_projection_text(
         source_name=source_name,
         source_page=page_number,
-        title=_org_chart_title(page_text),
+        title=title,
         extraction_mode="pdf_layout_fallback",
         confidence="medium",
         nodes=nodes,
@@ -252,17 +254,94 @@ def _org_chart_pre_chunk(
             "cross_page_links_not_supported_v1",
         ],
     )
+    if len(projection) <= ORG_CHART_MAX_PRE_CHUNK_CHARS:
+        return [
+            _pre_chunk_record(
+                text=projection,
+                source_name=source_name,
+                page_number=page_number,
+                part_index=1,
+            )
+        ]
+    return [
+        _pre_chunk_record(
+            text=text,
+            source_name=source_name,
+            page_number=page_number,
+            part_index=index,
+        )
+        for index, text in enumerate(
+            _split_large_org_chart_projection(
+                projection,
+                source_name=source_name,
+                page_number=page_number,
+                title=title,
+            ),
+            start=1,
+        )
+    ]
+
+
+def _pre_chunk_record(
+    *, text: str, source_name: str, page_number: int, part_index: int
+) -> PreChunkedParseRecord:
     return PreChunkedParseRecord(
-        text=projection,
+        text=text,
         source_name=source_name,
         source_type="org_chart",
         is_pre_chunked=True,
         metadata={
             "page": page_number,
-            "chart_id": f"{source_name}#page_{page_number}#chart_1",
+            "chart_id": f"{source_name}#page_{page_number}#chart_1_part_{part_index}",
             "confidence": "medium",
             "org_chart_mode": "pdf_layout_fallback",
         },
+    )
+
+
+def _split_large_org_chart_projection(
+    projection: str, *, source_name: str, page_number: int, title: str
+) -> list[str]:
+    body_lines = [
+        line
+        for line in projection.splitlines()
+        if line
+        and not line.startswith("[ORG_CHART]")
+        and not line.startswith("[/ORG_CHART]")
+        and not line.startswith("Source:")
+        and not line.startswith("Page:")
+        and not line.startswith("Title:")
+        and not line.startswith("Extraction mode:")
+        and not line.startswith("Confidence:")
+    ]
+    chunks: list[str] = []
+    current: list[str] = []
+    for line in body_lines:
+        candidate = current + [line]
+        if current and len(_org_chart_subtree_text(source_name, page_number, title, candidate)) > ORG_CHART_MAX_PRE_CHUNK_CHARS:
+            chunks.append(_org_chart_subtree_text(source_name, page_number, title, current))
+            current = [line]
+        else:
+            current = candidate
+    if current:
+        chunks.append(_org_chart_subtree_text(source_name, page_number, title, current))
+    return chunks
+
+
+def _org_chart_subtree_text(
+    source_name: str, page_number: int, title: str, body_lines: list[str]
+) -> str:
+    return "\n".join(
+        [
+            "[ORG_CHART_SUBTREE]",
+            f"Source: {source_name}",
+            f"Page: {page_number}",
+            f"Context Root: {title}",
+            "Confidence: medium",
+            "",
+            *body_lines,
+            "[/ORG_CHART_SUBTREE]",
+        ]
     )
 
 
