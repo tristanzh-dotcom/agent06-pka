@@ -1,6 +1,8 @@
+import asyncio
 import json
 import re
 import sqlite3
+import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import urllib.error
@@ -182,13 +184,17 @@ class HybridIndexer:
             query_vector = self.embedding_client.embed_query(query)
         else:
             query_vector = self.embedding_client.embed([query])[0]
-        try:
-            results = self.collection.query(
-                query_embeddings=[query_vector],
-                n_results=min(top_k, collection_count),
-                include=["documents", "metadatas", "distances"],
-            )
-        except RuntimeError:
+        results = None
+        for n_results in _vector_n_results_attempts(min(top_k, collection_count)):
+            try:
+                results = self._query_collection(
+                    query_vector=query_vector,
+                    n_results=n_results,
+                )
+                break
+            except RuntimeError:
+                continue
+        if results is None:
             return []
         ids = results.get("ids", [[]])[0]
         documents = results.get("documents", [[]])[0]
@@ -206,6 +212,31 @@ class HybridIndexer:
             }
             for chunk_id, document, metadata, distance in zip(ids, documents, metadatas, distances)
         ]
+
+    def _query_collection(self, *, query_vector: List[float], n_results: int) -> Dict[str, Any]:
+        query_kwargs = {
+            "query_embeddings": [query_vector],
+            "n_results": n_results,
+            "include": ["documents", "metadatas", "distances"],
+        }
+        if not _running_event_loop_in_current_thread():
+            return self.collection.query(**query_kwargs)
+
+        result_box = []
+        error_box = []
+
+        def run_query():
+            try:
+                result_box.append(self.collection.query(**query_kwargs))
+            except BaseException as exc:
+                error_box.append(exc)
+
+        thread = threading.Thread(target=run_query, name="pka-chroma-query")
+        thread.start()
+        thread.join()
+        if error_box:
+            raise error_box[0]
+        return result_box[0]
 
     def get_chunk(self, chunk_id: str) -> Optional[Dict[str, Any]]:
         result = self.collection.get(
@@ -251,6 +282,22 @@ def _tokenize(text: str) -> str:
     except Exception:
         tokens = [text]
     return " ".join(tokens)
+
+
+def _running_event_loop_in_current_thread() -> bool:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+    return True
+
+
+def _vector_n_results_attempts(n_results: int) -> List[int]:
+    attempts = [max(1, int(n_results))]
+    for fallback in (5, 3, 1):
+        if fallback < attempts[0] and fallback not in attempts:
+            attempts.append(fallback)
+    return attempts
 
 
 def _safe_fts_query(tokens: str) -> str:

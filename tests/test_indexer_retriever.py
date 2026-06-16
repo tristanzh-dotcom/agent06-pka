@@ -1,3 +1,4 @@
+import asyncio
 import sqlite3
 from urllib.error import URLError
 
@@ -127,6 +128,92 @@ def test_search_vector_fails_open_when_chroma_query_errors(tmp_path):
     indexer.collection = BrokenCollection()
 
     assert indexer.search_vector("组织架构", top_k=10) == []
+
+
+def test_search_vector_retries_lower_n_results_when_chroma_hnsw_limit_errors(tmp_path):
+    indexer = HybridIndexer(
+        fts_db_path=str(tmp_path / "pka.db"),
+        vector_dir=str(tmp_path / "vector"),
+        collection_name="test_collection",
+        embedding_client=FakeEmbeddingClient(),
+    )
+
+    class HnswLimitedCollection:
+        def __init__(self):
+            self.requested_n_results = []
+
+        def count(self):
+            return 10
+
+        def query(self, **kwargs):
+            n_results = kwargs["n_results"]
+            self.requested_n_results.append(n_results)
+            if n_results > 3:
+                raise RuntimeError("Cannot return the results in a contigious 2D array")
+            return {
+                "ids": [["a.txt#0", "b.txt#0", "c.txt#0"][:n_results]],
+                "documents": [["组织架构调整方案", "组织架构职责", "组织架构备注"][:n_results]],
+                "metadatas": [[
+                    {
+                        "source_name": f"{name}.txt",
+                        "source_type": "txt",
+                        "chunk_index": index,
+                        "created_at": "2026-06-04T12:00:00+08:00",
+                        "raw_file_path": "",
+                    }
+                    for index, name in enumerate(["a", "b", "c"][:n_results])
+                ]],
+                "distances": [[0.1, 0.2, 0.3][:n_results]],
+            }
+
+    collection = HnswLimitedCollection()
+    indexer.collection = collection
+
+    results = indexer.search_vector("组织架构", top_k=10)
+
+    assert [result["chunk_id"] for result in results] == ["a.txt#0", "b.txt#0", "c.txt#0"]
+    assert collection.requested_n_results == [10, 5, 3]
+
+
+@pytest.mark.asyncio
+async def test_search_vector_queries_chroma_outside_running_event_loop(tmp_path):
+    indexer = HybridIndexer(
+        fts_db_path=str(tmp_path / "pka.db"),
+        vector_dir=str(tmp_path / "vector"),
+        collection_name="test_collection",
+        embedding_client=FakeEmbeddingClient(),
+    )
+
+    class AsyncUnsafeCollection:
+        def count(self):
+            return 1
+
+        def query(self, **kwargs):
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                pass
+            else:
+                raise RuntimeError("Cannot return the results in a contigious 2D array")
+            return {
+                "ids": [["a.txt#0"]],
+                "documents": [["组织架构调整方案"]],
+                "metadatas": [[{
+                    "source_name": "a.txt",
+                    "source_type": "txt",
+                    "chunk_index": 0,
+                    "created_at": "2026-06-04T12:00:00+08:00",
+                    "raw_file_path": "",
+                }]],
+                "distances": [[0.1]],
+            }
+
+    indexer.collection = AsyncUnsafeCollection()
+
+    results = indexer.search_vector("组织架构", top_k=10)
+
+    assert results[0]["chunk_id"] == "a.txt#0"
+    assert results[0]["source_type"] == "txt"
 
 
 def test_hybrid_retriever_returns_semantic_results_and_new_chunks_are_immediate(tmp_path):

@@ -1,6 +1,5 @@
 from io import BytesIO
 from pathlib import Path
-import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -168,6 +167,51 @@ async def test_needs_ocr_without_ocr_is_skipped_and_not_indexed(monkeypatch, tmp
 
 
 @pytest.mark.asyncio
+async def test_needs_ocr_sync_ingest_skips_without_running_ocr_chain(monkeypatch, tmp_path):
+    indexer = RecordingIndexer()
+    monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
+    monkeypatch.setattr(server.runtime, "indexer", indexer)
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+        return ParseResult(
+            text="",
+            source_name=Path(file_path).name,
+            source_type="pdf",
+            metadata={"page_count": 41, "non_empty_pages": 0},
+            quality=_needs_ocr_quality(),
+        )
+
+    class FakeOCRChain:
+        calls = 0
+
+        async def extract_pdf_until_usable(self, pdf_path, *, page_count, max_pages):
+            self.calls += 1
+            return OCRChainResult(
+                text="\n".join(["OCR text should not be indexed."] * 12),
+                quality=_high_quality(),
+                provider="paddle",
+                attempts=[OCRAttempt(provider="paddle", status="accepted", quality=_high_quality())],
+                source_page_count=41,
+                pages_processed=10,
+                page_limit_reached=True,
+                partial=True,
+            )
+
+    ocr_chain = FakeOCRChain()
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    upload = UploadFile(filename="scan.pdf", file=BytesIO(b"%PDF scan"), headers=None)
+
+    result = await server._ingest_upload_file(upload, ocr=ocr_chain)
+
+    assert result["status"] == "skipped"
+    assert result["quality"]["action"] == "needs_ocr_skipped"
+    assert result["chunks"] == 0
+    assert ocr_chain.calls == 0
+    assert indexer.upsert_calls == []
+    assert indexer.count_chunks() == 0
+
+
+@pytest.mark.asyncio
 async def test_ingest_upload_indexes_pre_chunks_without_chunk_text_split(monkeypatch, tmp_path):
     indexer = RecordingIndexer()
     monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
@@ -231,7 +275,7 @@ async def test_mixed_pdf_indexes_normal_chunks_and_org_chart_chunks(monkeypatch,
 
 
 @pytest.mark.asyncio
-async def test_needs_ocr_with_successful_pdf_ocr_is_indexed(monkeypatch, tmp_path):
+async def test_needs_ocr_with_legacy_pdf_ocr_is_skipped_before_ocr(monkeypatch, tmp_path):
     indexer = RecordingIndexer()
     monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
     monkeypatch.setattr(server.runtime, "indexer", indexer)
@@ -248,25 +292,29 @@ async def test_needs_ocr_with_successful_pdf_ocr_is_indexed(monkeypatch, tmp_pat
     class FakePDFOCR:
         endpoint = "configured"
         api_key = "secret"
+        calls = 0
 
         async def extract_pdf(self, pdf_path, max_pages=50):
+            self.calls += 1
             return "\n".join(
                 ["OCR 转写正文，包含 2026 年市场规模和 23.7% 渗透率，供应链能力持续提升。"] * 20
             )
 
+    ocr = FakePDFOCR()
     monkeypatch.setattr(server, "parse_file", fake_parse_file)
     upload = UploadFile(filename="scan.pdf", file=BytesIO(b"%PDF empty scan"), headers=None)
 
-    result = await server._ingest_upload_file(upload, ocr=FakePDFOCR())
+    result = await server._ingest_upload_file(upload, ocr=ocr)
 
-    assert result["status"] == "ok"
-    assert result["quality"]["action"] == "ocr"
-    assert result["chunks"] > 0
-    assert indexer.count_chunks() == result["chunks"]
+    assert result["status"] == "skipped"
+    assert result["quality"]["action"] == "needs_ocr_skipped"
+    assert result["chunks"] == 0
+    assert ocr.calls == 0
+    assert indexer.count_chunks() == 0
 
 
 @pytest.mark.asyncio
-async def test_needs_ocr_uses_provider_chain_and_records_provider(monkeypatch, tmp_path):
+async def test_needs_ocr_provider_chain_is_not_called_in_sync_ingest(monkeypatch, tmp_path):
     indexer = RecordingIndexer()
     monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
     monkeypatch.setattr(server.runtime, "indexer", indexer)
@@ -302,20 +350,17 @@ async def test_needs_ocr_uses_provider_chain_and_records_provider(monkeypatch, t
 
     result = await server._ingest_upload_file(upload, ocr=ocr_chain)
 
-    assert ocr_chain.calls == 1
-    assert result["status"] == "ok"
-    assert result["quality"]["action"] == "ocr"
-    assert result["quality"]["provider"] == "paddle"
-    assert result["quality"]["attempts"] == [{"provider": "paddle", "status": "accepted", "error": ""}]
-    assert result["quality"]["ocr_pages_processed"] == 10
-    assert result["quality"]["ocr_page_limit_reached"] is True
-    assert result["quality"]["ocr_partial"] is True
-    assert result["chunks"] > 0
-    assert indexer.count_chunks() == result["chunks"]
+    assert ocr_chain.calls == 0
+    assert result["status"] == "skipped"
+    assert result["quality"]["action"] == "needs_ocr_skipped"
+    assert result["quality"].get("provider", "") == ""
+    assert result["quality"].get("attempts", []) == []
+    assert result["chunks"] == 0
+    assert indexer.count_chunks() == 0
 
 
 @pytest.mark.asyncio
-async def test_needs_ocr_provider_chain_timeout_skips_without_indexing(monkeypatch, tmp_path):
+async def test_needs_ocr_skips_before_provider_chain_timeout_path(monkeypatch, tmp_path):
     indexer = RecordingIndexer()
     monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
     monkeypatch.setitem(server.runtime.config["ocr"], "timeout_seconds", 0.01)
@@ -331,8 +376,10 @@ async def test_needs_ocr_provider_chain_timeout_skips_without_indexing(monkeypat
         )
 
     class SlowOCRChain:
+        calls = 0
+
         async def extract_pdf_until_usable(self, pdf_path, *, page_count, max_pages):
-            await asyncio.sleep(1)
+            self.calls += 1
             return OCRChainResult(
                 text="too late",
                 quality=_high_quality(),
@@ -340,19 +387,21 @@ async def test_needs_ocr_provider_chain_timeout_skips_without_indexing(monkeypat
                 attempts=[],
             )
 
+    ocr_chain = SlowOCRChain()
     monkeypatch.setattr(server, "parse_file", fake_parse_file)
     upload = UploadFile(filename="scan.pdf", file=BytesIO(b"%PDF empty scan"), headers=None)
 
-    result = await server._ingest_upload_file(upload, ocr=SlowOCRChain())
+    result = await server._ingest_upload_file(upload, ocr=ocr_chain)
 
     assert result["status"] == "skipped"
-    assert result["quality"]["action"] == "ocr_timeout_skipped"
+    assert result["quality"]["action"] == "needs_ocr_skipped"
     assert result["chunks"] == 0
+    assert ocr_chain.calls == 0
     assert indexer.count_chunks() == 0
 
 
 @pytest.mark.asyncio
-async def test_needs_ocr_provider_chain_failure_skips_without_indexing(monkeypatch, tmp_path):
+async def test_needs_ocr_skips_before_provider_chain_failure_path(monkeypatch, tmp_path):
     indexer = RecordingIndexer()
     monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
     monkeypatch.setattr(server.runtime, "indexer", indexer)
@@ -367,17 +416,22 @@ async def test_needs_ocr_provider_chain_failure_skips_without_indexing(monkeypat
         )
 
     class FakeOCRChain:
+        calls = 0
+
         async def extract_pdf_until_usable(self, pdf_path, *, page_count, max_pages):
+            self.calls += 1
             return None
 
+    ocr_chain = FakeOCRChain()
     monkeypatch.setattr(server, "parse_file", fake_parse_file)
     upload = UploadFile(filename="scan.pdf", file=BytesIO(b"%PDF empty scan"), headers=None)
 
-    result = await server._ingest_upload_file(upload, ocr=FakeOCRChain())
+    result = await server._ingest_upload_file(upload, ocr=ocr_chain)
 
     assert result["status"] == "skipped"
-    assert result["quality"]["action"] == "ocr_failed_skipped"
+    assert result["quality"]["action"] == "needs_ocr_skipped"
     assert result["chunks"] == 0
+    assert ocr_chain.calls == 0
     assert indexer.count_chunks() == 0
 
 
@@ -412,7 +466,7 @@ async def test_low_quality_pdf_does_not_trigger_ocr_chain(monkeypatch, tmp_path)
 
 
 @pytest.mark.asyncio
-async def test_ocr_failure_is_skipped_not_degraded_indexed(monkeypatch, tmp_path):
+async def test_needs_ocr_skips_before_legacy_pdf_ocr_failure_path(monkeypatch, tmp_path):
     indexer = RecordingIndexer()
     monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
     monkeypatch.setattr(server.runtime, "indexer", indexer)
@@ -429,18 +483,22 @@ async def test_ocr_failure_is_skipped_not_degraded_indexed(monkeypatch, tmp_path
     class FailingPDFOCR:
         endpoint = "configured"
         api_key = "secret"
+        calls = 0
 
         async def extract_pdf(self, pdf_path, max_pages=50):
+            self.calls += 1
             raise RuntimeError("OCR failed")
 
+    ocr = FailingPDFOCR()
     monkeypatch.setattr(server, "parse_file", fake_parse_file)
     upload = UploadFile(filename="scan.pdf", file=BytesIO(b"%PDF empty scan"), headers=None)
 
-    result = await server._ingest_upload_file(upload, ocr=FailingPDFOCR())
+    result = await server._ingest_upload_file(upload, ocr=ocr)
 
     assert result["status"] == "skipped"
-    assert result["quality"]["action"] == "ocr_failed_skipped"
+    assert result["quality"]["action"] == "needs_ocr_skipped"
     assert result["chunks"] == 0
+    assert ocr.calls == 0
     assert indexer.count_chunks() == 0
 
 

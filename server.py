@@ -1,5 +1,3 @@
-import asyncio
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime
 from html import escape
@@ -20,12 +18,10 @@ from engine.models import Chunk, ParseQuality
 from engine.ocr import build_ocr_provider_chain
 from engine.parser import parse_file, parse_text
 from engine.ppt_maker_adapter import export_to_quality_ppt
-from engine.quality import assess_pdf_quality, clean_pdf_text
 from engine.retriever import HybridRetriever
 
 
 CONFIG_PATH = Path("config.yaml")
-OCR_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="pka-ocr")
 app = FastAPI(title="PKA")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -203,81 +199,12 @@ async def _ingest_upload_file(file: UploadFile, ocr):
     raw_file_path = str(output_path.relative_to(Path(runtime.config["data_dir"])))
     quality = parsed.quality
     if quality is not None and quality.status == "needs_ocr":
-        ocr_chain_extract = getattr(ocr, "extract_pdf_until_usable", None)
-        if ocr_chain_extract is not None:
-            timeout_seconds = float(runtime.config.get("ocr", {}).get("timeout_seconds", 120))
-            max_pages = int(runtime.config.get("ocr", {}).get("max_pdf_pages", 10))
-            page_count = int(parsed.metadata.get("page_count", 1) or 1)
-            try:
-                result = await _run_ocr_chain_with_timeout(
-                    ocr_chain_extract,
-                    str(output_path),
-                    page_count=page_count,
-                    max_pages=max_pages,
-                    timeout_seconds=timeout_seconds,
-                )
-            except asyncio.TimeoutError:
-                return _skipped_ingest_result(
-                    parsed,
-                    file.content_type,
-                    raw_file_path,
-                    replace(
-                        quality,
-                        action="ocr_timeout_skipped",
-                        reasons=quality.reasons + [f"OCR 超过 {timeout_seconds:.0f} 秒，已跳过入库"],
-                    ),
-                )
-            if result is None:
-                return _skipped_ingest_result(
-                    parsed,
-                    file.content_type,
-                    raw_file_path,
-                    replace(quality, action="ocr_failed_skipped"),
-                )
-            parsed = replace(parsed, text=result.text, quality=replace(result.quality, action="ocr"))
-            quality = parsed.quality
-            ocr_provider = result.provider
-            ocr_attempts = result.attempts
-            ocr_result_meta = result
-        elif _ocr_pdf_available(ocr):
-            try:
-                ocr_text = await ocr.extract_pdf(
-                    str(output_path),
-                    max_pages=int(runtime.config.get("ocr", {}).get("max_pdf_pages", 50)),
-                )
-                cleaned_ocr_text = clean_pdf_text(ocr_text)
-                ocr_quality = assess_pdf_quality(
-                    ocr_text,
-                    cleaned_ocr_text,
-                    page_count=int(parsed.metadata.get("page_count", 1) or 1),
-                    non_empty_pages=int(parsed.metadata.get("page_count", 1) or 1),
-                )
-                if ocr_quality.status != "needs_ocr":
-                    parsed = replace(parsed, text=cleaned_ocr_text, quality=replace(ocr_quality, action="ocr"))
-                    quality = parsed.quality
-                    ocr_provider = getattr(ocr, "name", "")
-                    ocr_attempts = []
-                else:
-                    return _skipped_ingest_result(
-                        parsed,
-                        file.content_type,
-                        raw_file_path,
-                        replace(ocr_quality, action="ocr_failed_skipped"),
-                    )
-            except Exception:
-                return _skipped_ingest_result(
-                    parsed,
-                    file.content_type,
-                    raw_file_path,
-                    replace(quality, action="ocr_failed_skipped"),
-                )
-        else:
-            return _skipped_ingest_result(
-                parsed,
-                file.content_type,
-                raw_file_path,
-                replace(quality, action="needs_ocr_skipped"),
-            )
+        return _skipped_ingest_result(
+            parsed,
+            file.content_type,
+            raw_file_path,
+            replace(quality, action="needs_ocr_skipped"),
+        )
     return await _ingest_parsed_result(
         parsed,
         content_type=file.content_type,
@@ -327,31 +254,6 @@ async def _ingest_parsed_result(
         "chunk_ids": [chunk.id for chunk in chunks],
         "quality": quality_payload,
     }
-
-
-async def _run_ocr_chain_with_timeout(
-    ocr_chain_extract,
-    pdf_path: str,
-    *,
-    page_count: int,
-    max_pages: int,
-    timeout_seconds: float,
-):
-    loop = asyncio.get_running_loop()
-
-    def run_in_thread():
-        return asyncio.run(
-            ocr_chain_extract(
-                pdf_path,
-                page_count=page_count,
-                max_pages=max_pages,
-            )
-        )
-
-    return await asyncio.wait_for(
-        loop.run_in_executor(OCR_EXECUTOR, run_in_thread),
-        timeout=timeout_seconds,
-    )
 
 
 def _quality_payload(quality, provider="", attempts=None, ocr_result=None):
@@ -426,15 +328,6 @@ def _enforce_sync_chunk_limit(chunk_count: int, source_name: str) -> None:
                 "reasons": [reason],
             },
         },
-    )
-
-
-def _ocr_pdf_available(ocr) -> bool:
-    return bool(
-        ocr is not None
-        and getattr(ocr, "endpoint", "")
-        and getattr(ocr, "api_key", "")
-        and hasattr(ocr, "extract_pdf")
     )
 
 
