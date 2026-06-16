@@ -109,6 +109,8 @@ async def ingest_file(file: UploadFile = File(...)):
     ocr = _build_ocr_client()
     try:
         result = await _ingest_upload_file(file, ocr)
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if result["chunks"] > 0:
@@ -143,6 +145,16 @@ async def ingest_files(files: list[UploadFile] = File(...)):
                 succeeded += 1
                 total_chunks += result["chunks"]
             results.append({"filename": filename, **result})
+        except HTTPException as exc:
+            failed += 1
+            detail = exc.detail if isinstance(exc.detail, dict) else {"reason": str(exc.detail)}
+            results.append({
+                "filename": filename,
+                "content_type": file.content_type,
+                "status": "error",
+                "error": detail.get("reason", str(exc.detail)),
+                "quality": detail.get("quality"),
+            })
         except Exception as exc:
             failed += 1
             results.append({
@@ -261,6 +273,7 @@ async def _ingest_upload_file(file: UploadFile, ocr):
     chunks = _chunk(parsed.text, parsed.source_name, parsed.source_type)
     pre_chunks = getattr(parsed, "pre_chunks", [])
     chunks.extend(_pre_chunk_records(pre_chunks))
+    _enforce_sync_chunk_limit(len(chunks), parsed.source_name)
     count = runtime.indexer.upsert(chunks, raw_file_paths=[raw_file_path] * len(chunks))
     org_chart_pages = [record.metadata.get("page") for record in pre_chunks if getattr(record, "metadata", None)]
     quality_payload = _quality_payload(
@@ -337,6 +350,34 @@ def _quality_payload(quality, provider="", attempts=None, ocr_result=None):
         payload["ocr_page_limit_reached"] = ocr_result.page_limit_reached
         payload["ocr_partial"] = ocr_result.partial
     return payload
+
+
+def _max_sync_chunks_per_file() -> int:
+    ingest_config = runtime.config.get("ingest", {})
+    return int(ingest_config.get("max_sync_chunks_per_file", 100) or 100)
+
+
+def _enforce_sync_chunk_limit(chunk_count: int, source_name: str) -> None:
+    limit = _max_sync_chunks_per_file()
+    if chunk_count <= limit:
+        return
+    reason = f"文件 {source_name} 切分后产生 {chunk_count} 个片段，超过单次同步入库上限 {limit}，已阻止入库"
+    raise HTTPException(
+        status_code=413,
+        detail={
+            "status": "error",
+            "action": "too_large_skipped",
+            "source_name": source_name,
+            "chunks": chunk_count,
+            "limit": limit,
+            "reason": reason,
+            "quality": {
+                "status": "too_large",
+                "action": "too_large_skipped",
+                "reasons": [reason],
+            },
+        },
+    )
 
 
 def _ocr_pdf_available(ocr) -> bool:

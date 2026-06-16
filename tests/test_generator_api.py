@@ -929,6 +929,68 @@ def test_file_ingest_preserves_raw_file_path_in_source_lookup(tmp_path, monkeypa
         restore_runtime(server, original)
 
 
+def test_file_ingest_rejects_too_many_sync_chunks_before_upsert(tmp_path, monkeypatch):
+    import server
+    from engine.models import Chunk, ParseResult
+
+    original = install_temp_runtime(server, tmp_path, "test_file_chunk_limit")
+
+    class RecordingIndexer:
+        def __init__(self):
+            self.upsert_calls = []
+
+        def upsert(self, chunks, raw_file_paths=None):
+            self.upsert_calls.append((chunks, raw_file_paths))
+            return len(chunks)
+
+        def count_chunks(self):
+            return sum(len(chunks) for chunks, _ in self.upsert_calls)
+
+    def fake_chunks(count):
+        return [
+            Chunk(
+                id=f"huge.pdf#{index}",
+                text=f"chunk {index}",
+                source_name="huge.pdf",
+                source_type="pdf",
+                chunk_index=index,
+                created_at="2026-06-16T00:00:00+08:00",
+            )
+            for index in range(count)
+        ]
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+        return ParseResult(
+            text="oversized pdf text",
+            source_name=Path(file_path).name,
+            source_type="pdf",
+            metadata={},
+        )
+
+    indexer = RecordingIndexer()
+    server.runtime.indexer = indexer
+    server.runtime.config = {
+        **server.runtime.config,
+        "ingest": {"max_sync_chunks_per_file": 100},
+    }
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    monkeypatch.setattr(server, "_chunk", lambda text, source_name, source_type: fake_chunks(101))
+    client = TestClient(app)
+
+    try:
+        response = client.post(
+            "/api/ingest/file",
+            files={"file": ("huge.pdf", b"pdf bytes", "application/pdf")},
+        )
+
+        assert response.status_code == 413
+        assert "101" in response.text
+        assert "100" in response.text
+        assert indexer.upsert_calls == []
+    finally:
+        restore_runtime(server, original)
+
+
 def test_bulk_file_ingest_returns_per_file_results_and_preserves_raw_files(tmp_path, monkeypatch):
     import server
     from engine.models import ParseResult
@@ -969,6 +1031,81 @@ def test_bulk_file_ingest_returns_per_file_results_and_preserves_raw_files(tmp_p
         assert all(item["chunks"] >= 1 for item in body["files"])
         assert all(item["raw_file_path"].startswith("raw/") for item in body["files"])
         assert parsed_files == [("alpha.txt", "text/plain"), ("beta.md", "text/markdown")]
+    finally:
+        restore_runtime(server, original)
+
+
+def test_bulk_file_ingest_marks_oversized_file_error_and_keeps_small_success(tmp_path, monkeypatch):
+    import server
+    from engine.models import Chunk, ParseResult
+
+    original = install_temp_runtime(server, tmp_path, "test_bulk_chunk_limit")
+
+    class RecordingIndexer:
+        def __init__(self):
+            self.upsert_calls = []
+
+        def upsert(self, chunks, raw_file_paths=None):
+            self.upsert_calls.append((chunks, raw_file_paths))
+            return len(chunks)
+
+        def count_chunks(self):
+            return sum(len(chunks) for chunks, _ in self.upsert_calls)
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+        return ParseResult(
+            text=f"{Path(file_path).name} text",
+            source_name=Path(file_path).name,
+            source_type="pdf",
+            metadata={},
+        )
+
+    def fake_chunk(text, source_name, source_type):
+        count = 101 if source_name == "huge.pdf" else 1
+        return [
+            Chunk(
+                id=f"{source_name}#{index}",
+                text=f"{source_name} chunk {index}",
+                source_name=source_name,
+                source_type=source_type,
+                chunk_index=index,
+                created_at="2026-06-16T00:00:00+08:00",
+            )
+            for index in range(count)
+        ]
+
+    indexer = RecordingIndexer()
+    server.runtime.indexer = indexer
+    server.runtime.config = {
+        **server.runtime.config,
+        "ingest": {"max_sync_chunks_per_file": 100},
+    }
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    monkeypatch.setattr(server, "_chunk", fake_chunk)
+    client = TestClient(app)
+
+    try:
+        response = client.post(
+            "/api/ingest/files",
+            files=[
+                ("files", ("small.pdf", b"small", "application/pdf")),
+                ("files", ("huge.pdf", b"huge", "application/pdf")),
+            ],
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "partial"
+        assert body["succeeded"] == 1
+        assert body["failed"] == 1
+        assert body["total_chunks"] == 1
+        assert body["files"][0]["status"] == "ok"
+        assert body["files"][1]["status"] == "error"
+        assert "101" in body["files"][1]["error"]
+        assert "100" in body["files"][1]["error"]
+        assert body["files"][1]["quality"]["action"] == "too_large_skipped"
+        assert len(indexer.upsert_calls) == 1
+        assert len(indexer.upsert_calls[0][0]) == 1
     finally:
         restore_runtime(server, original)
 

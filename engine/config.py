@@ -63,6 +63,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "chunk_overlap": 128,
         "md_split_by": "##",
     },
+    "ingest": {
+        "max_sync_chunks_per_file": 100,
+    },
     "retrieval": {
         "fts5_top_k": 10,
         "vector_top_k": 10,
