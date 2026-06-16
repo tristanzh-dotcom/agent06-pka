@@ -135,6 +135,7 @@ function formatIngestFeedback(result, actionLabel) {
 function qualityStatusMessage(result) {
   const quality = result?.quality || {};
   const action = quality.action;
+  if (action === "too_large_skipped") return "文件过大，未入库";
   if ((action === "direct" || action === "cleaned") && quality.status === "low") return "全文入库，低信度";
   if (action === "direct" || action === "cleaned") return "全文入库";
   if (action === "low_indexed") return "低质量入库";
@@ -159,6 +160,9 @@ function qualityStatusMessage(result) {
 }
 
 function qualityBadge(result) {
+  if (result?.quality?.action === "too_large_skipped") {
+    return { className: "quality-blocked", text: "文件过大，未入库" };
+  }
   if (result?.status === "error") return { className: "quality-failed", text: "解析失败" };
   const quality = result?.quality || {};
   const action = quality.action;
@@ -178,6 +182,14 @@ function qualityBadge(result) {
   }
   if (["needs_ocr_skipped", "ocr_failed_skipped", "ocr_timeout_skipped"].includes(action)) {
     return { className: "quality-blocked", text: "未入库，需 OCR" };
+  }
+  return null;
+}
+
+function orgChartBadge(result) {
+  const quality = result?.quality || {};
+  if (Number(quality.org_chart_chunks) > 0 || quality.org_chart_mode === "pdf_layout_fallback") {
+    return { className: "quality-org-chart", text: "Org Chart" };
   }
   return null;
 }
@@ -202,8 +214,12 @@ function qualityDetails(result) {
   return rows;
 }
 
+function hasRawFilePath(item) {
+  return !!item?.raw_file_path;
+}
+
 function rawFileHref(result) {
-  if (!result?.raw_file_path) return "";
+  if (!hasRawFilePath(result)) return "";
   return `api/files/${result.raw_file_path.split("/").map(encodeURIComponent).join("/")}`;
 }
 
@@ -215,6 +231,8 @@ function humanizeErrorMessage(error) {
   const raw = error?.message || String(error);
   try {
     const parsed = JSON.parse(raw);
+    const upload413 = formatUpload413Error(parsed);
+    if (upload413) return upload413;
     const detail = parsed?.detail;
     if (detail === "Not Found") return "接口未找到，请刷新后重试";
     if (Array.isArray(detail)) {
@@ -229,6 +247,19 @@ function humanizeErrorMessage(error) {
   }
   if (raw === "Not Found") return "接口未找到，请刷新后重试";
   return raw;
+}
+
+function formatUpload413Error(errResponse) {
+  const detail = errResponse?.detail;
+  if (detail?.quality?.action === "too_large_skipped" || detail?.action === "too_large_skipped") {
+    const chunks = detail?.chunks;
+    const limit = detail?.limit;
+    if (Number.isFinite(Number(chunks)) && Number.isFinite(Number(limit))) {
+      return `文件过大，未入库：解析产生 ${chunks} 个片段，超过当前同步入库上限 ${limit}，已取消入库。`;
+    }
+    return detail?.reason || "文件过大，未入库。";
+  }
+  return "";
 }
 
 function isStaleUploadFailure(value) {
@@ -260,8 +291,9 @@ function uploadSlotStatus(result) {
 
 function renderQualityBadge(row, result, fileKey) {
   const badge = qualityBadge(result);
+  const chartBadge = orgChartBadge(result);
   const href = rawFileHref(result);
-  if (!badge && !href) return;
+  if (!badge && !chartBadge && !href) return;
 
   const qualityRow = document.createElement("div");
   qualityRow.className = "upload-quality-row";
@@ -281,6 +313,12 @@ function renderQualityBadge(row, result, fileKey) {
       publishEmbeddedSnapshot();
     });
     qualityRow.appendChild(button);
+  }
+  if (chartBadge) {
+    const marker = document.createElement("span");
+    marker.className = `quality-badge ${chartBadge.className}`;
+    marker.textContent = chartBadge.text;
+    qualityRow.appendChild(marker);
   }
   if (href) {
     const link = document.createElement("a");
@@ -501,12 +539,19 @@ function appendSources(answer, displaySources) {
   for (const source of displaySources) {
     const item = document.createElement("div");
     item.className = "ask-source-chip";
+    const badge = sourceTypeBadge(source);
+    if (badge) {
+      const marker = document.createElement("span");
+      marker.className = `source-type-badge ${badge.className}`;
+      marker.textContent = badge.text;
+      item.appendChild(marker);
+    }
     const link = document.createElement("a");
     link.href = sourceHref(source);
     link.target = "_blank";
     link.rel = "noreferrer";
     link.textContent = formatSourceLabel(source);
-    link.title = source.raw_file_path ? "打开原始附件" : "打开来源片段";
+    link.title = hasRawFilePath(source) ? "打开原始附件" : "打开来源片段";
     item.appendChild(link);
     sources.appendChild(item);
   }
@@ -555,7 +600,7 @@ function normalizeSourceList(sources) {
   const seen = new Set();
   const displaySources = [];
   for (const source of sources || []) {
-    const key = source.raw_file_path ? `file:${source.raw_file_path}` : `source:${source.source_name}`;
+    const key = hasRawFilePath(source) ? `file:${source.raw_file_path}` : `source:${source.source_name}`;
     if (seen.has(key)) continue;
     seen.add(key);
     displaySources.push(source);
@@ -564,7 +609,7 @@ function normalizeSourceList(sources) {
 }
 
 function formatSourceLabel(source) {
-  if (source.raw_file_path) {
+  if (hasRawFilePath(source)) {
     const parts = source.raw_file_path.split("/");
     return parts[parts.length - 1] || source.source_name;
   }
@@ -576,8 +621,18 @@ function formatSourceLabel(source) {
   return source.source_name || "来源片段";
 }
 
+function sourceTypeBadge(source) {
+  source = source || {};
+  const sourceType = String(source.source_type || "").toLowerCase();
+  if (sourceType === "org_chart") return { className: "source-type-org-chart", text: "Org Chart" };
+  if (sourceType === "pdf") return { className: "source-type-pdf", text: "PDF" };
+  if (sourceType === "text") return { className: "source-type-text", text: "Text" };
+  if (sourceType) return { className: "source-type-generic", text: sourceType.toUpperCase() };
+  return { className: "source-type-generic", text: "Source" };
+}
+
 function sourceHref(source) {
-  if (source.raw_file_path) {
+  if (hasRawFilePath(source)) {
     return `api/files/${source.raw_file_path.split("/").map(encodeURIComponent).join("/")}`;
   }
   return `api/sources?chunk_id=${encodeURIComponent(source.chunk_id)}`;

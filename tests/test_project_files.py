@@ -85,7 +85,7 @@ def test_settings_page_keeps_fixed_model_stack_out_of_maintenance_controls():
     assert "function formatSettingsFeedback" in app_js
     assert 'setFeedback("settings-feedback", formatSettingsFeedback(result))' in app_js
     assert "checks.map" in app_js
-    assert "20260613-settings-diagnostics" in settings_html
+    assert "20260616-source-type-ui" in settings_html
 
 
 def test_settings_page_uses_readable_diagnostic_text_colors():
@@ -360,6 +360,75 @@ def test_ingest_upload_errors_are_readable_and_not_restored_as_stale_state():
     assert "接口未找到，请刷新后重试" in app_js
     assert 'id === "file-feedback" && isStaleUploadFailure(value)' in app_js
     assert 'setFeedback("file-feedback", formatErrorFeedback("上传", error))' in app_js
+
+
+def test_upload_413_error_detail_is_unwrapped_safely_for_user_feedback():
+    root = Path(__file__).resolve().parents[1]
+    app_js = (root / "static/app.js").read_text(encoding="utf-8")
+
+    assert "function formatUpload413Error" in app_js
+    assert "detail?.chunks" in app_js
+    assert "detail?.limit" in app_js
+    assert 'detail?.quality?.action === "too_large_skipped"' in app_js
+    assert "文件过大，未入库" in app_js
+    assert "解析产生" in app_js
+    assert "超过当前同步入库上限" in app_js
+
+
+def test_upload_quality_badge_maps_too_large_skipped_without_parser_failure_copy():
+    root = Path(__file__).resolve().parents[1]
+    app_js = (root / "static/app.js").read_text(encoding="utf-8")
+
+    quality_badge_body = app_js[app_js.index("function qualityBadge") : app_js.index("function formatQualityPercent")]
+    assert 'action === "too_large_skipped"' in quality_badge_body
+    assert "文件过大，未入库" in quality_badge_body
+    assert "解析失败" in quality_badge_body
+    assert quality_badge_body.index('action === "too_large_skipped"') < quality_badge_body.index('"解析失败"')
+
+
+def test_upload_quality_renders_org_chart_secondary_badge_without_replacing_main_badge():
+    root = Path(__file__).resolve().parents[1]
+    app_js = (root / "static/app.js").read_text(encoding="utf-8")
+    style_css = (root / "static/style.css").read_text(encoding="utf-8")
+
+    assert "function orgChartBadge" in app_js
+    assert "quality.org_chart_chunks" in app_js
+    assert 'quality.org_chart_mode === "pdf_layout_fallback"' in app_js
+    assert "Org Chart" in app_js
+    render_badge_body = app_js[app_js.index("function renderQualityBadge") : app_js.index("function summarizeBatchFeedback")]
+    assert "qualityBadge(result)" in render_badge_body
+    assert "orgChartBadge(result)" in render_badge_body
+    assert ".quality-org-chart" in style_css
+
+
+def test_ask_sources_render_source_type_badges_for_org_chart_pdf_and_text():
+    root = Path(__file__).resolve().parents[1]
+    app_js = (root / "static/app.js").read_text(encoding="utf-8")
+    style_css = (root / "static/style.css").read_text(encoding="utf-8")
+
+    assert "function sourceTypeBadge" in app_js
+    assert "source.source_type" in app_js
+    assert "source-type-badge" in app_js
+    assert "source-type-org-chart" in app_js
+    assert "source-type-pdf" in app_js
+    assert "source-type-text" in app_js
+    assert "Org Chart" in app_js
+    assert "PDF" in app_js
+    assert "Text" in app_js
+    assert ".source-type-badge" in style_css
+    assert ".source-type-org-chart" in style_css
+    assert ".source-type-pdf" in style_css
+    assert ".source-type-text" in style_css
+
+
+def test_raw_file_links_use_truthy_raw_file_path_helper_not_property_presence():
+    root = Path(__file__).resolve().parents[1]
+    app_js = (root / "static/app.js").read_text(encoding="utf-8")
+
+    assert '"raw_file_path" in' not in app_js
+    assert "function hasRawFilePath" in app_js
+    assert "hasRawFilePath(result)" in app_js
+    assert "hasRawFilePath(source)" in app_js
 
 
 def test_ingest_feedback_is_summarized_without_chunk_id_dump():

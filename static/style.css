@@ -338,6 +338,12 @@ button.quality-blocked,
   color: #9d3429;
 }
 
+.quality-org-chart {
+  border-color: rgba(91, 82, 180, 0.40);
+  background: rgba(91, 82, 180, 0.12);
+  color: #50479d;
+}
+
 button.quality-failed,
 .quality-failed {
   border-color: rgba(109, 106, 100, 0.38);
@@ -622,6 +628,7 @@ button:disabled,
 .ask-source-chip {
   display: inline-flex;
   align-items: center;
+  gap: 5px;
   max-width: 240px;
   padding: 3px 8px;
   border: 1px solid var(--line);
@@ -630,6 +637,39 @@ button:disabled,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.source-type-badge {
+  flex-shrink: 0;
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.3;
+  color: var(--muted);
+}
+
+.source-type-org-chart {
+  border-color: rgba(91, 82, 180, 0.38);
+  background: rgba(91, 82, 180, 0.11);
+  color: #50479d;
+}
+
+.source-type-pdf {
+  border-color: rgba(43, 116, 175, 0.34);
+  background: rgba(43, 116, 175, 0.10);
+  color: #246492;
+}
+
+.source-type-text {
+  border-color: rgba(59, 132, 91, 0.34);
+  background: rgba(59, 132, 91, 0.10);
+  color: #2f704b;
+}
+
+.source-type-generic {
+  background: var(--soft);
 }
 
 .ask-source-chip a {
