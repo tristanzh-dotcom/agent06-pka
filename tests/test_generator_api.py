@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from engine.generator import build_deepseek_analysis_prompt, build_prompt, generate_answer
 from engine.indexer import HybridIndexer
-from engine.models import RetrievedChunk
+from engine.models import Chunk, RetrievedChunk
 from server import app
 
 
@@ -567,6 +567,107 @@ def test_text_ingest_stats_and_source_lookup_round_trip(tmp_path):
         source = client.get(f"/api/sources/{chunk_id}").json()
         assert source["chunk_id"] == chunk_id
         assert source["text"]
+    finally:
+        restore_runtime(server, original)
+
+
+def test_text_ingest_returns_standard_quality_contract(tmp_path):
+    import server
+
+    original = install_temp_runtime(server, tmp_path, "test_text_quality_contract")
+    client = TestClient(app)
+
+    try:
+        response = client.post("/api/ingest/text", json={"text": "手工录入的高质量知识。"})
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "ok"
+        assert body["source_type"] == "text"
+        assert body["raw_file_path"] == ""
+        assert body["quality"]["status"] == "high"
+        assert body["quality"]["action"] == "direct"
+        assert body["quality"]["reasons"] == []
+    finally:
+        restore_runtime(server, original)
+
+
+def test_text_ingest_passes_empty_raw_file_path_to_indexer(tmp_path):
+    import server
+
+    original = install_temp_runtime(server, tmp_path, "test_text_empty_raw_paths")
+
+    class RecordingIndexer:
+        def __init__(self):
+            self.upsert_calls = []
+
+        def upsert(self, chunks, raw_file_paths=None):
+            self.upsert_calls.append((chunks, raw_file_paths))
+            return len(chunks)
+
+        def count_chunks(self):
+            return sum(len(chunks) for chunks, _ in self.upsert_calls)
+
+    indexer = RecordingIndexer()
+    server.runtime.indexer = indexer
+    client = TestClient(app)
+
+    try:
+        response = client.post("/api/ingest/text", json={"text": "纯文本来源需要显式写入空 raw path。"})
+
+        assert response.status_code == 200
+        chunks, raw_file_paths = indexer.upsert_calls[0]
+        assert [chunk.source_type for chunk in chunks] == ["text"]
+        assert raw_file_paths == [""] * len(chunks)
+    finally:
+        restore_runtime(server, original)
+
+
+def test_text_ingest_enforces_max_sync_chunk_limit_before_upsert(tmp_path, monkeypatch):
+    import server
+
+    original = install_temp_runtime(server, tmp_path, "test_text_chunk_limit")
+
+    class RecordingIndexer:
+        def __init__(self):
+            self.upsert_calls = []
+
+        def upsert(self, chunks, raw_file_paths=None):
+            self.upsert_calls.append((chunks, raw_file_paths))
+            return len(chunks)
+
+        def count_chunks(self):
+            return sum(len(chunks) for chunks, _ in self.upsert_calls)
+
+    def fake_chunks(count):
+        return [
+            Chunk(
+                id=f"manual_test#{index}",
+                text=f"chunk {index}",
+                source_name="manual_test",
+                source_type="text",
+                chunk_index=index,
+                created_at="2026-06-16T00:00:00+08:00",
+            )
+            for index in range(count)
+        ]
+
+    indexer = RecordingIndexer()
+    server.runtime.indexer = indexer
+    server.runtime.config = {
+        **server.runtime.config,
+        "ingest": {"max_sync_chunks_per_file": 100},
+    }
+    monkeypatch.setattr(server, "_chunk", lambda text, source_name, source_type: fake_chunks(101))
+    client = TestClient(app)
+
+    try:
+        response = client.post("/api/ingest/text", json={"text": "超长手工文本"})
+
+        assert response.status_code == 413
+        assert "101" in response.text
+        assert "100" in response.text
+        assert indexer.upsert_calls == []
     finally:
         restore_runtime(server, original)
 

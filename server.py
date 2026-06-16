@@ -16,7 +16,7 @@ from engine.config import load_config, sanitize_config, save_config, update_conf
 from engine.exporter import export_to_ppt, export_to_word
 from engine.generator import generate_answer
 from engine.indexer import HybridIndexer, OllamaEmbeddingClient
-from engine.models import Chunk
+from engine.models import Chunk, ParseQuality
 from engine.ocr import build_ocr_provider_chain
 from engine.parser import parse_file, parse_text
 from engine.ppt_maker_adapter import export_to_quality_ppt
@@ -93,15 +93,23 @@ async def ingest_text(request: TextIngestRequest):
         raise HTTPException(status_code=400, detail="text is required")
     source_name = "manual_" + datetime.now().strftime("%Y%m%d_%H%M%S")
     parsed = parse_text(request.text, source_name=source_name)
-    chunks = _chunk(parsed.text, parsed.source_name, parsed.source_type)
-    count = runtime.indexer.upsert(chunks)
-    runtime.last_updated = datetime.now().isoformat()
-    return {
-        "status": "ok",
-        "chunks": count,
-        "source_name": parsed.source_name,
-        "chunk_ids": [chunk.id for chunk in chunks],
-    }
+    parsed = replace(
+        parsed,
+        metadata={
+            **parsed.metadata,
+            "mime_type": "text/plain",
+            "source_origin": "manual_text",
+            "raw_file_path": "",
+            "char_count": len(request.text),
+        },
+        quality=_manual_text_quality(request.text),
+    )
+    try:
+        return await _ingest_parsed_result(parsed, content_type="text/plain", raw_file_path="")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/api/ingest/file")
@@ -270,17 +278,39 @@ async def _ingest_upload_file(file: UploadFile, ocr):
                 raw_file_path,
                 replace(quality, action="needs_ocr_skipped"),
             )
-    chunks = _chunk(parsed.text, parsed.source_name, parsed.source_type)
-    pre_chunks = getattr(parsed, "pre_chunks", [])
-    chunks.extend(_pre_chunk_records(pre_chunks))
-    _enforce_sync_chunk_limit(len(chunks), parsed.source_name)
-    count = runtime.indexer.upsert(chunks, raw_file_paths=[raw_file_path] * len(chunks))
-    org_chart_pages = [record.metadata.get("page") for record in pre_chunks if getattr(record, "metadata", None)]
-    quality_payload = _quality_payload(
-        quality,
+    return await _ingest_parsed_result(
+        parsed,
+        content_type=file.content_type,
+        raw_file_path=raw_file_path,
         provider=locals().get("ocr_provider", ""),
         attempts=locals().get("ocr_attempts", []),
         ocr_result=locals().get("ocr_result_meta"),
+    )
+
+
+async def _ingest_parsed_result(
+    parsed,
+    *,
+    content_type: str = "",
+    raw_file_path: str = "",
+    provider: str = "",
+    attempts=None,
+    ocr_result=None,
+):
+    chunks = _chunk(parsed.text, parsed.source_name, parsed.source_type)
+    pre_chunks = getattr(parsed, "pre_chunks", [])
+    chunks.extend(_pre_chunk_records(pre_chunks))
+    if not chunks:
+        raise ValueError("no indexable content")
+    _enforce_sync_chunk_limit(len(chunks), parsed.source_name)
+    count = runtime.indexer.upsert(chunks, raw_file_paths=[raw_file_path] * len(chunks))
+    runtime.last_updated = datetime.now().isoformat()
+    org_chart_pages = [record.metadata.get("page") for record in pre_chunks if getattr(record, "metadata", None)]
+    quality_payload = _quality_payload(
+        parsed.quality,
+        provider=provider,
+        attempts=attempts or [],
+        ocr_result=ocr_result,
     )
     if quality_payload is not None and pre_chunks:
         quality_payload["org_chart_chunks"] = len(pre_chunks)
@@ -290,7 +320,8 @@ async def _ingest_upload_file(file: UploadFile, ocr):
         "status": "ok",
         "chunks": count,
         "source_name": parsed.source_name,
-        "content_type": file.content_type,
+        "source_type": parsed.source_type,
+        "content_type": content_type,
         "raw_file_path": raw_file_path,
         "org_chart_chunks": len(pre_chunks),
         "chunk_ids": [chunk.id for chunk in chunks],
@@ -350,6 +381,24 @@ def _quality_payload(quality, provider="", attempts=None, ocr_result=None):
         payload["ocr_page_limit_reached"] = ocr_result.page_limit_reached
         payload["ocr_partial"] = ocr_result.partial
     return payload
+
+
+def _manual_text_quality(text: str) -> ParseQuality:
+    char_count = len(text.strip())
+    return ParseQuality(
+        status="high",
+        action="direct",
+        valid_ratio=1.0,
+        short_line_ratio=0.0,
+        watermark_ratio=0.0,
+        unique_line_ratio=1.0,
+        non_empty_pages=1 if char_count else 0,
+        page_count=1 if char_count else 0,
+        non_empty_page_ratio=1.0 if char_count else 0.0,
+        effective_chars_per_page=float(char_count),
+        cleaned_chars_ratio=1.0 if char_count else 0.0,
+        reasons=[],
+    )
 
 
 def _max_sync_chunks_per_file() -> int:

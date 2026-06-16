@@ -75,7 +75,7 @@ QUALITY_GATE_CASES = [
     },
     {
         "id": "Q8",
-        "question": "Who is connected to Infotainment and Connectivity?",
+        "question": "Which people are structurally under Infotainment and Connectivity?",
         "expected_top_source_type": "org_chart",
         "must_include_source_types": ["org_chart"],
         "must_contain": ["INFOTAINMENT", "CONNECTIVITY"],

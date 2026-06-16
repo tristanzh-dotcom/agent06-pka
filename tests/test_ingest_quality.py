@@ -90,6 +90,57 @@ def _low_quality():
 
 
 @pytest.mark.asyncio
+async def test_unified_ingest_parsed_result_indexes_normal_and_pre_chunks(monkeypatch, tmp_path):
+    indexer = RecordingIndexer()
+    monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
+    monkeypatch.setattr(server.runtime, "indexer", indexer)
+    pre_chunk = _pre_chunk()
+    parsed = ParseResult(
+        text="This normal paragraph is long enough to be chunked as a regular PDF record.",
+        source_name="mixed.pdf",
+        source_type="pdf",
+        metadata={"page_count": 2},
+        quality=_high_quality(),
+        pre_chunks=[pre_chunk],
+    )
+
+    result = await server._ingest_parsed_result(
+        parsed,
+        content_type="application/pdf",
+        raw_file_path="raw/2026-06-16/mixed.pdf",
+    )
+
+    assert result["status"] == "ok"
+    assert result["chunks"] == 2
+    assert result["source_type"] == "pdf"
+    assert result["raw_file_path"] == "raw/2026-06-16/mixed.pdf"
+    assert result["quality"]["action"] == "direct"
+    chunks, raw_paths = indexer.upsert_calls[0]
+    assert [chunk.source_type for chunk in chunks] == ["pdf", "org_chart"]
+    assert chunks[1].text == pre_chunk.text
+    assert raw_paths == ["raw/2026-06-16/mixed.pdf", "raw/2026-06-16/mixed.pdf"]
+
+
+@pytest.mark.asyncio
+async def test_unified_ingest_parsed_result_rejects_empty_parsed_content(monkeypatch, tmp_path):
+    indexer = RecordingIndexer()
+    monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
+    monkeypatch.setattr(server.runtime, "indexer", indexer)
+    parsed = ParseResult(
+        text="",
+        source_name="empty.txt",
+        source_type="text",
+        metadata={"input": "manual"},
+        quality=_high_quality(),
+    )
+
+    with pytest.raises(ValueError, match="no indexable content"):
+        await server._ingest_parsed_result(parsed, content_type="text/plain", raw_file_path="")
+
+    assert indexer.upsert_calls == []
+
+
+@pytest.mark.asyncio
 async def test_needs_ocr_without_ocr_is_skipped_and_not_indexed(monkeypatch, tmp_path):
     indexer = RecordingIndexer()
     monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
