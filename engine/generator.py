@@ -276,6 +276,7 @@ def _sources(chunks: Iterable[RetrievedChunk]) -> List[dict]:
     return [
         {
             "source_name": chunk.source_name,
+            "source_type": chunk.source_type,
             "chunk_index": chunk.chunk_index,
             "relevance": chunk.score,
             "chunk_id": chunk.chunk_id,

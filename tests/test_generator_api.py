@@ -213,6 +213,7 @@ async def test_generate_answer_sources_include_raw_file_path():
 
     sources = next(event["sources"] for event in events if event["type"] == "sources")
     assert sources[0]["raw_file_path"] == "raw/2026-06-04/report.pdf"
+    assert sources[0]["source_type"] == "pdf"
 
 
 @pytest.mark.asyncio
