@@ -180,6 +180,29 @@ async def test_retrieval_quality_gate_current_jlr_org_chart_corpus(retriever, ca
         assert all(source.get("chunk_id") for source in sources_event["sources"])
 
 
+def test_org_chart_intent_bias_lifts_structural_query_but_not_explanation_query(retriever):
+    structural_chunks = retriever.hybrid_search(
+        "Which people are structurally under Infotainment and Connectivity?",
+        top_k=5,
+    )
+    explanation_chunks = retriever.hybrid_search(
+        "How should the organisation charts be read?",
+        top_k=5,
+    )
+
+    assert structural_chunks
+    assert structural_chunks[0].source_type == "org_chart"
+    assert "INFOTAINMENT" in structural_chunks[0].text
+    assert "CONNECTIVITY" in structural_chunks[0].text
+    assert structural_chunks[0].text.startswith("[ORG_CHART")
+    assert _has_org_chart_projection_features(structural_chunks[0].text)
+
+    assert explanation_chunks
+    assert explanation_chunks[0].source_type == "pdf"
+    assert _compact("HOW TO READ") in _compact(explanation_chunks[0].text)
+    assert _compact("ORGANISATION CHARTS") in _compact(explanation_chunks[0].text)
+
+
 def _noise_type(text: str) -> str:
     stripped = text.strip()
     if len(stripped) < 30:

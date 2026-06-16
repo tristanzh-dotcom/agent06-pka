@@ -1,6 +1,29 @@
+import re
 from typing import Any, Dict, List
 
 from engine.models import RetrievedChunk
+
+
+ORG_CHART_INTENT_PATTERNS = [
+    re.compile(r"\bstructurally under\b", re.IGNORECASE),
+    re.compile(r"\breports to\b", re.IGNORECASE),
+    re.compile(r"\bwho reports\b", re.IGNORECASE),
+    re.compile(r"\bpeople under\b", re.IGNORECASE),
+    re.compile(r"\bteams? under\b", re.IGNORECASE),
+    re.compile(r"\bwhich people\b.*\bunder\b", re.IGNORECASE),
+    re.compile(r"\bwho is responsible for\b", re.IGNORECASE),
+    re.compile(r"\bwho works with\b", re.IGNORECASE),
+    re.compile(r"\bwho is associated with\b", re.IGNORECASE),
+]
+
+ORG_CHART_EXPLANATION_PATTERNS = [
+    re.compile(r"\bhow should\b.*\bcharts?\b.*\bread\b", re.IGNORECASE),
+    re.compile(r"\bhow to read\b", re.IGNORECASE),
+    re.compile(r"\bwhat is an org chart\b", re.IGNORECASE),
+]
+
+ORG_CHART_INTENT_WINDOW = 0.003
+ORG_CHART_INTENT_BONUS = 0.001
 
 
 def reciprocal_rank_fusion(
@@ -64,6 +87,7 @@ class HybridRetriever:
         fts_results = self.indexer.search_fts(query, self.fts5_top_k)
         vector_results = self.indexer.search_vector(query, self.vector_top_k)
         fused = reciprocal_rank_fusion(fts_results, vector_results, self.rrf_k)
+        fused = apply_org_chart_intent_bias(query, fused)
         fused = self._rerank(query, fused)
         return [
             RetrievedChunk(
@@ -102,3 +126,47 @@ class HybridRetriever:
         ordered.extend(item for item in candidates if item["chunk_id"] not in seen)
         ordered.extend(remainder)
         return ordered
+
+
+def apply_org_chart_intent_bias(query: str, fused: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    if not fused or not _has_org_chart_relation_intent(query):
+        return fused
+    best_score = max(item["score"] for item in fused)
+
+    def intent_score(item: Dict[str, Any]) -> float:
+        eligible = (
+            item.get("source_type") == "org_chart"
+            and _has_org_chart_projection_evidence(item.get("text", ""))
+            and best_score - item["score"] <= ORG_CHART_INTENT_WINDOW
+        )
+        return item["score"] + (ORG_CHART_INTENT_BONUS if eligible else 0.0)
+
+    def sort_key(item: Dict[str, Any]):
+        rank_fts5 = item.get("rank_fts5")
+        rank_vector = item.get("rank_vector")
+        dual_channel = rank_fts5 is not None and rank_vector is not None
+        return (
+            -intent_score(item),
+            not dual_channel,
+            rank_vector if rank_vector is not None else float("inf"),
+            rank_fts5 if rank_fts5 is not None else float("inf"),
+        )
+
+    return sorted(fused, key=sort_key)
+
+
+def _has_org_chart_relation_intent(query: str) -> bool:
+    if any(pattern.search(query) for pattern in ORG_CHART_EXPLANATION_PATTERNS):
+        return False
+    return any(pattern.search(query) for pattern in ORG_CHART_INTENT_PATTERNS)
+
+
+def _has_org_chart_projection_evidence(text: str) -> bool:
+    return (
+        text.startswith("[ORG_CHART")
+        and (
+            "Semantic Search Triggers:" in text
+            or "is structurally under" in text
+            or "Structure:" in text
+        )
+    )

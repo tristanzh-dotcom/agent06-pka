@@ -7,7 +7,7 @@ import pytest
 from engine.indexer import HybridIndexer, OllamaEmbeddingClient
 from engine.models import Chunk
 from engine.reranker import RerankResult
-from engine.retriever import HybridRetriever, reciprocal_rank_fusion
+from engine.retriever import HybridRetriever, apply_org_chart_intent_bias, reciprocal_rank_fusion
 
 
 class FakeEmbeddingClient:
@@ -477,6 +477,95 @@ def test_hybrid_retriever_fails_open_when_reranker_errors():
 
     assert len(results) == 2
     assert {item.chunk_id for item in results}
+
+
+def test_org_chart_intent_bias_only_reorders_nearby_projection_chunks():
+    fused = [
+        {
+            "chunk_id": "pdf",
+            "text": "I N F O T A I N M E N T and connectivity overview",
+            "source_type": "pdf",
+            "score": 0.03055,
+            "rank_fts5": 4,
+            "rank_vector": 7,
+        },
+        {
+            "chunk_id": "org",
+            "text": "[ORG_CHART]\nSemantic Search Triggers:\n- A is structurally under B.",
+            "source_type": "org_chart",
+            "score": 0.03031,
+            "rank_fts5": 7,
+            "rank_vector": 5,
+        },
+    ]
+
+    biased = apply_org_chart_intent_bias(
+        "Which people are structurally under Infotainment and Connectivity?",
+        fused,
+    )
+
+    assert [item["chunk_id"] for item in biased] == ["org", "pdf"]
+
+
+def test_org_chart_intent_bias_does_not_affect_explanation_queries():
+    fused = [
+        {
+            "chunk_id": "pdf",
+            "text": "HOW TO READ THE ORGANISATION CHARTS",
+            "source_type": "pdf",
+            "score": 0.03055,
+            "rank_fts5": 1,
+            "rank_vector": 7,
+        },
+        {
+            "chunk_id": "org",
+            "text": "[ORG_CHART]\nSemantic Search Triggers:\n- A is structurally under B.",
+            "source_type": "org_chart",
+            "score": 0.03031,
+            "rank_fts5": 7,
+            "rank_vector": 5,
+        },
+    ]
+
+    biased = apply_org_chart_intent_bias("How should the organisation charts be read?", fused)
+
+    assert [item["chunk_id"] for item in biased] == ["pdf", "org"]
+
+
+def test_org_chart_intent_bias_requires_projection_evidence_and_score_window():
+    fused = [
+        {
+            "chunk_id": "pdf",
+            "text": "Infotainment and connectivity overview",
+            "source_type": "pdf",
+            "score": 0.04,
+            "rank_fts5": 1,
+            "rank_vector": 3,
+        },
+        {
+            "chunk_id": "bad_org",
+            "text": "plain text mislabeled as org chart",
+            "source_type": "org_chart",
+            "score": 0.0399,
+            "rank_fts5": 2,
+            "rank_vector": 1,
+        },
+        {
+            "chunk_id": "far_org",
+            "text": "[ORG_CHART]\nSemantic Search Triggers:\n- A is structurally under B.",
+            "source_type": "org_chart",
+            "score": 0.035,
+            "rank_fts5": 3,
+            "rank_vector": 2,
+        },
+    ]
+
+    biased = apply_org_chart_intent_bias(
+        "Which people are structurally under Infotainment and Connectivity?",
+        fused,
+    )
+
+    assert [item["chunk_id"] for item in biased] == ["pdf", "bad_org", "far_org"]
 
 
 def test_reranker_receives_display_text_not_embedding_text():
