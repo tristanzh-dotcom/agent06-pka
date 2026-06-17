@@ -254,6 +254,193 @@ async def test_non_org_chart_pdf_keeps_existing_parse_behavior(monkeypatch, tmp_
     assert "normal PDF page" in parsed.text
 
 
+async def test_parameter_table_pdf_page_is_not_detected_as_org_chart(monkeypatch, tmp_path):
+    path = tmp_path / "vision_operator.pdf"
+    path.write_bytes(b"%PDF fake")
+    blocks = [
+        (72, 72, 360, 88, "视觉内容理解（Doubao-1.5-vision-pro-32k）", 0, 0),
+        (72, 120, 150, 134, "参数名称", 1, 0),
+        (180, 120, 230, 134, "类型", 2, 0),
+        (260, 120, 330, 134, "默认值", 3, 0),
+        (360, 120, 460, 134, "描述", 4, 0),
+        (72, 150, 150, 164, "model", 5, 0),
+        (180, 150, 230, 164, "str", 6, 0),
+        (260, 150, 330, 164, "必填", 7, 0),
+        (360, 150, 520, 164, "模型名称", 8, 0),
+        (72, 180, 150, 194, "Python", 9, 0),
+        (180, 180, 330, 194, "df.with_column(", 10, 0),
+        (360, 180, 520, 194, "ArkLLMVisionUnderstanding", 11, 0),
+        (72, 210, 150, 224, "images", 12, 0),
+        (180, 210, 330, 224, "传入待处理图片", 13, 0),
+        (360, 210, 520, 224, "支持单条或多条", 14, 0),
+    ]
+    _install_fake_fitz(
+        monkeypatch,
+        [
+            FakePDFPage(
+                "参数名称 类型 默认值 描述\nPython\ndf.with_column(\nArkLLMVisionUnderstanding\nimages 传入待处理图片",
+                blocks,
+            )
+        ],
+    )
+
+    parsed = await parse_file(str(path))
+
+    assert parsed.pre_chunks == []
+    assert "参数名称 类型 默认值 描述" in parsed.text
+
+
+async def test_table_of_contents_pdf_page_is_not_detected_as_org_chart(monkeypatch, tmp_path):
+    path = tmp_path / "product_plan.pdf"
+    path.write_bytes(b"%PDF fake")
+    blocks = [
+        (72, 72, 360, 88, "0. 文档控制与修订摘要", 0, 0),
+        (72, 100, 360, 116, "目录", 1, 0),
+        (72, 128, 300, 144, "1. 执行摘要与总判断", 2, 0),
+        (330, 128, 380, 144, "2", 3, 0),
+        (72, 156, 300, 172, "2. 产品定义与应用边界", 4, 0),
+        (330, 156, 380, 172, "5", 5, 0),
+        (72, 184, 300, 200, "3. 系统架构与技术方案", 6, 0),
+        (330, 184, 380, 200, "8", 7, 0),
+        (72, 212, 300, 228, "4. 关键指标、验收方法与数据规范", 8, 0),
+        (330, 212, 380, 228, "12", 9, 0),
+        (72, 240, 300, 256, "5. 研发可行性、风险与修正方案", 10, 0),
+        (330, 240, 380, 256, "16", 11, 0),
+        (72, 268, 300, 284, "附录 A. V2 问题到 V3 修正对照", 12, 0),
+        (330, 268, 380, 284, "22", 13, 0),
+    ]
+    _install_fake_fitz(
+        monkeypatch,
+        [
+            FakePDFPage(
+                "目录\n1. 执行摘要与总判断\n2. 产品定义与应用边界\n3. 系统架构与技术方案\n附录 A. V2 问题到 V3 修正对照",
+                blocks,
+            )
+        ],
+    )
+
+    parsed = await parse_file(str(path))
+
+    assert parsed.pre_chunks == []
+    assert "目录" in parsed.text
+
+
+async def test_itinerary_table_pdf_page_is_not_detected_as_org_chart(monkeypatch, tmp_path):
+    path = tmp_path / "itinerary.pdf"
+    path.write_bytes(b"%PDF fake")
+    blocks = [
+        (72, 72, 260, 88, "二、 每日行程概要", 0, 0),
+        (72, 120, 140, 134, "日期", 1, 0),
+        (150, 120, 260, 134, "核心路线节点", 2, 0),
+        (270, 120, 330, 134, "里程 (km)", 3, 0),
+        (340, 120, 430, 134, "驾车时长", 4, 0),
+        (440, 120, 560, 134, "今日行程亮点", 5, 0),
+        (72, 150, 140, 164, "6月7日", 6, 0),
+        (150, 150, 260, 164, "北京 ➔ 伊宁机场", 7, 0),
+        (270, 150, 330, 164, "5 km", 8, 0),
+        (340, 150, 430, 164, "15 min", 9, 0),
+        (440, 150, 560, 164, "六星街烤肉", 10, 0),
+        (72, 180, 140, 194, "6月8日", 11, 0),
+        (150, 180, 260, 194, "赛里木湖环湖", 12, 0),
+        (270, 180, 330, 194, "160 km", 13, 0),
+        (340, 180, 430, 194, "2.5 h", 14, 0),
+        (440, 180, 560, 194, "雪山与草原", 15, 0),
+    ]
+    _install_fake_fitz(
+        monkeypatch,
+        [
+            FakePDFPage(
+                "二、 每日行程概要\n日期 核心路线节点 里程 (km) 驾车时长 今日行程亮点\n"
+                "6月7日 北京 ➔ 伊宁机场 5 km 15 min 六星街烤肉\n"
+                "6月8日 赛里木湖环湖 160 km 2.5 h 雪山与草原",
+                blocks,
+            )
+        ],
+    )
+
+    parsed = await parse_file(str(path))
+
+    assert parsed.pre_chunks == []
+    assert "每日行程概要" in parsed.text
+
+
+async def test_travel_preparation_page_is_not_detected_as_org_chart(monkeypatch, tmp_path):
+    path = tmp_path / "travel_prep.pdf"
+    path.write_bytes(b"%PDF fake")
+    blocks = [
+        (72, 72, 360, 88, "新疆伊犁河谷与独库公路自驾终极路书", 0, 0),
+        (72, 110, 220, 124, "出行时间：2026年6月7日 - 6月12日", 1, 0),
+        (250, 110, 360, 124, "出行人数：2人核心团队", 2, 0),
+        (72, 140, 520, 154, "核心路线：伊宁-赛湖-独山子大峡谷-独库北段-唐布拉-伊宁", 3, 0),
+        (72, 180, 260, 194, "一、 行前准备（关键要点）", 4, 0),
+        (90, 210, 520, 224, "• 离线地图：务必提前下载伊犁州、博州、塔城地区离线包。", 5, 0),
+        (90, 240, 520, 254, "• 衣物储备：准备轻薄羽绒服、冲锋衣和中高帮徒步鞋。", 6, 0),
+        (90, 270, 520, 284, "• 随车物品：手机支架、快充头、移动电源、湿巾纸巾。", 7, 0),
+        (90, 300, 520, 314, "• 预约状态明晰：独库公路国道无需预约。", 8, 0),
+    ]
+    _install_fake_fitz(
+        monkeypatch,
+        [
+            FakePDFPage(
+                "新疆伊犁河谷与独库公路自驾终极路书\n"
+                "出行时间：2026年6月7日 - 6月12日\n"
+                "出行人数：2人核心团队\n"
+                "核心路线：伊宁-赛湖-独山子大峡谷-独库北段-唐布拉-伊宁\n"
+                "一、 行前准备（关键要点）\n"
+                "• 离线地图：务必提前下载伊犁州、博州、塔城地区离线包。\n"
+                "• 衣物储备：准备轻薄羽绒服、冲锋衣和中高帮徒步鞋。\n"
+                "• 随车物品：手机支架、快充头、移动电源、湿巾纸巾。\n"
+                "• 预约状态明晰：独库公路国道无需预约。",
+                blocks,
+            )
+        ],
+    )
+
+    parsed = await parse_file(str(path))
+
+    assert parsed.pre_chunks == []
+    assert "行前准备" in parsed.text
+
+
+async def test_milestone_table_pdf_page_is_not_detected_as_org_chart(monkeypatch, tmp_path):
+    path = tmp_path / "milestones.pdf"
+    path.write_bytes(b"%PDF fake")
+    blocks = [
+        (72, 72, 300, 88, "6. 开发计划与阶段里程碑", 0, 0),
+        (72, 120, 120, 134, "阶段", 1, 0),
+        (130, 120, 190, 134, "周期", 2, 0),
+        (200, 120, 300, 134, "目标", 3, 0),
+        (310, 120, 420, 134, "关键交付物", 4, 0),
+        (430, 120, 560, 134, "Go/No-Go 条件", 5, 0),
+        (72, 150, 120, 164, "需求冻结/RFQ", 6, 0),
+        (130, 150, 190, 164, "第 0-2 周", 7, 0),
+        (200, 150, 300, 164, "冻结场景和数据 schema", 8, 0),
+        (310, 150, 420, 164, "PRD、RFQ 包", 9, 0),
+        (430, 150, 560, 164, "接口满足触发要求", 10, 0),
+        (72, 180, 120, 194, "EVT 样机", 11, 0),
+        (130, 180, 190, 194, "第 2-8 周", 12, 0),
+        (200, 180, 300, 194, "完成 3-5 套工程样机", 13, 0),
+        (310, 180, 420, 194, "BOM Rev.A", 14, 0),
+        (430, 180, 560, 194, "P95 同步通过", 15, 0),
+    ]
+    _install_fake_fitz(
+        monkeypatch,
+        [
+            FakePDFPage(
+                "6. 开发计划与阶段里程碑\n阶段 周期 目标 关键交付物 Go/No-Go 条件\n"
+                "需求冻结/RFQ 第 0-2 周 冻结场景和数据 schema PRD、RFQ 包 接口满足触发要求\n"
+                "EVT 样机 第 2-8 周 完成 3-5 套工程样机 BOM Rev.A P95 同步通过",
+                blocks,
+            )
+        ],
+    )
+
+    parsed = await parse_file(str(path))
+
+    assert parsed.pre_chunks == []
+    assert "开发计划与阶段里程碑" in parsed.text
+
+
 async def test_parse_pdf_cleaning_reassesses_quality(tmp_path):
     fitz = pytest.importorskip("fitz")
     path = tmp_path / "paged.pdf"
@@ -323,6 +510,19 @@ async def test_parse_image_raises_clear_error_when_ocr_fails(tmp_path):
 
     with pytest.raises(RuntimeError, match="OCR failed after 3 retries"):
         await parse_file(str(path), ocr_client=FailingOCR())
+
+
+class EmptyOCR:
+    async def extract(self, image_paths):
+        return "   \n  "
+
+
+async def test_parse_image_rejects_empty_ocr_text(tmp_path):
+    path = tmp_path / "photo.jpeg"
+    path.write_bytes(b"jpeg bytes")
+
+    with pytest.raises(ValueError, match="OCR produced no usable text for image"):
+        await parse_file(str(path), mime_type="image/jpeg", ocr_client=EmptyOCR())
 
 
 async def test_parse_corrupt_docx_raises_clear_error(tmp_path):

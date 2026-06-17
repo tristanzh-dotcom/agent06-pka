@@ -52,6 +52,8 @@ async def parse_file(file_path: str, mime_type: Optional[str] = None, ocr_client
             if ocr_client is None:
                 raise ValueError("OCR client is required for image parsing")
             text = await ocr_client.extract([str(path)])
+            if not str(text or "").strip():
+                raise ValueError("OCR produced no usable text for image")
             return ParseResult(
                 text=text,
                 source_name=path.name,
@@ -219,6 +221,8 @@ def _detect_org_chart_page(page_text: str, blocks: list[PdfTextBlock]) -> bool:
     normalized = page_text.upper()
     if re.search(r"\bORG(?:ANISATION|ANIZATION)?\s+CHART\b", normalized):
         return True
+    if _looks_like_document_table_or_code_page(page_text, blocks):
+        return False
     short_blocks = [block for block in blocks if len(block.text) <= 32]
     if len(short_blocks) < 12:
         return False
@@ -226,6 +230,51 @@ def _detect_org_chart_page(page_text: str, blocks: list[PdfTextBlock]) -> bool:
     x_centers = {round(block.x_center / 80) for block in short_blocks}
     short_ratio = len(short_blocks) / max(len(blocks), 1)
     return short_ratio >= 0.65 and y_bands >= 3 and len(x_centers) >= 3
+
+
+def _looks_like_document_table_or_code_page(page_text: str, blocks: list[PdfTextBlock]) -> bool:
+    text = page_text.strip()
+    normalized = text.upper()
+    compact_lines = [line.strip() for line in text.splitlines() if line.strip()]
+    block_texts = [block.text.strip() for block in blocks if block.text.strip()]
+    combined_blocks = "\n".join(block_texts)
+
+    table_markers = ["参数名称", "默认值", "描述", "类型", "输入列名", "输出", "说明"]
+    if sum(1 for marker in table_markers if marker in text or marker in combined_blocks) >= 3:
+        return True
+
+    itinerary_markers = ["每日行程", "日期", "核心路线", "里程", "驾车时长", "行程亮点", "机场", "酒店"]
+    if sum(1 for marker in itinerary_markers if marker in text or marker in combined_blocks) >= 4:
+        return True
+
+    travel_prep_markers = ["出行时间", "出行人数", "核心路线", "行前准备", "离线地图", "衣物储备", "随车物品", "预约状态"]
+    if sum(1 for marker in travel_prep_markers if marker in text or marker in combined_blocks) >= 4:
+        return True
+
+    milestone_markers = ["开发计划", "阶段", "里程碑", "周期", "目标", "关键交付物", "GO/NO-GO", "BOM", "RFQ"]
+    if sum(1 for marker in milestone_markers if marker in text or marker in normalized) >= 4:
+        return True
+
+    code_markers = ["PYTHON", "DF.WITH_COLUMN", "IMPORT ", "RETURN ", "COL(", "ARKLLMVISIONUNDERSTANDING"]
+    if sum(1 for marker in code_markers if marker in normalized) >= 2:
+        return True
+
+    toc_markers = ["目录", "文档控制", "修订摘要", "执行摘要", "附录", "BOM", "验收方法"]
+    numbered_lines = sum(1 for line in compact_lines if re.match(r"^(?:\d+\.|附录\s*[A-ZＡ-Ｚ]?\b)", line))
+    if ("目录" in text or "TABLE OF CONTENTS" in normalized) and numbered_lines >= 3:
+        return True
+    if sum(1 for marker in toc_markers if marker in text or marker in normalized) >= 3 and numbered_lines >= 2:
+        return True
+
+    bullet_or_table_rows = sum(
+        1
+        for line in compact_lines
+        if line.startswith(("•", "◦", "▪", "-", "")) or re.match(r"^[A-Za-z0-9_]+\s+(?:str|int|float|bool|list|dict)\b", line)
+    )
+    if bullet_or_table_rows >= 5 and any(marker in text for marker in ("参数", "默认", "说明", "输入", "输出")):
+        return True
+
+    return False
 
 
 def _count_y_bands(blocks: list[PdfTextBlock], tolerance: float = 10.0) -> int:

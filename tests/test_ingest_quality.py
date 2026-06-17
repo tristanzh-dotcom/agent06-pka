@@ -528,3 +528,27 @@ async def test_batch_counts_skipped_separately_from_failed(monkeypatch):
     assert response["skipped"] == 1
     assert response["failed"] == 1
     assert response["total_chunks"] == 2
+
+
+@pytest.mark.asyncio
+async def test_batch_image_with_empty_ocr_text_fails_without_indexing(monkeypatch, tmp_path):
+    indexer = RecordingIndexer()
+    monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
+    monkeypatch.setattr(server.runtime, "indexer", indexer)
+
+    class EmptyImageOCR:
+        async def extract(self, image_paths):
+            return "   \n"
+
+    monkeypatch.setattr(server, "_build_ocr_client", lambda: EmptyImageOCR())
+    upload = UploadFile(filename="screen.jpeg", file=BytesIO(b"not a real jpeg"), headers=None)
+
+    response = await server.ingest_files([upload])
+
+    assert response["status"] == "partial"
+    assert response["succeeded"] == 0
+    assert response["failed"] == 1
+    assert response["total_chunks"] == 0
+    assert response["files"][0]["status"] == "error"
+    assert response["files"][0]["error"] == "OCR produced no usable text for image"
+    assert indexer.count_chunks() == 0
