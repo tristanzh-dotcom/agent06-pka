@@ -276,3 +276,44 @@ def test_recover_queued_tasks_requeues_existing_raw_file_and_fails_missing_raw_f
         assert "raw file is missing" in failed["result"]["error"]
     finally:
         restore_runtime(original)
+
+
+def test_clear_knowledge_uses_ingest_lock_without_canceling_queued_tasks(monkeypatch, tmp_path):
+    original = install_temp_runtime(tmp_path, "test_clear_preserves_queued_ocr")
+    store = server.OcrTaskStore(server.runtime.config["data_dir"])
+    store.save_task(
+        "ocr_task_quality_gate",
+        {
+            "task_id": "ocr_task_quality_gate",
+            "status": "queued",
+            "file_name": "scan.pdf",
+            "raw_file_path": "raw/2026-06-17/scan.pdf",
+            "content_type": "application/pdf",
+            "page_count": 10,
+            "progress": 0,
+            "result": {"chunks_inserted": 0, "quality_action": None, "error": None},
+        },
+    )
+
+    class RecordingLock:
+        def __init__(self):
+            self.events = []
+
+        def __enter__(self):
+            self.events.append("enter")
+
+        def __exit__(self, exc_type, exc, traceback):
+            self.events.append("exit")
+
+    lock = RecordingLock()
+    monkeypatch.setattr(server, "ingest_lock", lock)
+    client = TestClient(app)
+
+    try:
+        response = client.post("/api/ingest/clear")
+
+        assert response.status_code == 200
+        assert lock.events == ["enter", "exit"]
+        assert store.get_task("ocr_task_quality_gate")["status"] == "queued"
+    finally:
+        restore_runtime(original)

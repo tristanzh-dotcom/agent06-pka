@@ -612,8 +612,9 @@ def _dedupe_upload_path(path: Path) -> Path:
 
 @app.post("/api/ingest/clear")
 async def clear_knowledge():
-    runtime.indexer.clear_all()
-    runtime.last_updated = datetime.now().isoformat()
+    with ingest_lock:
+        runtime.indexer.clear_all()
+        runtime.last_updated = datetime.now().isoformat()
     return {"status": "ok", "message": "知识库已清空"}
 
 
