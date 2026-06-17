@@ -1,0 +1,62 @@
+{
+  "status": "passed",
+  "timestamp": "20260617_async_ocr",
+  "base_url": "http://127.0.0.1:8091",
+  "summary": {
+    "total_cases": 7,
+    "failed_cases": 0
+  },
+  "cases": {
+    "manual_text": {
+      "status": "passed",
+      "elapsed_seconds": 0.359,
+      "chunks": 1,
+      "source_type": "text",
+      "raw_file_path": ""
+    },
+    "turtle_too_large": {
+      "status": "passed",
+      "elapsed_seconds": 0.826,
+      "quality_action": "too_large_skipped",
+      "chunks": 0
+    },
+    "geo_needs_ocr": {
+      "status": "passed",
+      "elapsed_seconds": 0.041,
+      "quality_action": "needs_ocr_queued",
+      "task_id": "ocr_task_17e71fa58773",
+      "chunks": 0
+    },
+    "jlr_ingest": {
+      "status": "passed",
+      "elapsed_seconds": 85.778,
+      "chunks": 105,
+      "org_chart_chunks": 83,
+      "source_types": {
+        "org_chart": 83,
+        "pdf": 22
+      }
+    },
+    "q6_explanation": {
+      "status": "passed",
+      "first_source_type": "pdf",
+      "first_chunk_id": "JLR_Corporate_Deck_Template_MASTER_25_.pptx.pdf#4"
+    },
+    "q8_structural": {
+      "status": "passed",
+      "first_source_type": "org_chart",
+      "first_chunk_id": "JLR_Corporate_Deck_Template_MASTER_25_.pptx.pdf#org_chart_48"
+    },
+    "final_restore": {
+      "status": "passed",
+      "elapsed_seconds": 13.005,
+      "chunks": 105,
+      "org_chart_chunks": 83,
+      "source_types": {
+        "org_chart": 83,
+        "pdf": 22
+      }
+    }
+  },
+  "report_path": "docs/superpowers/releases/verification_report_20260617_async_ocr.json"
+}

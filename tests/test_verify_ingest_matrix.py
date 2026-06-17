@@ -43,12 +43,14 @@ class FakeMatrixClient:
         if "GEO" in name:
             self.total_chunks = 0
             return {
-                "status": "partial",
+                "status": "accepted",
+                "accepted": 1,
                 "total_chunks": 0,
                 "files": [{
-                    "status": "skipped",
+                    "status": "accepted",
+                    "task_id": "ocr_task_fake_geo",
                     "chunks": 0,
-                    "quality": {"status": "needs_ocr", "action": "needs_ocr_skipped"},
+                    "quality": {"status": "needs_ocr", "action": "needs_ocr_queued"},
                 }],
             }, 0.03
         if "JLR" in name:
@@ -121,7 +123,8 @@ def test_verify_ingest_matrix_restores_jlr_baseline_and_writes_json_report(tmp_p
     assert report["summary"]["failed_cases"] == 0
     assert report["cases"]["manual_text"]["chunks"] == 1
     assert report["cases"]["turtle_too_large"]["quality_action"] == "too_large_skipped"
-    assert report["cases"]["geo_needs_ocr"]["quality_action"] == "needs_ocr_skipped"
+    assert report["cases"]["geo_needs_ocr"]["quality_action"] == "needs_ocr_queued"
+    assert report["cases"]["geo_needs_ocr"]["task_id"] == "ocr_task_fake_geo"
     assert report["cases"]["jlr_ingest"]["org_chart_chunks"] == 83
     assert report["cases"]["q6_explanation"]["first_source_type"] == "pdf"
     assert report["cases"]["q8_structural"]["first_source_type"] == "org_chart"

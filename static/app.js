@@ -19,8 +19,10 @@ const askState = {
 let selectedFiles = [];
 let fileUploadResults = [];
 let expandedQualityFiles = new Set();
+let uploadTaskPollTimers = new Map();
 const MAX_UPLOAD_FILES = 6;
 const MAX_UPLOAD_FEEDBACK = "最多上传 6 个文件，请先移除一个文件。";
+const OCR_TASK_POLL_INTERVAL_MS = 1500;
 
 function currentEmbeddedRoute() {
   return `${window.location.pathname}${window.location.search}${window.location.hash}`;
@@ -120,6 +122,9 @@ function setFeedback(id, value) {
 
 function formatIngestFeedback(result, actionLabel) {
   if (!result) return `${actionLabel}失败。`;
+  if (result.status === "accepted") {
+    return `${actionLabel}已提交 · ${qualityStatusMessage(result) || "后台 OCR 排队中"}`;
+  }
   if (result.status === "skipped") {
     return `${actionLabel}未入库 · ${qualityStatusMessage(result) || "需 OCR 未入库"}`;
   }
@@ -153,9 +158,13 @@ function qualityStatusMessage(result) {
     }
     return "OCR 入库";
   }
+  if (action === "needs_ocr_queued") return "已进入后台 OCR 队列 · 未进入主知识库";
   if (action === "needs_ocr_skipped") return "未入库，需 OCR · 未进入主知识库，避免污染检索";
   if (action === "ocr_failed_skipped") return "OCR 失败未入库 · 未进入主知识库，避免污染检索";
   if (action === "ocr_timeout_skipped") return "OCR 超时未入库 · 未进入主知识库，避免污染检索";
+  if (result?.status === "accepted" || result?.status === "queued") return "后台 OCR 排队中 · 未进入主知识库";
+  if (result?.status === "processing") return "后台 OCR 处理中 · 未进入主知识库";
+  if (result?.status === "failed") return "后台 OCR 失败 · 未进入主知识库";
   return "";
 }
 
@@ -164,8 +173,12 @@ function qualityBadge(result) {
     return { className: "quality-blocked", text: "文件过大，未入库" };
   }
   if (result?.status === "error") return { className: "quality-failed", text: "解析失败" };
+  if (result?.status === "failed") return { className: "quality-failed", text: "OCR 失败" };
   const quality = result?.quality || {};
   const action = quality.action;
+  if (action === "needs_ocr_queued" || ["accepted", "queued", "processing"].includes(result?.status)) {
+    return { className: "quality-ocr", text: "后台 OCR" };
+  }
   if ((action === "direct" || action === "cleaned") && quality.status === "high") {
     return { className: "quality-full", text: "全文入库" };
   }
@@ -285,6 +298,11 @@ function fileTypeLabel(file) {
 function uploadSlotStatus(result) {
   if (!result) return "pending";
   if (result.status === "error") return "error";
+  if (result.status === "failed") return "error";
+  if (result.status === "accepted") return "queued";
+  if (result.status === "queued") return "queued";
+  if (result.status === "processing") return "processing";
+  if (result.status === "completed") return "complete";
   if (result.status === "skipped") return "skipped";
   return "complete";
 }
@@ -348,20 +366,110 @@ function renderQualityBadge(row, result, fileKey) {
 function summarizeBatchFeedback(result) {
   if (!result || !Array.isArray(result.files)) return "上传失败。";
   const parts = [
-    result.status === "partial" ? "部分上传完成" : "上传完成",
+    result.status === "partial" ? "部分上传完成" : result.status === "accepted" ? "上传已提交" : "上传完成",
     `${result.succeeded || 0} 个成功`,
+    `${result.accepted || 0} 个后台 OCR`,
     `${result.skipped || 0} 个未入库`,
     `${result.failed || 0} 个失败`,
     `${result.total_chunks || 0} 个片段`,
   ];
   const failed = result.files
-    .filter((item) => item.status === "error")
-    .map((item) => `${item.filename}：${item.error}`);
+    .filter((item) => item.status === "error" || item.status === "failed")
+    .map((item) => `${item.filename}：${item.error || item.result?.error || "OCR 失败"}`);
   const skipped = result.files
     .filter((item) => item.status === "skipped")
     .map((item) => `${item.filename}：${qualityStatusMessage(item) || "需 OCR 未入库"}`);
-  const detail = skipped.concat(failed);
+  const accepted = result.files
+    .filter((item) => ["accepted", "queued", "processing"].includes(item.status))
+    .map((item) => `${item.filename}：${qualityStatusMessage(item) || "后台 OCR 排队中"}`);
+  const detail = accepted.concat(skipped, failed);
   return detail.length ? `${parts.join(" · ")}\n${detail.join("\n")}` : parts.join(" · ");
+}
+
+function summarizeCurrentUploadFeedback() {
+  const files = fileUploadResults || [];
+  const succeeded = files.filter((item) => ["ok", "completed"].includes(item.status)).length;
+  const accepted = files.filter((item) => ["accepted", "queued", "processing"].includes(item.status)).length;
+  const skipped = files.filter((item) => item.status === "skipped").length;
+  const failed = files.filter((item) => ["error", "failed"].includes(item.status)).length;
+  const totalChunks = files.reduce((sum, item) => sum + (Number(item.chunks) || Number(item.result?.chunks_inserted) || 0), 0);
+  return summarizeBatchFeedback({
+    status: failed ? "partial" : accepted ? "accepted" : "ok",
+    succeeded,
+    accepted,
+    skipped,
+    failed,
+    total_chunks: totalChunks,
+    files,
+  });
+}
+
+function stopUploadTaskPolling(taskId) {
+  const timer = uploadTaskPollTimers.get(taskId);
+  if (timer) window.clearTimeout(timer);
+  uploadTaskPollTimers.delete(taskId);
+}
+
+function stopAllUploadTaskPolling() {
+  for (const taskId of uploadTaskPollTimers.keys()) {
+    stopUploadTaskPolling(taskId);
+  }
+}
+
+function mergeUploadTaskResult(current, task) {
+  const result = task.result || {};
+  const chunks = Number(result.chunks_inserted) || Number(current?.chunks) || 0;
+  const quality = {
+    ...(current?.quality || {}),
+    action: task.status === "completed" ? result.quality_action || "ocr" : current?.quality?.action,
+  };
+  return {
+    ...(current || {}),
+    task_id: task.task_id,
+    filename: current?.filename || task.file_name,
+    file_name: task.file_name,
+    raw_file_path: current?.raw_file_path || task.raw_file_path,
+    status: task.status,
+    progress: Number(task.progress) || 0,
+    result,
+    chunks,
+    quality,
+  };
+}
+
+async function pollUploadTask(taskId) {
+  stopUploadTaskPolling(taskId);
+  try {
+    const response = await fetch(`api/tasks/${encodeURIComponent(taskId)}`);
+    if (!response.ok) throw new Error(await response.text());
+    const task = await response.json();
+    const index = fileUploadResults.findIndex((item) => item.task_id === taskId);
+    if (index >= 0) {
+      fileUploadResults[index] = mergeUploadTaskResult(fileUploadResults[index], task);
+      renderUploadSlots();
+      setFeedback("file-feedback", summarizeCurrentUploadFeedback());
+    }
+    if (task.status === "completed") {
+      notifyKnowledgeUpdated("ingest:file:ocr");
+      publishEmbeddedSnapshot();
+      return;
+    }
+    if (task.status === "failed") {
+      publishEmbeddedSnapshot();
+      return;
+    }
+    uploadTaskPollTimers.set(taskId, window.setTimeout(() => pollUploadTask(taskId), OCR_TASK_POLL_INTERVAL_MS));
+  } catch (error) {
+    uploadTaskPollTimers.set(taskId, window.setTimeout(() => pollUploadTask(taskId), OCR_TASK_POLL_INTERVAL_MS));
+  }
+}
+
+function startUploadTaskPolling(results) {
+  for (const result of results || []) {
+    if (result?.task_id && result.status === "accepted") {
+      pollUploadTask(result.task_id);
+    }
+  }
 }
 
 function renderUploadSlots() {
@@ -414,6 +522,8 @@ function renderUploadSlots() {
     remove.className = "upload-slot-remove";
     remove.textContent = "移除";
     remove.addEventListener("click", () => {
+      const removedResult = fileUploadResults.find((item) => item.filename === file.name);
+      if (removedResult?.task_id) stopUploadTaskPolling(removedResult.task_id);
       selectedFiles.splice(index, 1);
       fileUploadResults = fileUploadResults.filter((item) => item.filename !== file.name);
       expandedQualityFiles.delete(file.name);
@@ -429,12 +539,18 @@ function renderUploadSlots() {
     meta.className = "upload-slot-meta";
     meta.textContent =
       status === "error"
-        ? "失败"
-        : status === "skipped"
-          ? "未入库"
-          : status === "complete" && result
-            ? `${result.chunks || 0} 个片段`
-            : formatBytes(file.size);
+        ? result?.status === "failed"
+          ? "OCR 失败"
+          : "失败"
+        : status === "queued"
+          ? "等待 OCR"
+          : status === "processing"
+            ? "OCR 处理中"
+            : status === "skipped"
+              ? "未入库"
+              : status === "complete" && result
+                ? `${result.chunks || 0} 个片段`
+                : formatBytes(file.size);
     meta.title = meta.textContent;
     row.append(head, name, meta);
     renderQualityBadge(row, result, result?.raw_file_path || file.name);
@@ -477,6 +593,7 @@ function setupIngest() {
       selectedFiles = selectedFiles.concat(acceptedFiles);
       fileUploadResults = [];
       expandedQualityFiles = new Set();
+      stopAllUploadTaskPolling();
     }
     fileInput.value = "";
     renderUploadSlots();
@@ -486,6 +603,7 @@ function setupIngest() {
     selectedFiles = [];
     fileUploadResults = [];
     expandedQualityFiles = new Set();
+    stopAllUploadTaskPolling();
     renderUploadSlots();
     setFeedback("file-feedback", "");
     publishEmbeddedSnapshot();
@@ -507,7 +625,8 @@ function setupIngest() {
       fileUploadResults = result.files || [];
       setFeedback("file-feedback", summarizeBatchFeedback(result));
       renderUploadSlots();
-      notifyKnowledgeUpdated("ingest:file");
+      if ((result.succeeded || 0) > 0 || (result.total_chunks || 0) > 0) notifyKnowledgeUpdated("ingest:file");
+      startUploadTaskPolling(fileUploadResults);
       publishEmbeddedSnapshot();
     } catch (error) {
       setFeedback("file-feedback", formatErrorFeedback("上传", error));

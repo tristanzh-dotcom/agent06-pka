@@ -85,7 +85,7 @@ def test_settings_page_keeps_fixed_model_stack_out_of_maintenance_controls():
     assert "function formatSettingsFeedback" in app_js
     assert 'setFeedback("settings-feedback", formatSettingsFeedback(result))' in app_js
     assert "checks.map" in app_js
-    assert "20260616-source-type-ui" in settings_html
+    assert "20260617-async-ocr" in settings_html
 
 
 def test_settings_page_uses_readable_diagnostic_text_colors():
@@ -348,6 +348,39 @@ def test_ingest_upload_uses_six_slot_board_interaction_contract():
     assert ".upload-slot.is-filled" in style_css
     assert ".upload-slot.is-complete" in style_css
     assert ".upload-slot.is-error" in style_css
+
+
+def test_ingest_upload_polls_async_ocr_tasks_from_accepted_results():
+    root = Path(__file__).resolve().parents[1]
+    app_js = (root / "static/app.js").read_text(encoding="utf-8")
+
+    assert "let uploadTaskPollTimers = new Map();" in app_js
+    assert "function pollUploadTask" in app_js
+    assert "function startUploadTaskPolling" in app_js
+    assert 'result.status === "accepted"' in app_js
+    assert 'fetch(`api/tasks/${encodeURIComponent(taskId)}`)' in app_js
+    assert "setTimeout" in app_js
+    assert 'startUploadTaskPolling(fileUploadResults)' in app_js
+    assert "notifyKnowledgeUpdated(\"ingest:file:ocr\")" in app_js
+    assert "后台 OCR" in app_js
+
+
+def test_upload_slot_status_renders_async_ocr_states():
+    root = Path(__file__).resolve().parents[1]
+    app_js = (root / "static/app.js").read_text(encoding="utf-8")
+    style_css = (root / "static/style.css").read_text(encoding="utf-8")
+
+    assert 'action === "needs_ocr_queued"' in app_js
+    assert "已进入后台 OCR 队列" in app_js
+    assert 'if (result.status === "accepted") return "queued";' in app_js
+    assert 'if (result.status === "queued") return "queued";' in app_js
+    assert 'if (result.status === "processing") return "processing";' in app_js
+    assert 'if (result.status === "failed") return "error";' in app_js
+    assert '"等待 OCR"' in app_js
+    assert '"OCR 处理中"' in app_js
+    assert '"OCR 失败"' in app_js
+    assert ".upload-slot.is-queued" in style_css
+    assert ".upload-slot.is-processing" in style_css
 
 
 def test_ingest_upload_errors_are_readable_and_not_restored_as_stale_state():

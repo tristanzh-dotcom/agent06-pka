@@ -152,10 +152,13 @@ def run_verification(
     geo_payload, geo_elapsed = client.ingest_file(asset_paths.geo_pdf, "application/pdf")
     geo_file = _single_file(geo_payload)
     _assert(geo_payload["total_chunks"] == 0, "GEO ingest must not index chunks")
-    _assert(geo_file["status"] == "skipped", "GEO scan must be skipped")
+    _assert(geo_payload["status"] == "accepted", "GEO scan batch must be accepted for async OCR")
+    _assert(geo_payload.get("accepted") == 1, "GEO scan batch must count one accepted OCR task")
+    _assert(geo_file["status"] == "accepted", "GEO scan must be queued for async OCR")
+    _assert(bool(geo_file.get("task_id")), "GEO scan must include task_id")
     _assert(
-        geo_file["quality"]["action"] == "needs_ocr_skipped",
-        "GEO scan must trip needs_ocr_skipped",
+        geo_file["quality"]["action"] == "needs_ocr_queued",
+        "GEO scan must trip needs_ocr_queued",
     )
     _assert(geo_elapsed < 5.0, "GEO OCR fuse must return quickly")
     geo_stats = client.stats()
@@ -164,6 +167,7 @@ def run_verification(
         "status": "passed",
         "elapsed_seconds": round(geo_elapsed, 3),
         "quality_action": geo_file["quality"]["action"],
+        "task_id": geo_file["task_id"],
         "chunks": geo_payload["total_chunks"],
     }
 

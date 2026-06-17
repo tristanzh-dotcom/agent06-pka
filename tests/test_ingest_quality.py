@@ -88,6 +88,15 @@ def _low_quality():
     )
 
 
+def _assert_needs_ocr_queued_result(result, indexer):
+    assert result["status"] == "accepted"
+    assert result["task_id"].startswith("ocr_task_")
+    assert result["chunks"] == 0
+    assert result["chunk_ids"] == []
+    assert result["quality"]["action"] == "needs_ocr_queued"
+    assert indexer.count_chunks() == 0
+
+
 @pytest.mark.asyncio
 async def test_unified_ingest_parsed_result_indexes_normal_and_pre_chunks(monkeypatch, tmp_path):
     indexer = RecordingIndexer()
@@ -159,11 +168,7 @@ async def test_needs_ocr_without_ocr_is_skipped_and_not_indexed(monkeypatch, tmp
 
     result = await server._ingest_upload_file(upload, ocr=None)
 
-    assert result["status"] == "skipped"
-    assert result["chunks"] == 0
-    assert result["chunk_ids"] == []
-    assert result["quality"]["action"] == "needs_ocr_skipped"
-    assert indexer.count_chunks() == 0
+    _assert_needs_ocr_queued_result(result, indexer)
 
 
 @pytest.mark.asyncio
@@ -203,12 +208,9 @@ async def test_needs_ocr_sync_ingest_skips_without_running_ocr_chain(monkeypatch
 
     result = await server._ingest_upload_file(upload, ocr=ocr_chain)
 
-    assert result["status"] == "skipped"
-    assert result["quality"]["action"] == "needs_ocr_skipped"
-    assert result["chunks"] == 0
     assert ocr_chain.calls == 0
     assert indexer.upsert_calls == []
-    assert indexer.count_chunks() == 0
+    _assert_needs_ocr_queued_result(result, indexer)
 
 
 @pytest.mark.asyncio
@@ -306,11 +308,8 @@ async def test_needs_ocr_with_legacy_pdf_ocr_is_skipped_before_ocr(monkeypatch, 
 
     result = await server._ingest_upload_file(upload, ocr=ocr)
 
-    assert result["status"] == "skipped"
-    assert result["quality"]["action"] == "needs_ocr_skipped"
-    assert result["chunks"] == 0
     assert ocr.calls == 0
-    assert indexer.count_chunks() == 0
+    _assert_needs_ocr_queued_result(result, indexer)
 
 
 @pytest.mark.asyncio
@@ -351,12 +350,9 @@ async def test_needs_ocr_provider_chain_is_not_called_in_sync_ingest(monkeypatch
     result = await server._ingest_upload_file(upload, ocr=ocr_chain)
 
     assert ocr_chain.calls == 0
-    assert result["status"] == "skipped"
-    assert result["quality"]["action"] == "needs_ocr_skipped"
     assert result["quality"].get("provider", "") == ""
     assert result["quality"].get("attempts", []) == []
-    assert result["chunks"] == 0
-    assert indexer.count_chunks() == 0
+    _assert_needs_ocr_queued_result(result, indexer)
 
 
 @pytest.mark.asyncio
@@ -393,11 +389,8 @@ async def test_needs_ocr_skips_before_provider_chain_timeout_path(monkeypatch, t
 
     result = await server._ingest_upload_file(upload, ocr=ocr_chain)
 
-    assert result["status"] == "skipped"
-    assert result["quality"]["action"] == "needs_ocr_skipped"
-    assert result["chunks"] == 0
     assert ocr_chain.calls == 0
-    assert indexer.count_chunks() == 0
+    _assert_needs_ocr_queued_result(result, indexer)
 
 
 @pytest.mark.asyncio
@@ -428,11 +421,8 @@ async def test_needs_ocr_skips_before_provider_chain_failure_path(monkeypatch, t
 
     result = await server._ingest_upload_file(upload, ocr=ocr_chain)
 
-    assert result["status"] == "skipped"
-    assert result["quality"]["action"] == "needs_ocr_skipped"
-    assert result["chunks"] == 0
     assert ocr_chain.calls == 0
-    assert indexer.count_chunks() == 0
+    _assert_needs_ocr_queued_result(result, indexer)
 
 
 @pytest.mark.asyncio
@@ -495,11 +485,8 @@ async def test_needs_ocr_skips_before_legacy_pdf_ocr_failure_path(monkeypatch, t
 
     result = await server._ingest_upload_file(upload, ocr=ocr)
 
-    assert result["status"] == "skipped"
-    assert result["quality"]["action"] == "needs_ocr_skipped"
-    assert result["chunks"] == 0
     assert ocr.calls == 0
-    assert indexer.count_chunks() == 0
+    _assert_needs_ocr_queued_result(result, indexer)
 
 
 @pytest.mark.asyncio

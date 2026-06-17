@@ -1,8 +1,14 @@
+import asyncio
+import json
+import threading
+from contextlib import asynccontextmanager
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime
 from html import escape
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
+from uuid import uuid4
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
@@ -14,7 +20,7 @@ from engine.config import load_config, sanitize_config, save_config, update_conf
 from engine.exporter import export_to_ppt, export_to_word
 from engine.generator import generate_answer
 from engine.indexer import HybridIndexer, OllamaEmbeddingClient
-from engine.models import Chunk, ParseQuality
+from engine.models import Chunk, ParseQuality, ParseResult
 from engine.ocr import build_ocr_provider_chain
 from engine.parser import parse_file, parse_text
 from engine.ppt_maker_adapter import export_to_quality_ppt
@@ -22,8 +28,81 @@ from engine.retriever import HybridRetriever
 
 
 CONFIG_PATH = Path("config.yaml")
-app = FastAPI(title="PKA")
+
+
+@asynccontextmanager
+async def lifespan(app_instance):
+    recover_queued_ocr_tasks()
+    yield
+
+
+app = FastAPI(title="PKA", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="static"), name="static")
+ingest_lock = threading.Lock()
+ocr_executor = ThreadPoolExecutor(max_workers=1)
+
+
+class OcrTaskStore:
+    def __init__(self, data_dir: str):
+        self.tasks_dir = Path(data_dir) / "runtime" / "tasks"
+        self.tasks_dir.mkdir(parents=True, exist_ok=True)
+        self.lock = threading.Lock()
+
+    def create_task(
+        self,
+        *,
+        file_name: str,
+        raw_file_path: str,
+        content_type: str = "",
+        page_count: int = 0,
+    ) -> str:
+        task_id = f"ocr_task_{uuid4().hex[:12]}"
+        payload = {
+            "task_id": task_id,
+            "status": "queued",
+            "file_name": file_name,
+            "raw_file_path": raw_file_path,
+            "content_type": content_type,
+            "page_count": page_count,
+            "progress": 0,
+            "result": {
+                "chunks_inserted": 0,
+                "quality_action": None,
+                "error": None,
+            },
+        }
+        self.save_task(task_id, payload)
+        return task_id
+
+    def get_task(self, task_id: str) -> Optional[dict]:
+        path = self.tasks_dir / f"{task_id}.json"
+        if not path.exists():
+            return None
+        with path.open("r", encoding="utf-8") as source:
+            return json.load(source)
+
+    def update_task(self, task_id: str, updates: dict) -> Optional[dict]:
+        with self.lock:
+            task = self.get_task(task_id)
+            if task is None:
+                return None
+            task.update(updates)
+            self.save_task(task_id, task)
+            return task
+
+    def save_task(self, task_id: str, payload: dict) -> None:
+        path = self.tasks_dir / f"{task_id}.json"
+        tmp_path = path.with_suffix(path.suffix + ".tmp")
+        with tmp_path.open("w", encoding="utf-8") as output:
+            json.dump(payload, output, ensure_ascii=False, indent=2)
+        tmp_path.replace(path)
+
+    def list_tasks(self) -> list[dict]:
+        tasks = []
+        for path in sorted(self.tasks_dir.glob("*.json")):
+            with path.open("r", encoding="utf-8") as source:
+                tasks.append(json.load(source))
+        return tasks
 
 
 class TextIngestRequest(BaseModel):
@@ -118,6 +197,18 @@ async def ingest_file(file: UploadFile = File(...)):
         raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if result["status"] == "accepted":
+        if ocr is not None:
+            ocr_executor.submit(run_ocr_task_once, result["task_id"], ocr)
+        return JSONResponse(
+            status_code=202,
+            content={
+                "status": "accepted",
+                "task_id": result["task_id"],
+                "file_name": result["file_name"],
+                "message": "文件需要重型 OCR 解析，已成功提交至后台异步队列进行处理。",
+            },
+        )
     if result["chunks"] > 0:
         runtime.last_updated = datetime.now().isoformat()
     return {
@@ -130,6 +221,14 @@ async def ingest_file(file: UploadFile = File(...)):
     }
 
 
+@app.get("/api/tasks/{task_id}")
+async def get_task(task_id: str):
+    task = _ocr_task_store().get_task(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="task not found")
+    return task
+
+
 @app.post("/api/ingest/files")
 async def ingest_files(files: list[UploadFile] = File(...)):
     if not files:
@@ -137,6 +236,7 @@ async def ingest_files(files: list[UploadFile] = File(...)):
     ocr = _build_ocr_client()
     results = []
     succeeded = 0
+    accepted = 0
     skipped = 0
     failed = 0
     total_chunks = 0
@@ -144,7 +244,11 @@ async def ingest_files(files: list[UploadFile] = File(...)):
         filename = Path(file.filename or "upload").name
         try:
             result = await _ingest_upload_file(file, ocr)
-            if result.get("status") == "skipped":
+            if result.get("status") == "accepted":
+                accepted += 1
+                if ocr is not None:
+                    ocr_executor.submit(run_ocr_task_once, result["task_id"], ocr)
+            elif result.get("status") == "skipped":
                 skipped += 1
             else:
                 succeeded += 1
@@ -170,19 +274,69 @@ async def ingest_files(files: list[UploadFile] = File(...)):
             })
     if total_chunks > 0:
         runtime.last_updated = datetime.now().isoformat()
-    return {
+    response_payload = {
         "status": "ok" if failed == 0 and skipped == 0 else "partial",
         "total_files": len(files),
         "succeeded": succeeded,
+        "accepted": accepted,
         "skipped": skipped,
         "failed": failed,
         "total_chunks": total_chunks,
         "files": results,
     }
+    if accepted:
+        response_payload["status"] = "accepted" if failed == 0 else "partial"
+        return JSONResponse(status_code=202, content=response_payload)
+    return response_payload
 
 
 def _build_ocr_client():
     return build_ocr_provider_chain(runtime.config)
+
+
+def _ocr_task_store() -> OcrTaskStore:
+    return OcrTaskStore(runtime.config["data_dir"])
+
+
+def recover_queued_ocr_tasks(executor=None) -> dict:
+    store = _ocr_task_store()
+    executor = executor or ocr_executor
+    summary = {"requeued": 0, "failed": 0}
+    for task in store.list_tasks():
+        if task.get("status") not in {"queued", "processing"}:
+            continue
+        task_id = task["task_id"]
+        raw_path = Path(runtime.config["data_dir"]) / task.get("raw_file_path", "")
+        if raw_path.exists():
+            store.update_task(
+                task_id,
+                {
+                    "status": "queued",
+                    "progress": 0,
+                    "result": {
+                        "chunks_inserted": 0,
+                        "quality_action": None,
+                        "error": None,
+                    },
+                },
+            )
+            executor.submit(run_ocr_task_once, task_id)
+            summary["requeued"] += 1
+        else:
+            store.update_task(
+                task_id,
+                {
+                    "status": "failed",
+                    "progress": 100,
+                    "result": {
+                        "chunks_inserted": 0,
+                        "quality_action": "ocr",
+                        "error": "raw file is missing",
+                    },
+                },
+            )
+            summary["failed"] += 1
+    return summary
 
 
 async def _ingest_upload_file(file: UploadFile, ocr):
@@ -200,12 +354,22 @@ async def _ingest_upload_file(file: UploadFile, ocr):
     raw_file_path = str(output_path.relative_to(Path(runtime.config["data_dir"])))
     quality = parsed.quality
     if quality is not None and quality.status == "needs_ocr":
-        return _skipped_ingest_result(
-            parsed,
-            file.content_type,
-            raw_file_path,
-            replace(quality, action="needs_ocr_skipped"),
+        task_id = _ocr_task_store().create_task(
+            file_name=Path(file.filename or parsed.source_name).name,
+            raw_file_path=raw_file_path,
+            content_type=file.content_type or "",
+            page_count=int(parsed.metadata.get("page_count", 0) or 0),
         )
+        return {
+            "status": "accepted",
+            "task_id": task_id,
+            "file_name": Path(file.filename or parsed.source_name).name,
+            "chunks": 0,
+            "source_name": parsed.source_name,
+            "chunk_ids": [],
+            "raw_file_path": raw_file_path,
+            "quality": _quality_payload(replace(quality, action="needs_ocr_queued")),
+        }
     return await _ingest_parsed_result(
         parsed,
         content_type=file.content_type,
@@ -214,6 +378,84 @@ async def _ingest_upload_file(file: UploadFile, ocr):
         attempts=locals().get("ocr_attempts", []),
         ocr_result=locals().get("ocr_result_meta"),
     )
+
+
+def run_ocr_task_once(task_id: str, ocr_chain=None) -> None:
+    store = _ocr_task_store()
+    task = store.get_task(task_id)
+    if task is None:
+        return
+    store.update_task(task_id, {"status": "processing", "progress": 10})
+    try:
+        chain = ocr_chain or _build_ocr_client()
+        if chain is None:
+            raise RuntimeError("OCR provider chain is not configured")
+        raw_path = Path(runtime.config["data_dir"]) / task["raw_file_path"]
+        ocr_result = _run_coroutine_sync(
+            chain.extract_pdf_until_usable(
+                str(raw_path),
+                page_count=int(task.get("page_count", 0) or 0),
+                max_pages=int(runtime.config.get("ocr", {}).get("max_pdf_pages", 10) or 10),
+            )
+        )
+        if ocr_result is None:
+            raise RuntimeError("OCR did not produce usable text")
+        quality = replace(ocr_result.quality, action="ocr") if ocr_result.quality is not None else None
+        parsed = ParseResult(
+            text=ocr_result.text,
+            source_name=task["file_name"],
+            source_type="pdf",
+            metadata={
+                "page_count": ocr_result.source_page_count,
+                "non_empty_pages": ocr_result.pages_processed,
+                "quality_status": quality.status if quality else "",
+                "quality_action": quality.action if quality else "",
+            },
+            quality=quality,
+        )
+        ingest_result = _run_coroutine_sync(
+            _ingest_parsed_result(
+                parsed,
+                content_type=task.get("content_type", "application/pdf"),
+                raw_file_path=task["raw_file_path"],
+                provider=ocr_result.provider,
+                attempts=ocr_result.attempts,
+                ocr_result=ocr_result,
+            )
+        )
+        store.update_task(
+            task_id,
+            {
+                "status": "completed",
+                "progress": 100,
+                "result": {
+                    "chunks_inserted": ingest_result["chunks"],
+                    "quality_action": "ocr",
+                    "error": None,
+                },
+            },
+        )
+    except Exception as exc:
+        store.update_task(
+            task_id,
+            {
+                "status": "failed",
+                "progress": 100,
+                "result": {
+                    "chunks_inserted": 0,
+                    "quality_action": "ocr",
+                    "error": str(exc),
+                },
+            },
+        )
+
+
+def _run_coroutine_sync(coroutine):
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coroutine)
+    raise RuntimeError("run_ocr_task_once cannot run inside an active event loop")
 
 
 async def _ingest_parsed_result(
@@ -230,9 +472,10 @@ async def _ingest_parsed_result(
     chunks.extend(_pre_chunk_records(pre_chunks))
     if not chunks:
         raise ValueError("no indexable content")
-    _enforce_sync_chunk_limit(len(chunks), parsed.source_name)
-    count = runtime.indexer.upsert(chunks, raw_file_paths=[raw_file_path] * len(chunks))
-    runtime.last_updated = datetime.now().isoformat()
+    with ingest_lock:
+        _enforce_sync_chunk_limit(len(chunks), parsed.source_name)
+        count = runtime.indexer.upsert(chunks, raw_file_paths=[raw_file_path] * len(chunks))
+        runtime.last_updated = datetime.now().isoformat()
     org_chart_pages = [record.metadata.get("page") for record in pre_chunks if getattr(record, "metadata", None)]
     quality_payload = _quality_payload(
         parsed.quality,

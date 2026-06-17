@@ -249,6 +249,16 @@ button.upload-slot {
   background: var(--message-user-bg);
 }
 
+.upload-slot.is-queued {
+  border-color: rgba(43, 116, 175, 0.38);
+  background: rgba(43, 116, 175, 0.08);
+}
+
+.upload-slot.is-processing {
+  border-color: rgba(210, 120, 38, 0.42);
+  background: rgba(210, 120, 38, 0.10);
+}
+
 .upload-slot.is-skipped {
   border-color: var(--accent-2);
   background: rgba(178, 59, 46, 0.08);
