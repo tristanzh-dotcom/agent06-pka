@@ -22,8 +22,7 @@ ORG_CHART_EXPLANATION_PATTERNS = [
     re.compile(r"\bwhat is an org chart\b", re.IGNORECASE),
 ]
 
-ORG_CHART_INTENT_WINDOW = 0.003
-ORG_CHART_INTENT_BONUS = 0.001
+ORG_CHART_INTENT_BONUS = 0.02
 
 
 def reciprocal_rank_fusion(
@@ -165,13 +164,11 @@ class HybridRetriever:
 def apply_org_chart_intent_bias(query: str, fused: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     if not fused or not _has_org_chart_relation_intent(query):
         return fused
-    best_score = max(item["score"] for item in fused)
 
     def intent_score(item: Dict[str, Any]) -> float:
         eligible = (
             item.get("source_type") == "org_chart"
             and _has_org_chart_projection_evidence(item.get("text", ""))
-            and best_score - item["score"] <= ORG_CHART_INTENT_WINDOW
         )
         return item["score"] + (ORG_CHART_INTENT_BONUS if eligible else 0.0)
 
@@ -193,14 +190,12 @@ def _org_chart_intent_debug(query: str, fused: List[Dict[str, Any]]) -> Dict[str
     triggered = bool(fused and _has_org_chart_relation_intent(query))
     if not triggered:
         return {"triggered": False, "applied_chunk_ids": set()}
-    best_score = max(item["score"] for item in fused)
     applied_chunk_ids = {
         item["chunk_id"]
         for item in fused
         if (
             item.get("source_type") == "org_chart"
             and _has_org_chart_projection_evidence(item.get("text", ""))
-            and best_score - item["score"] <= ORG_CHART_INTENT_WINDOW
         )
     }
     return {"triggered": True, "applied_chunk_ids": applied_chunk_ids}

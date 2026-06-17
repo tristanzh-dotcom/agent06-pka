@@ -1,0 +1,1060 @@
+{
+  "generated_at": "2026-06-17T20:54:43",
+  "http_files_tested": 13,
+  "files": [
+    {
+      "file": "%E6%B5%B7%E6%8A%A5%E5%86%85%E5%AE%B9_%E5%8F%AF%E7%BC%96%E8%BE%91%E4%B8%89%E9%A1%B5%E6%BC%94%E7%A4%BA%E7%89%88.pptx",
+      "size": 204423,
+      "status_code": 200,
+      "payload": {
+        "status": "ok",
+        "chunks": 3,
+        "source_name": "%E6%B5%B7%E6%8A%A5%E5%86%85%E5%AE%B9_%E5%8F%AF%E7%BC%96%E8%BE%91%E4%B8%89%E9%A1%B5%E6%BC%94%E7%A4%BA%E7%89%88-4.pptx",
+        "chunk_ids": [
+          "%E6%B5%B7%E6%8A%A5%E5%86%85%E5%AE%B9_%E5%8F%AF%E7%BC%96%E8%BE%91%E4%B8%89%E9%A1%B5%E6%BC%94%E7%A4%BA%E7%89%88-4.pptx#0",
+          "%E6%B5%B7%E6%8A%A5%E5%86%85%E5%AE%B9_%E5%8F%AF%E7%BC%96%E8%BE%91%E4%B8%89%E9%A1%B5%E6%BC%94%E7%A4%BA%E7%89%88-4.pptx#1",
+          "%E6%B5%B7%E6%8A%A5%E5%86%85%E5%AE%B9_%E5%8F%AF%E7%BC%96%E8%BE%91%E4%B8%89%E9%A1%B5%E6%BC%94%E7%A4%BA%E7%89%88-4.pptx#2"
+        ],
+        "raw_file_path": "raw/2026-06-17/%E6%B5%B7%E6%8A%A5%E5%86%85%E5%AE%B9_%E5%8F%AF%E7%BC%96%E8%BE%91%E4%B8%89%E9%A1%B5%E6%BC%94%E7%A4%BA%E7%89%88-4.pptx",
+        "quality": null
+      },
+      "task": null,
+      "task_history_tail": [],
+      "stats_before": {
+        "indexed_files": 0,
+        "total_chunks": 0,
+        "last_updated": "2026-06-17T20:51:21.807200"
+      },
+      "stats_after": {
+        "indexed_files": 1,
+        "total_chunks": 3,
+        "last_updated": "2026-06-17T20:51:22.411789"
+      },
+      "quality_verdict": "pass_indexed"
+    },
+    {
+      "file": "2026中国新能源汽车品牌GEO现状研究报告-亿欧智库.pdf",
+      "size": 5087919,
+      "status_code": 202,
+      "payload": {
+        "status": "accepted",
+        "task_id": "ocr_task_ad6b6f86a529",
+        "file_name": "2026中国新能源汽车品牌GEO现状研究报告-亿欧智库.pdf",
+        "message": "文件需要重型 OCR 解析，已成功提交至后台异步队列进行处理。"
+      },
+      "task": {
+        "task_id": "ocr_task_ad6b6f86a529",
+        "status": "completed",
+        "file_name": "2026中国新能源汽车品牌GEO现状研究报告-亿欧智库.pdf",
+        "raw_file_path": "raw/2026-06-17/2026中国新能源汽车品牌GEO现状研究报告-亿欧智库-3.pdf",
+        "content_type": "application/pdf",
+        "page_count": 41,
+        "progress": 100,
+        "result": {
+          "chunks_inserted": 7,
+          "quality_action": "ocr",
+          "error": null
+        }
+      },
+      "task_history_tail": [
+        {
+          "status": "processing",
+          "progress": 10,
+          "result": {
+            "chunks_inserted": 0,
+            "quality_action": null,
+            "error": null
+          }
+        },
+        {
+          "status": "processing",
+          "progress": 10,
+          "result": {
+            "chunks_inserted": 0,
+            "quality_action": null,
+            "error": null
+          }
+        },
+        {
+          "status": "processing",
+          "progress": 10,
+          "result": {
+            "chunks_inserted": 0,
+            "quality_action": null,
+            "error": null
+          }
+        },
+        {
+          "status": "processing",
+          "progress": 10,
+          "result": {
+            "chunks_inserted": 0,
+            "quality_action": null,
+            "error": null
+          }
+        },
+        {
+          "status": "completed",
+          "progress": 100,
+          "result": {
+            "chunks_inserted": 7,
+            "quality_action": "ocr",
+            "error": null
+          }
+        }
+      ],
+      "stats_before": {
+        "indexed_files": 1,
+        "total_chunks": 3,
+        "last_updated": "2026-06-17T20:51:22.411789"
+      },
+      "stats_after": {
+        "indexed_files": 2,
+        "total_chunks": 10,
+        "last_updated": "2026-06-17T20:53:28.920573"
+      },
+      "quality_verdict": "pass_async_completed"
+    },
+    {
+      "file": "391.jpeg",
+      "size": 416309,
+      "status_code": 200,
+      "payload": {
+        "status": "ok",
+        "chunks": 1,
+        "source_name": "391-3.jpeg",
+        "chunk_ids": [
+          "391-3.jpeg#0"
+        ],
+        "raw_file_path": "raw/2026-06-17/391-3.jpeg",
+        "quality": null
+      },
+      "task": null,
+      "task_history_tail": [],
+      "stats_before": {
+        "indexed_files": 2,
+        "total_chunks": 10,
+        "last_updated": "2026-06-17T20:53:28.920573"
+      },
+      "stats_after": {
+        "indexed_files": 3,
+        "total_chunks": 11,
+        "last_updated": "2026-06-17T20:53:42.005025"
+      },
+      "quality_verdict": "pass_indexed"
+    },
+    {
+      "file": "392.jpeg",
+      "size": 438286,
+      "status_code": 200,
+      "payload": {
+        "status": "ok",
+        "chunks": 1,
+        "source_name": "392-3.jpeg",
+        "chunk_ids": [
+          "392-3.jpeg#0"
+        ],
+        "raw_file_path": "raw/2026-06-17/392-3.jpeg",
+        "quality": null
+      },
+      "task": null,
+      "task_history_tail": [],
+      "stats_before": {
+        "indexed_files": 3,
+        "total_chunks": 11,
+        "last_updated": "2026-06-17T20:53:42.005025"
+      },
+      "stats_after": {
+        "indexed_files": 4,
+        "total_chunks": 12,
+        "last_updated": "2026-06-17T20:53:51.192303"
+      },
+      "quality_verdict": "pass_indexed"
+    },
+    {
+      "file": "393.jpeg",
+      "size": 386465,
+      "status_code": 200,
+      "payload": {
+        "status": "ok",
+        "chunks": 1,
+        "source_name": "393-3.jpeg",
+        "chunk_ids": [
+          "393-3.jpeg#0"
+        ],
+        "raw_file_path": "raw/2026-06-17/393-3.jpeg",
+        "quality": null
+      },
+      "task": null,
+      "task_history_tail": [],
+      "stats_before": {
+        "indexed_files": 4,
+        "total_chunks": 12,
+        "last_updated": "2026-06-17T20:53:51.192303"
+      },
+      "stats_after": {
+        "indexed_files": 5,
+        "total_chunks": 13,
+        "last_updated": "2026-06-17T20:54:00.647656"
+      },
+      "quality_verdict": "pass_indexed"
+    },
+    {
+      "file": "394.jpeg",
+      "size": 416175,
+      "status_code": 200,
+      "payload": {
+        "status": "ok",
+        "chunks": 1,
+        "source_name": "394-3.jpeg",
+        "chunk_ids": [
+          "394-3.jpeg#0"
+        ],
+        "raw_file_path": "raw/2026-06-17/394-3.jpeg",
+        "quality": null
+      },
+      "task": null,
+      "task_history_tail": [],
+      "stats_before": {
+        "indexed_files": 5,
+        "total_chunks": 13,
+        "last_updated": "2026-06-17T20:54:00.647656"
+      },
+      "stats_after": {
+        "indexed_files": 6,
+        "total_chunks": 14,
+        "last_updated": "2026-06-17T20:54:10.185180"
+      },
+      "quality_verdict": "pass_indexed"
+    },
+    {
+      "file": "AI 数据湖服务_视觉内容理解（Doubao-1.5-vision-pro-32k）_1775258263.pdf",
+      "size": 4744583,
+      "status_code": 200,
+      "payload": {
+        "status": "ok",
+        "chunks": 14,
+        "source_name": "AI 数据湖服务_视觉内容理解（Doubao-1.5-vision-pro-32k）_1775258263-3.pdf",
+        "chunk_ids": [
+          "AI 数据湖服务_视觉内容理解（Doubao-1.5-vision-pro-32k）_1775258263-3.pdf#0",
+          "AI 数据湖服务_视觉内容理解（Doubao-1.5-vision-pro-32k）_1775258263-3.pdf#1",
+          "AI 数据湖服务_视觉内容理解（Doubao-1.5-vision-pro-32k）_1775258263-3.pdf#2",
+          "AI 数据湖服务_视觉内容理解（Doubao-1.5-vision-pro-32k）_1775258263-3.pdf#3",
+          "AI 数据湖服务_视觉内容理解（Doubao-1.5-vision-pro-32k）_1775258263-3.pdf#4",
+          "AI 数据湖服务_视觉内容理解（Doubao-1.5-vision-pro-32k）_1775258263-3.pdf#5",
+          "AI 数据湖服务_视觉内容理解（Doubao-1.5-vision-pro-32k）_1775258263-3.pdf#6",
+          "AI 数据湖服务_视觉内容理解（Doubao-1.5-vision-pro-32k）_1775258263-3.pdf#7",
+          "AI 数据湖服务_视觉内容理解（Doubao-1.5-vision-pro-32k）_1775258263-3.pdf#8",
+          "AI 数据湖服务_视觉内容理解（Doubao-1.5-vision-pro-32k）_1775258263-3.pdf#9",
+          "AI 数据湖服务_视觉内容理解（Doubao-1.5-vision-pro-32k）_1775258263-3.pdf#10",
+          "AI 数据湖服务_视觉内容理解（Doubao-1.5-vision-pro-32k）_1775258263-3.pdf#11",
+          "AI 数据湖服务_视觉内容理解（Doubao-1.5-vision-pro-32k）_1775258263-3.pdf#12",
+          "AI 数据湖服务_视觉内容理解（Doubao-1.5-vision-pro-32k）_1775258263-3.pdf#13"
+        ],
+        "raw_file_path": "raw/2026-06-17/AI 数据湖服务_视觉内容理解（Doubao-1.5-vision-pro-32k）_1775258263-3.pdf",
+        "quality": {
+          "status": "high",
+          "action": "cleaned",
+          "valid_ratio": 0.866,
+          "short_line_ratio": 0.477,
+          "watermark_ratio": 0.132,
+          "unique_line_ratio": 25.0,
+          "non_empty_pages": 11,
+          "page_count": 11,
+          "non_empty_page_ratio": 1.0,
+          "effective_chars_per_page": 570.9,
+          "cleaned_chars_ratio": 0.866,
+          "reasons": []
+        }
+      },
+      "task": null,
+      "task_history_tail": [],
+      "stats_before": {
+        "indexed_files": 6,
+        "total_chunks": 14,
+        "last_updated": "2026-06-17T20:54:10.185180"
+      },
+      "stats_after": {
+        "indexed_files": 7,
+        "total_chunks": 28,
+        "last_updated": "2026-06-17T20:54:11.625238"
+      },
+      "quality_verdict": "pass_indexed"
+    },
+    {
+      "file": "EGO_UMI_VLA_数据采集系统_V3_审计修订版.pdf",
+      "size": 908154,
+      "status_code": 200,
+      "payload": {
+        "status": "ok",
+        "chunks": 20,
+        "source_name": "EGO_UMI_VLA_数据采集系统_V3_审计修订版-3.pdf",
+        "chunk_ids": [
+          "EGO_UMI_VLA_数据采集系统_V3_审计修订版-3.pdf#0",
+          "EGO_UMI_VLA_数据采集系统_V3_审计修订版-3.pdf#1",
+          "EGO_UMI_VLA_数据采集系统_V3_审计修订版-3.pdf#2",
+          "EGO_UMI_VLA_数据采集系统_V3_审计修订版-3.pdf#3",
+          "EGO_UMI_VLA_数据采集系统_V3_审计修订版-3.pdf#4",
+          "EGO_UMI_VLA_数据采集系统_V3_审计修订版-3.pdf#5",
+          "EGO_UMI_VLA_数据采集系统_V3_审计修订版-3.pdf#6",
+          "EGO_UMI_VLA_数据采集系统_V3_审计修订版-3.pdf#7",
+          "EGO_UMI_VLA_数据采集系统_V3_审计修订版-3.pdf#8",
+          "EGO_UMI_VLA_数据采集系统_V3_审计修订版-3.pdf#9",
+          "EGO_UMI_VLA_数据采集系统_V3_审计修订版-3.pdf#10",
+          "EGO_UMI_VLA_数据采集系统_V3_审计修订版-3.pdf#11",
+          "EGO_UMI_VLA_数据采集系统_V3_审计修订版-3.pdf#12",
+          "EGO_UMI_VLA_数据采集系统_V3_审计修订版-3.pdf#13",
+          "EGO_UMI_VLA_数据采集系统_V3_审计修订版-3.pdf#14",
+          "EGO_UMI_VLA_数据采集系统_V3_审计修订版-3.pdf#15",
+          "EGO_UMI_VLA_数据采集系统_V3_审计修订版-3.pdf#16",
+          "EGO_UMI_VLA_数据采集系统_V3_审计修订版-3.pdf#17",
+          "EGO_UMI_VLA_数据采集系统_V3_审计修订版-3.pdf#18",
+          "EGO_UMI_VLA_数据采集系统_V3_审计修订版-3.pdf#19"
+        ],
+        "raw_file_path": "raw/2026-06-17/EGO_UMI_VLA_数据采集系统_V3_审计修订版-3.pdf",
+        "quality": {
+          "status": "high",
+          "action": "cleaned",
+          "valid_ratio": 0.944,
+          "short_line_ratio": 0.501,
+          "watermark_ratio": 0.115,
+          "unique_line_ratio": 88.1,
+          "non_empty_pages": 12,
+          "page_count": 12,
+          "non_empty_page_ratio": 1.0,
+          "effective_chars_per_page": 1181.0,
+          "cleaned_chars_ratio": 0.944,
+          "reasons": []
+        }
+      },
+      "task": null,
+      "task_history_tail": [],
+      "stats_before": {
+        "indexed_files": 7,
+        "total_chunks": 28,
+        "last_updated": "2026-06-17T20:54:11.625238"
+      },
+      "stats_after": {
+        "indexed_files": 8,
+        "total_chunks": 48,
+        "last_updated": "2026-06-17T20:54:13.933822"
+      },
+      "quality_verdict": "pass_indexed"
+    },
+    {
+      "file": "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2.pdf",
+      "size": 2926900,
+      "status_code": 200,
+      "payload": {
+        "status": "ok",
+        "chunks": 105,
+        "source_name": "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf",
+        "chunk_ids": [
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#0",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#1",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#2",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#3",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#4",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#5",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#6",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#7",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#8",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#9",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#10",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#11",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#12",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#13",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#14",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#15",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#16",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#17",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#18",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#19",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#20",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#21",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_0",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_1",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_2",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_3",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_4",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_5",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_6",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_7",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_8",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_9",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_10",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_11",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_12",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_13",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_14",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_15",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_16",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_17",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_18",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_19",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_20",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_21",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_22",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_23",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_24",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_25",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_26",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_27",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_28",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_29",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_30",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_31",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_32",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_33",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_34",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_35",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_36",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_37",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_38",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_39",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_40",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_41",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_42",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_43",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_44",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_45",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_46",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_47",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_48",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_49",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_50",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_51",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_52",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_53",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_54",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_55",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_56",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_57",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_58",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_59",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_60",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_61",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_62",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_63",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_64",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_65",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_66",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_67",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_68",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_69",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_70",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_71",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_72",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_73",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_74",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_75",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_76",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_77",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_78",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_79",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_80",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_81",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf#org_chart_82"
+        ],
+        "raw_file_path": "raw/2026-06-17/JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf",
+        "quality": {
+          "status": "high",
+          "action": "cleaned",
+          "valid_ratio": 0.934,
+          "short_line_ratio": 0.136,
+          "watermark_ratio": 0.091,
+          "unique_line_ratio": 21.0,
+          "non_empty_pages": 14,
+          "page_count": 46,
+          "non_empty_page_ratio": 0.304,
+          "effective_chars_per_page": 268.9,
+          "cleaned_chars_ratio": 0.934,
+          "reasons": [],
+          "org_chart_chunks": 83,
+          "org_chart_pages": [
+            2,
+            2,
+            6,
+            7,
+            7,
+            9,
+            9,
+            10,
+            10,
+            10,
+            12,
+            12,
+            13,
+            13,
+            15,
+            15,
+            16,
+            16,
+            16,
+            17,
+            17,
+            19,
+            19,
+            20,
+            20,
+            20,
+            20,
+            20,
+            22,
+            22,
+            23,
+            23,
+            24,
+            24,
+            26,
+            27,
+            27,
+            27,
+            27,
+            27,
+            28,
+            28,
+            28,
+            28,
+            30,
+            31,
+            31,
+            31,
+            31,
+            31,
+            32,
+            32,
+            32,
+            34,
+            34,
+            35,
+            35,
+            35,
+            35,
+            36,
+            36,
+            36,
+            36,
+            37,
+            37,
+            37,
+            40,
+            40,
+            41,
+            41,
+            41,
+            42,
+            42,
+            42,
+            43,
+            43,
+            44,
+            45,
+            45,
+            45,
+            46,
+            46,
+            46
+          ],
+          "org_chart_mode": "pdf_layout_fallback"
+        }
+      },
+      "task": null,
+      "task_history_tail": [],
+      "stats_before": {
+        "indexed_files": 8,
+        "total_chunks": 48,
+        "last_updated": "2026-06-17T20:54:13.933822"
+      },
+      "stats_after": {
+        "indexed_files": 9,
+        "total_chunks": 153,
+        "last_updated": "2026-06-17T20:54:27.038969"
+      },
+      "quality_verdict": "pass_indexed"
+    },
+    {
+      "file": "JLR_Corporate_Deck_Template_MASTER_25_.pptx.pdf",
+      "size": 2926900,
+      "status_code": 200,
+      "payload": {
+        "status": "ok",
+        "chunks": 105,
+        "source_name": "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf",
+        "chunk_ids": [
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#0",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#1",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#2",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#3",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#4",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#5",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#6",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#7",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#8",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#9",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#10",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#11",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#12",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#13",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#14",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#15",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#16",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#17",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#18",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#19",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#20",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#21",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_0",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_1",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_2",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_3",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_4",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_5",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_6",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_7",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_8",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_9",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_10",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_11",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_12",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_13",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_14",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_15",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_16",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_17",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_18",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_19",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_20",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_21",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_22",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_23",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_24",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_25",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_26",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_27",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_28",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_29",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_30",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_31",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_32",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_33",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_34",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_35",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_36",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_37",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_38",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_39",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_40",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_41",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_42",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_43",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_44",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_45",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_46",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_47",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_48",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_49",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_50",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_51",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_52",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_53",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_54",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_55",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_56",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_57",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_58",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_59",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_60",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_61",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_62",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_63",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_64",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_65",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_66",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_67",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_68",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_69",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_70",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_71",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_72",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_73",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_74",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_75",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_76",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_77",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_78",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_79",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_80",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_81",
+          "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf#org_chart_82"
+        ],
+        "raw_file_path": "raw/2026-06-17/JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf",
+        "quality": {
+          "status": "high",
+          "action": "cleaned",
+          "valid_ratio": 0.934,
+          "short_line_ratio": 0.136,
+          "watermark_ratio": 0.091,
+          "unique_line_ratio": 21.0,
+          "non_empty_pages": 14,
+          "page_count": 46,
+          "non_empty_page_ratio": 0.304,
+          "effective_chars_per_page": 268.9,
+          "cleaned_chars_ratio": 0.934,
+          "reasons": [],
+          "org_chart_chunks": 83,
+          "org_chart_pages": [
+            2,
+            2,
+            6,
+            7,
+            7,
+            9,
+            9,
+            10,
+            10,
+            10,
+            12,
+            12,
+            13,
+            13,
+            15,
+            15,
+            16,
+            16,
+            16,
+            17,
+            17,
+            19,
+            19,
+            20,
+            20,
+            20,
+            20,
+            20,
+            22,
+            22,
+            23,
+            23,
+            24,
+            24,
+            26,
+            27,
+            27,
+            27,
+            27,
+            27,
+            28,
+            28,
+            28,
+            28,
+            30,
+            31,
+            31,
+            31,
+            31,
+            31,
+            32,
+            32,
+            32,
+            34,
+            34,
+            35,
+            35,
+            35,
+            35,
+            36,
+            36,
+            36,
+            36,
+            37,
+            37,
+            37,
+            40,
+            40,
+            41,
+            41,
+            41,
+            42,
+            42,
+            42,
+            43,
+            43,
+            44,
+            45,
+            45,
+            45,
+            46,
+            46,
+            46
+          ],
+          "org_chart_mode": "pdf_layout_fallback"
+        }
+      },
+      "task": null,
+      "task_history_tail": [],
+      "stats_before": {
+        "indexed_files": 9,
+        "total_chunks": 153,
+        "last_updated": "2026-06-17T20:54:27.038969"
+      },
+      "stats_after": {
+        "indexed_files": 10,
+        "total_chunks": 258,
+        "last_updated": "2026-06-17T20:54:40.081943"
+      },
+      "quality_verdict": "pass_indexed"
+    },
+    {
+      "file": "Turtle of the world 2010.pdf",
+      "size": 931684,
+      "status_code": 413,
+      "payload": {
+        "detail": {
+          "status": "error",
+          "action": "too_large_skipped",
+          "source_name": "Turtle of the world 2010-3.pdf",
+          "chunks": 2661,
+          "limit": 150,
+          "reason": "文件 Turtle of the world 2010-3.pdf 切分后产生 2661 个片段，超过单次同步入库上限 150，已阻止入库",
+          "quality": {
+            "status": "too_large",
+            "action": "too_large_skipped",
+            "reasons": [
+              "文件 Turtle of the world 2010-3.pdf 切分后产生 2661 个片段，超过单次同步入库上限 150，已阻止入库"
+            ]
+          }
+        }
+      },
+      "task": null,
+      "task_history_tail": [],
+      "stats_before": {
+        "indexed_files": 10,
+        "total_chunks": 258,
+        "last_updated": "2026-06-17T20:54:40.081943"
+      },
+      "stats_after": {
+        "indexed_files": 10,
+        "total_chunks": 258,
+        "last_updated": "2026-06-17T20:54:40.081943"
+      },
+      "quality_verdict": "pass_blocked_too_large"
+    },
+    {
+      "file": "新疆伊犁河谷与独库公路自驾终极路书（修正版）.pdf",
+      "size": 503878,
+      "status_code": 200,
+      "payload": {
+        "status": "ok",
+        "chunks": 7,
+        "source_name": "新疆伊犁河谷与独库公路自驾终极路书（修正版）-3.pdf",
+        "chunk_ids": [
+          "新疆伊犁河谷与独库公路自驾终极路书（修正版）-3.pdf#0",
+          "新疆伊犁河谷与独库公路自驾终极路书（修正版）-3.pdf#1",
+          "新疆伊犁河谷与独库公路自驾终极路书（修正版）-3.pdf#2",
+          "新疆伊犁河谷与独库公路自驾终极路书（修正版）-3.pdf#3",
+          "新疆伊犁河谷与独库公路自驾终极路书（修正版）-3.pdf#4",
+          "新疆伊犁河谷与独库公路自驾终极路书（修正版）-3.pdf#5",
+          "新疆伊犁河谷与独库公路自驾终极路书（修正版）-3.pdf#6"
+        ],
+        "raw_file_path": "raw/2026-06-17/新疆伊犁河谷与独库公路自驾终极路书（修正版）-3.pdf",
+        "quality": {
+          "status": "high",
+          "action": "cleaned",
+          "valid_ratio": 0.944,
+          "short_line_ratio": 0.367,
+          "watermark_ratio": 0.108,
+          "unique_line_ratio": 11.8,
+          "non_empty_pages": 5,
+          "page_count": 5,
+          "non_empty_page_ratio": 1.0,
+          "effective_chars_per_page": 734.4,
+          "cleaned_chars_ratio": 0.944,
+          "reasons": []
+        }
+      },
+      "task": null,
+      "task_history_tail": [],
+      "stats_before": {
+        "indexed_files": 10,
+        "total_chunks": 258,
+        "last_updated": "2026-06-17T20:54:40.081943"
+      },
+      "stats_after": {
+        "indexed_files": 11,
+        "total_chunks": 265,
+        "last_updated": "2026-06-17T20:54:41.771717"
+      },
+      "quality_verdict": "pass_indexed"
+    },
+    {
+      "file": "顽固性跖疣治疗方案_患者家属沟通版_字体加大版.pptx",
+      "size": 9933988,
+      "status_code": 200,
+      "payload": {
+        "status": "ok",
+        "chunks": 16,
+        "source_name": "顽固性跖疣治疗方案_患者家属沟通版_字体加大版-3.pptx",
+        "chunk_ids": [
+          "顽固性跖疣治疗方案_患者家属沟通版_字体加大版-3.pptx#0",
+          "顽固性跖疣治疗方案_患者家属沟通版_字体加大版-3.pptx#1",
+          "顽固性跖疣治疗方案_患者家属沟通版_字体加大版-3.pptx#2",
+          "顽固性跖疣治疗方案_患者家属沟通版_字体加大版-3.pptx#3",
+          "顽固性跖疣治疗方案_患者家属沟通版_字体加大版-3.pptx#4",
+          "顽固性跖疣治疗方案_患者家属沟通版_字体加大版-3.pptx#5",
+          "顽固性跖疣治疗方案_患者家属沟通版_字体加大版-3.pptx#6",
+          "顽固性跖疣治疗方案_患者家属沟通版_字体加大版-3.pptx#7",
+          "顽固性跖疣治疗方案_患者家属沟通版_字体加大版-3.pptx#8",
+          "顽固性跖疣治疗方案_患者家属沟通版_字体加大版-3.pptx#9",
+          "顽固性跖疣治疗方案_患者家属沟通版_字体加大版-3.pptx#10",
+          "顽固性跖疣治疗方案_患者家属沟通版_字体加大版-3.pptx#11",
+          "顽固性跖疣治疗方案_患者家属沟通版_字体加大版-3.pptx#12",
+          "顽固性跖疣治疗方案_患者家属沟通版_字体加大版-3.pptx#13",
+          "顽固性跖疣治疗方案_患者家属沟通版_字体加大版-3.pptx#14",
+          "顽固性跖疣治疗方案_患者家属沟通版_字体加大版-3.pptx#15"
+        ],
+        "raw_file_path": "raw/2026-06-17/顽固性跖疣治疗方案_患者家属沟通版_字体加大版-3.pptx",
+        "quality": null
+      },
+      "task": null,
+      "task_history_tail": [],
+      "stats_before": {
+        "indexed_files": 11,
+        "total_chunks": 265,
+        "last_updated": "2026-06-17T20:54:41.771717"
+      },
+      "stats_after": {
+        "indexed_files": 12,
+        "total_chunks": 281,
+        "last_updated": "2026-06-17T20:54:43.455455"
+      },
+      "quality_verdict": "pass_indexed"
+    }
+  ],
+  "final_stats": {
+    "indexed_files": 12,
+    "total_chunks": 281,
+    "last_updated": "2026-06-17T20:54:43.455455"
+  },
+  "fts_counts": {
+    "total": 281,
+    "source_types": {
+      "image": 4,
+      "org_chart": 166,
+      "pdf": 92,
+      "pptx": 19
+    },
+    "by_source": [
+      {
+        "source_name": "%E6%B5%B7%E6%8A%A5%E5%86%85%E5%AE%B9_%E5%8F%AF%E7%BC%96%E8%BE%91%E4%B8%89%E9%A1%B5%E6%BC%94%E7%A4%BA%E7%89%88-4.pptx",
+        "source_type": "pptx",
+        "chunks": 3
+      },
+      {
+        "source_name": "2026中国新能源汽车品牌GEO现状研究报告-亿欧智库.pdf",
+        "source_type": "pdf",
+        "chunks": 7
+      },
+      {
+        "source_name": "391-3.jpeg",
+        "source_type": "image",
+        "chunks": 1
+      },
+      {
+        "source_name": "392-3.jpeg",
+        "source_type": "image",
+        "chunks": 1
+      },
+      {
+        "source_name": "393-3.jpeg",
+        "source_type": "image",
+        "chunks": 1
+      },
+      {
+        "source_name": "394-3.jpeg",
+        "source_type": "image",
+        "chunks": 1
+      },
+      {
+        "source_name": "AI 数据湖服务_视觉内容理解（Doubao-1.5-vision-pro-32k）_1775258263-3.pdf",
+        "source_type": "pdf",
+        "chunks": 14
+      },
+      {
+        "source_name": "EGO_UMI_VLA_数据采集系统_V3_审计修订版-3.pdf",
+        "source_type": "pdf",
+        "chunks": 20
+      },
+      {
+        "source_name": "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf",
+        "source_type": "org_chart",
+        "chunks": 83
+      },
+      {
+        "source_name": "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf",
+        "source_type": "pdf",
+        "chunks": 22
+      },
+      {
+        "source_name": "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf",
+        "source_type": "org_chart",
+        "chunks": 83
+      },
+      {
+        "source_name": "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf",
+        "source_type": "pdf",
+        "chunks": 22
+      },
+      {
+        "source_name": "新疆伊犁河谷与独库公路自驾终极路书（修正版）-3.pdf",
+        "source_type": "pdf",
+        "chunks": 7
+      },
+      {
+        "source_name": "顽固性跖疣治疗方案_患者家属沟通版_字体加大版-3.pptx",
+        "source_type": "pptx",
+        "chunks": 16
+      }
+    ],
+    "image_samples": [
+      {
+        "source_name": "391-3.jpeg",
+        "text_preview": "Copilot | Work | Web | 0 | 核心一句话总结(Executive One-liner) | 通过“品牌矩阵+动力多元化+ 北美聚焦 +成本优化”，JLR 进入 Reimagine 战略的 | 增长兑现阶段。 | Growth, Reimagined | 1. 战略主线（Growth Model) | ·进入 Reimagine 战略交付阶段（delivery phase"
+      },
+      {
+        "source_name": "392-3.jpeg",
+        "text_preview": "Discovery | ·保持“家庭SUV\"定位 | ·未来升级但不改变核心角色Growth, Reimagined | Jaguar | ·转型为纯电豪华品牌 | ·新车型 Type 01 即将发布 Growth. Reimagined | 3. 区域战略(Market Focus) | ·北美=最优先增长区域 | ·目标：未来规模接近当前整个JLR | ·同时持续投资： | ·中国（已有基础）"
+      },
+      {
+        "source_name": "393-3.jpeg",
+        "text_preview": "Work | Web | 5. 关键风险与改进重点 | 质量&客户信任 | · 仍存在： | • warranty成本高 | ·产品复杂度增加 | · 要求: | ·建立“忠诚度驱动增长循环”Growth, Reimagined | 组织韧性 | ·背景： | ·全球不确定性+网络安全事件 | · 应对： | ·IT体系重建（AI时代） | 供应链韧性提升 | 伙伴合作加速能力 | Growth, Reimagined | "
+      },
+      {
+        "source_name": "394-3.jpeg",
+        "text_preview": "Immersive | Copilot | reader | Immersive reader | Copilot | Work | Web | ·全球不确定性+网络安全事件 | ·应对： | ·IT体系重建（AI时代） | 供应链韧性提升 | 伙伴合作加速能力Growth. Reimagined | 6.转型抓手(Transformation Missions) | 企业级转型目标： | ·降成本 | 降 brea"
+      }
+    ],
+    "org_sources": [
+      {
+        "source_name": "JLR_Corporate_Deck_Template_MASTER_25_.pptx-2-3.pdf",
+        "chunks": 83
+      },
+      {
+        "source_name": "JLR_Corporate_Deck_Template_MASTER_25_.pptx-4.pdf",
+        "chunks": 83
+      }
+    ],
+    "turtle_chunks": 0
+  },
+  "quality_summary": {
+    "expected_uploaded_files": 13,
+    "expected_indexed_sources": 12,
+    "expected_total_chunks": 281,
+    "expected_turtle_chunks": 0,
+    "expected_images": 4,
+    "expected_jlr_org_chart_sources": 2,
+    "expected_blocked_too_large_sources": 1,
+    "note": "13 files were uploaded through HTTP. 12 sources were indexed; Turtle was intentionally blocked by the max_sync_chunks_per_file quality gate and left 0 chunks."
+  },
+  "failed": []
+}

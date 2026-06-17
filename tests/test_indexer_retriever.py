@@ -532,7 +532,7 @@ def test_org_chart_intent_bias_does_not_affect_explanation_queries():
     assert [item["chunk_id"] for item in biased] == ["pdf", "org"]
 
 
-def test_org_chart_intent_bias_requires_projection_evidence_and_score_window():
+def test_org_chart_intent_bias_requires_projection_evidence_not_score_window():
     fused = [
         {
             "chunk_id": "pdf",
@@ -565,7 +565,7 @@ def test_org_chart_intent_bias_requires_projection_evidence_and_score_window():
         fused,
     )
 
-    assert [item["chunk_id"] for item in biased] == ["pdf", "bad_org", "far_org"]
+    assert [item["chunk_id"] for item in biased] == ["far_org", "pdf", "bad_org"]
 
 
 def test_hybrid_search_with_debug_returns_dict_with_chunk_id_keys():
