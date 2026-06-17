@@ -1,5 +1,5 @@
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from engine.models import RetrievedChunk
 
@@ -84,11 +84,45 @@ class HybridRetriever:
         self.rerank_candidate_top_k = rerank_candidate_top_k
 
     def hybrid_search(self, query: str, top_k: int = 10) -> List[RetrievedChunk]:
+        fused = self._search_fused(query)
+        return self._chunks_from_fused(fused[:top_k])
+
+    def hybrid_search_with_debug(
+        self,
+        query: str,
+        top_k: int = 10,
+    ) -> Tuple[List[RetrievedChunk], Dict[str, Dict[str, Any]]]:
+        fused, intent_debug = self._search_fused_with_intent_debug(query)
+        limited = fused[:top_k]
+        chunks = self._chunks_from_fused(limited)
+        debug_payload = {
+            item["chunk_id"]: {
+                "fts_rank": item.get("rank_fts5"),
+                "vector_rank": item.get("rank_vector"),
+                "rrf_score": item.get("score"),
+                "final_rank": index + 1,
+                "intent_bias_triggered": intent_debug["triggered"],
+                "intent_bias_applied": item["chunk_id"] in intent_debug["applied_chunk_ids"],
+                "source_type": item.get("source_type"),
+                "chunk_id": item["chunk_id"],
+            }
+            for index, item in enumerate(limited)
+        }
+        return chunks, debug_payload
+
+    def _search_fused(self, query: str) -> List[Dict[str, Any]]:
+        fused, _ = self._search_fused_with_intent_debug(query)
+        return fused
+
+    def _search_fused_with_intent_debug(self, query: str) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         fts_results = self.indexer.search_fts(query, self.fts5_top_k)
         vector_results = self.indexer.search_vector(query, self.vector_top_k)
         fused = reciprocal_rank_fusion(fts_results, vector_results, self.rrf_k)
+        intent_debug = _org_chart_intent_debug(query, fused)
         fused = apply_org_chart_intent_bias(query, fused)
-        fused = self._rerank(query, fused)
+        return self._rerank(query, fused), intent_debug
+
+    def _chunks_from_fused(self, fused: List[Dict[str, Any]]) -> List[RetrievedChunk]:
         return [
             RetrievedChunk(
                 chunk_id=item["chunk_id"],
@@ -101,7 +135,7 @@ class HybridRetriever:
                 rank_vector=item.get("rank_vector"),
                 raw_file_path=item.get("raw_file_path", ""),
             )
-            for item in fused[:top_k]
+            for item in fused
         ]
 
     def _rerank(self, query: str, fused: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -153,6 +187,23 @@ def apply_org_chart_intent_bias(query: str, fused: List[Dict[str, Any]]) -> List
         )
 
     return sorted(fused, key=sort_key)
+
+
+def _org_chart_intent_debug(query: str, fused: List[Dict[str, Any]]) -> Dict[str, Any]:
+    triggered = bool(fused and _has_org_chart_relation_intent(query))
+    if not triggered:
+        return {"triggered": False, "applied_chunk_ids": set()}
+    best_score = max(item["score"] for item in fused)
+    applied_chunk_ids = {
+        item["chunk_id"]
+        for item in fused
+        if (
+            item.get("source_type") == "org_chart"
+            and _has_org_chart_projection_evidence(item.get("text", ""))
+            and best_score - item["score"] <= ORG_CHART_INTENT_WINDOW
+        )
+    }
+    return {"triggered": True, "applied_chunk_ids": applied_chunk_ids}
 
 
 def _has_org_chart_relation_intent(query: str) -> bool:

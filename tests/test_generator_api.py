@@ -115,6 +115,14 @@ def sample_file_chunk():
     )
 
 
+def parse_sse_response(response):
+    events = []
+    for line in response.text.splitlines():
+        if line.startswith("data: "):
+            events.append(json.loads(line.removeprefix("data: ").strip()))
+    return events
+
+
 def install_temp_runtime(server, tmp_path, collection_name):
     original = (deepcopy(server.runtime.config), server.runtime.indexer, server.runtime.last_updated)
     server.runtime.config = {
@@ -962,6 +970,104 @@ def test_query_endpoint_passes_language_and_dual_model_config(monkeypatch):
         assert captured["generate_kwargs"]["deepseek_api_key"] == "deepseek-secret"
         assert captured["generate_kwargs"]["deepseek_model"] == "deepseek-v4-pro"
         assert captured["generate_kwargs"]["generation_model"] == "codex-base"
+    finally:
+        server.runtime.reload(original_config)
+
+
+def test_query_api_injects_debug_in_sse_sources_when_true(monkeypatch):
+    import server
+
+    original_config = deepcopy(server.runtime.config)
+    debug_chunk = RetrievedChunk(
+        chunk_id="jlr.pdf#org_chart_51",
+        text="[ORG_CHART]\nSemantic Search Triggers:\n- A is structurally under B.",
+        source_name="jlr.pdf",
+        source_type="org_chart",
+        chunk_index=51,
+        score=0.033,
+        rank_fts5=1,
+        rank_vector=2,
+    )
+    debug_by_chunk_id = {
+        "jlr.pdf#org_chart_51": {
+            "chunk_id": "jlr.pdf#org_chart_51",
+            "source_type": "org_chart",
+            "fts_rank": 1,
+            "vector_rank": 2,
+            "rrf_score": 0.033,
+            "final_rank": 1,
+            "intent_bias_triggered": True,
+            "intent_bias_applied": True,
+        }
+    }
+
+    class FakeRetriever:
+        def hybrid_search(self, question, top_k):
+            return [debug_chunk]
+
+        def hybrid_search_with_debug(self, query, top_k):
+            return [debug_chunk], debug_by_chunk_id
+
+    monkeypatch.setattr(server, "HybridRetriever", lambda **kwargs: FakeRetriever())
+    server.runtime.config = {
+        **deepcopy(original_config),
+        "deepseek": {"endpoint": "", "api_key": "", "model": "deepseek-v4-pro"},
+    }
+    client = TestClient(app)
+
+    try:
+        response = client.post(
+            "/api/query",
+            json={
+                "question": "Which people are structurally under Infotainment and Connectivity?",
+                "debug": True,
+            },
+        )
+
+        assert response.status_code == 200
+        sources_event = next(event for event in parse_sse_response(response) if event["type"] == "sources")
+        assert sources_event["_debug"]["jlr.pdf#org_chart_51"]["intent_bias_triggered"] is True
+        assert sources_event["_debug"]["jlr.pdf#org_chart_51"]["intent_bias_applied"] is True
+    finally:
+        server.runtime.reload(original_config)
+
+
+def test_query_api_omits_debug_by_default(monkeypatch):
+    import server
+
+    original_config = deepcopy(server.runtime.config)
+
+    class FakeRetriever:
+        def hybrid_search(self, question, top_k):
+            return [sample_chunk()]
+
+        def hybrid_search_with_debug(self, query, top_k):
+            return [sample_chunk()], {
+                "org.txt#2": {
+                    "chunk_id": "org.txt#2",
+                    "source_type": "txt",
+                    "fts_rank": 1,
+                    "vector_rank": 1,
+                    "rrf_score": 0.9,
+                    "final_rank": 1,
+                    "intent_bias_triggered": False,
+                    "intent_bias_applied": False,
+                }
+            }
+
+    monkeypatch.setattr(server, "HybridRetriever", lambda **kwargs: FakeRetriever())
+    server.runtime.config = {
+        **deepcopy(original_config),
+        "deepseek": {"endpoint": "", "api_key": "", "model": "deepseek-v4-pro"},
+    }
+    client = TestClient(app)
+
+    try:
+        response = client.post("/api/query", json={"question": "组织架构怎么调？"})
+
+        assert response.status_code == 200
+        sources_event = next(event for event in parse_sse_response(response) if event["type"] == "sources")
+        assert "_debug" not in sources_event
     finally:
         server.runtime.reload(original_config)
 

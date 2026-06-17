@@ -568,6 +568,68 @@ def test_org_chart_intent_bias_requires_projection_evidence_and_score_window():
     assert [item["chunk_id"] for item in biased] == ["pdf", "bad_org", "far_org"]
 
 
+def test_hybrid_search_with_debug_returns_dict_with_chunk_id_keys():
+    class DebugSearchIndexer:
+        def search_fts(self, query, top_k):
+            return [
+                {
+                    "chunk_id": "jlr.pdf#org_chart_51",
+                    "text": "[ORG_CHART]\nSemantic Search Triggers:\n- A is structurally under B.",
+                    "source_name": "jlr.pdf",
+                    "source_type": "org_chart",
+                    "chunk_index": 51,
+                    "score": 0.0,
+                },
+                {
+                    "chunk_id": "jlr.pdf#4",
+                    "text": "HOW TO READ THE ORGANISATION CHARTS",
+                    "source_name": "jlr.pdf",
+                    "source_type": "pdf",
+                    "chunk_index": 4,
+                    "score": 0.0,
+                },
+            ]
+
+        def search_vector(self, query, top_k):
+            return [
+                {
+                    "chunk_id": "jlr.pdf#4",
+                    "text": "HOW TO READ THE ORGANISATION CHARTS",
+                    "source_name": "jlr.pdf",
+                    "source_type": "pdf",
+                    "chunk_index": 4,
+                    "score": 0.0,
+                },
+                {
+                    "chunk_id": "jlr.pdf#org_chart_51",
+                    "text": "[ORG_CHART]\nSemantic Search Triggers:\n- A is structurally under B.",
+                    "source_name": "jlr.pdf",
+                    "source_type": "org_chart",
+                    "chunk_index": 51,
+                    "score": 0.0,
+                },
+            ]
+
+    retriever = HybridRetriever(indexer=DebugSearchIndexer(), rrf_k=60)
+
+    chunks, debug_by_chunk_id = retriever.hybrid_search_with_debug(
+        query="Which people are structurally under Infotainment and Connectivity?",
+        top_k=2,
+    )
+
+    assert [chunk.chunk_id for chunk in chunks] == ["jlr.pdf#org_chart_51", "jlr.pdf#4"]
+    assert set(debug_by_chunk_id) == {"jlr.pdf#org_chart_51", "jlr.pdf#4"}
+    org_debug = debug_by_chunk_id["jlr.pdf#org_chart_51"]
+    assert org_debug["chunk_id"] == "jlr.pdf#org_chart_51"
+    assert org_debug["source_type"] == "org_chart"
+    assert org_debug["fts_rank"] == 1
+    assert org_debug["vector_rank"] == 2
+    assert org_debug["rrf_score"] > 0
+    assert org_debug["final_rank"] == 1
+    assert org_debug["intent_bias_triggered"] is True
+    assert org_debug["intent_bias_applied"] is True
+
+
 def test_reranker_receives_display_text_not_embedding_text():
     captured = {}
 

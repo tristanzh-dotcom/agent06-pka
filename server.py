@@ -33,6 +33,7 @@ class TextIngestRequest(BaseModel):
 class QueryRequest(BaseModel):
     question: str
     language: str = "zh"
+    debug: bool = False
 
 
 class ExportRequest(BaseModel):
@@ -381,7 +382,14 @@ async def query(request: QueryRequest):
         vector_top_k=runtime.config["retrieval"]["vector_top_k"],
         rrf_k=runtime.config["retrieval"]["rrf_k"],
     )
-    chunks = retriever.hybrid_search(request.question, runtime.config["retrieval"]["final_top_k"])
+    debug_payload = None
+    if request.debug:
+        chunks, debug_payload = retriever.hybrid_search_with_debug(
+            request.question,
+            runtime.config["retrieval"]["final_top_k"],
+        )
+    else:
+        chunks = retriever.hybrid_search(request.question, runtime.config["retrieval"]["final_top_k"])
     generator = generate_answer(
         question=request.question,
         chunks=chunks,
@@ -392,6 +400,7 @@ async def query(request: QueryRequest):
         generation_endpoint=runtime.config["generation"]["endpoint"],
         generation_api_key=runtime.config["generation"]["api_key"],
         generation_model=runtime.config["generation"]["model"],
+        debug_payload=debug_payload,
     )
     return StreamingResponse(generator, media_type="text/event-stream")
 

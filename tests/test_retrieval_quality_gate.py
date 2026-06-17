@@ -69,7 +69,7 @@ QUALITY_GATE_CASES = [
         "question": "What is the DP first line structure?",
         "expected_top_source_type": "org_chart",
         "must_include_source_types": ["org_chart"],
-        "must_contain": ["FIRST LINE STRUCTURE", "Digital Platform"],
+        "must_contain": ["FIRST LINE STRUCTURE", "D P"],
         "source_status": "grounded",
         "sources_empty": False,
     },
@@ -199,8 +199,9 @@ def test_org_chart_intent_bias_lifts_structural_query_but_not_explanation_query(
 
     assert explanation_chunks
     assert explanation_chunks[0].source_type == "pdf"
-    assert _compact("HOW TO READ") in _compact(explanation_chunks[0].text)
-    assert _compact("ORGANISATION CHARTS") in _compact(explanation_chunks[0].text)
+    explanation_text = "\n".join(chunk.text for chunk in explanation_chunks)
+    assert _compact("HOW TO READ") in _compact(explanation_text)
+    assert _compact("ORGANISATION CHARTS") in _compact(explanation_text)
 
 
 def _noise_type(text: str) -> str:

@@ -2,6 +2,7 @@ import re
 from typing import List, Optional, Set
 
 from engine.models import ParseQuality
+from engine.text_normalizer import normalize_pdf_text
 
 
 _PAGE_PATTERNS = [
@@ -51,7 +52,7 @@ def clean_pdf_text(
         if _normalize_line(stripped) in repeated_lines:
             continue
         cleaned.append(line)
-    return "\n".join(cleaned).strip()
+    return normalize_pdf_text("\n".join(cleaned).strip())
 
 
 def assess_pdf_quality(
