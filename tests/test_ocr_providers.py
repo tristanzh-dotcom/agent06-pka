@@ -82,6 +82,35 @@ async def test_paddle_provider_uses_paddleocr_3_compatible_ocr_call(monkeypatch,
 
 
 @pytest.mark.asyncio
+async def test_paddle_provider_extracts_image_file_with_paddleocr(monkeypatch, tmp_path):
+    image_path = tmp_path / "screen.jpeg"
+    image_path.write_bytes(b"image")
+    captured = {}
+
+    class FakePaddleOCR:
+        def __init__(self, **kwargs):
+            captured["init_kwargs"] = kwargs
+
+        def ocr(self, image, **kwargs):
+            captured.setdefault("ocr_images", []).append(image)
+            captured["ocr_kwargs"] = kwargs
+            return [{"rec_texts": ["截图标题", "按钮文字", "2026 23.7%"]}]
+
+    class FakeModule:
+        PaddleOCR = FakePaddleOCR
+
+    monkeypatch.setattr(ocr_module.importlib, "import_module", lambda name: FakeModule())
+    provider = PaddleOCRProvider()
+
+    text = await provider.extract([str(image_path)])
+
+    assert text == "截图标题\n按钮文字\n2026 23.7%"
+    assert captured["ocr_images"] == [str(image_path)]
+    assert captured["ocr_kwargs"] == {}
+    assert captured["init_kwargs"]["lang"] == "ch"
+
+
+@pytest.mark.asyncio
 async def test_provider_chain_tries_paddle_before_volcengine(tmp_path):
     paddle = FakeProvider("paddle", result=_usable_ocr_text())
     volcengine = FakeProvider("volcengine", result=_usable_ocr_text())

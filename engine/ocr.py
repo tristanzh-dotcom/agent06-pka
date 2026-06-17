@@ -132,18 +132,23 @@ class PaddleOCRProvider:
             return ""
         image_paths = _render_pdf_pages(pdf_path, max_pages=max_pages, dpi=self.dpi)
         try:
-            if self._ocr is None:
-                module = importlib.import_module("paddleocr")
-                self._ocr = module.PaddleOCR(lang=self.lang, use_textline_orientation=self.use_angle_cls)
-            page_texts = []
-            for image_path in image_paths:
-                result = self._ocr.ocr(image_path)
-                text = _paddle_result_to_text(result)
-                if text.strip():
-                    page_texts.append(text)
-            return "\n".join(page_texts).strip()
+            return await self.extract(image_paths)
         finally:
             _cleanup_rendered_pages(image_paths)
+
+    async def extract(self, image_paths: List[str], prompt: str = "") -> str:
+        if not self.available():
+            return ""
+        if self._ocr is None:
+            module = importlib.import_module("paddleocr")
+            self._ocr = module.PaddleOCR(lang=self.lang, use_textline_orientation=self.use_angle_cls)
+        image_texts = []
+        for image_path in image_paths:
+            result = self._ocr.ocr(image_path)
+            text = _paddle_result_to_text(result)
+            if text.strip():
+                image_texts.append(text)
+        return "\n".join(image_texts).strip()
 
 
 class VolcengineOCR:
