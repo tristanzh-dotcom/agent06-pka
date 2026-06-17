@@ -49,6 +49,8 @@ async def parse_file(file_path: str, mime_type: Optional[str] = None, ocr_client
         if suffix == ".xlsx":
             return _parse_xlsx(path)
         if suffix in IMAGE_TYPES or detected_mime.startswith("image/"):
+            from engine.quality import assess_image_ocr_quality
+
             if ocr_client is None:
                 raise ValueError("OCR client is required for image parsing")
             text = await ocr_client.extract([str(path)])
@@ -59,6 +61,7 @@ async def parse_file(file_path: str, mime_type: Optional[str] = None, ocr_client
                 source_name=path.name,
                 source_type="image",
                 metadata={"ocr": True, "mime_type": detected_mime},
+                quality=assess_image_ocr_quality(text),
             )
     except ValueError:
         raise

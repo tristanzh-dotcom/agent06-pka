@@ -320,6 +320,16 @@ def test_ingest_upload_quality_status_explains_partial_ocr_and_skipped_indexing(
     assert 'qualityStatusMessage(item)' in app_js
 
 
+def test_ingest_upload_quality_status_explains_image_ocr_confidence():
+    root = Path(__file__).resolve().parents[1]
+    app_js = (root / "static/app.js").read_text(encoding="utf-8")
+
+    assert 'action === "image_ocr"' in app_js
+    assert 'action === "image_ocr_low"' in app_js
+    assert "图片 OCR 入库" in app_js
+    assert "图片 OCR 低信度入库" in app_js
+
+
 def test_ingest_upload_uses_six_slot_board_interaction_contract():
     root = Path(__file__).resolve().parents[1]
     index_html = (root / "static/index.html").read_text(encoding="utf-8")

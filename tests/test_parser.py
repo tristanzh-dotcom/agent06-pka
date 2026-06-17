@@ -486,6 +486,18 @@ class FakeOCR:
         return "图片里的中文"
 
 
+class UsefulImageOCR:
+    async def extract(self, image_paths):
+        return "\n".join(
+            [
+                "核心一句话总结 Executive One-liner",
+                "通过品牌矩阵、动力多元化、北美聚焦和成本优化，JLR 进入 Reimagine 战略增长兑现阶段。",
+                "Growth Reimagined strategy delivery phase and portfolio strategy.",
+                "Range Rover Defender Discovery Jaguar market focus North America.",
+            ]
+        )
+
+
 class FailingOCR:
     async def extract(self, image_paths):
         raise RuntimeError("OCR failed after 3 retries: timeout")
@@ -502,6 +514,34 @@ async def test_parse_image_uses_injected_ocr_client_inside_running_event_loop(tm
     assert parsed.source_type == "image"
     assert parsed.text == "图片里的中文"
     assert parsed.metadata["ocr"] is True
+
+
+async def test_parse_image_marks_useful_ocr_quality(tmp_path):
+    path = tmp_path / "screenshot.jpeg"
+    path.write_bytes(b"jpeg bytes")
+
+    parsed = await parse_file(str(path), mime_type="image/jpeg", ocr_client=UsefulImageOCR())
+
+    assert parsed.source_type == "image"
+    assert parsed.quality is not None
+    assert parsed.quality.status == "high"
+    assert parsed.quality.action == "image_ocr"
+    assert parsed.quality.effective_chars_per_page >= 80
+
+
+async def test_parse_image_marks_short_ocr_as_low_quality(tmp_path):
+    path = tmp_path / "tiny.jpeg"
+    path.write_bytes(b"jpeg bytes")
+    ocr = FakeOCR()
+    ocr.expected_path = str(path)
+
+    parsed = await parse_file(str(path), mime_type="image/jpeg", ocr_client=ocr)
+
+    assert parsed.source_type == "image"
+    assert parsed.quality is not None
+    assert parsed.quality.status == "low"
+    assert parsed.quality.action == "image_ocr_low"
+    assert any("OCR 文本少于 80 字" in reason for reason in parsed.quality.reasons)
 
 
 async def test_parse_image_raises_clear_error_when_ocr_fails(tmp_path):

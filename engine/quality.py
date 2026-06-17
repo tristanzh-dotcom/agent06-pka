@@ -145,6 +145,47 @@ def assess_pdf_quality(
     )
 
 
+def assess_image_ocr_quality(text: str) -> ParseQuality:
+    content = (text or "").strip()
+    lines = [line.strip() for line in content.splitlines() if line.strip()]
+    char_count = len(content)
+    unique_line_ratio = _unique_line_ratio(lines)
+    short_line_ratio = round(
+        sum(1 for line in lines if len(line) < 10) / max(1, len(lines)),
+        3,
+    )
+    meaningful_chars = sum(1 for char in content if char.isalnum() or "\u4e00" <= char <= "\u9fff")
+    valid_ratio = round(meaningful_chars / max(1, char_count), 3)
+    reasons: List[str] = []
+
+    if char_count < 80:
+        reasons.append("OCR 文本少于 80 字，图片识别质量偏低")
+        status = "low"
+    elif valid_ratio < 0.45:
+        reasons.append(f"OCR 有效字符占比 {valid_ratio:.1%}，低于 45%")
+        status = "low"
+    elif unique_line_ratio < 0.35 and len(lines) >= 3:
+        reasons.append(f"OCR 唯一行占比 {unique_line_ratio:.1%}，重复内容偏高")
+        status = "low"
+    else:
+        status = "high"
+
+    return ParseQuality(
+        status=status,
+        action="image_ocr" if status == "high" else "image_ocr_low",
+        valid_ratio=valid_ratio,
+        short_line_ratio=short_line_ratio,
+        watermark_ratio=0.0,
+        unique_line_ratio=unique_line_ratio,
+        non_empty_pages=1 if content else 0,
+        page_count=1,
+        non_empty_page_ratio=1.0 if content else 0.0,
+        effective_chars_per_page=float(char_count),
+        cleaned_chars_ratio=1.0 if content else 0.0,
+        reasons=reasons,
+    )
+
+
 def _is_page_line(line: str) -> bool:
     return any(pattern.match(line) for pattern in _PAGE_PATTERNS)
 

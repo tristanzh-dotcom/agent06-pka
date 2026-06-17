@@ -144,6 +144,8 @@ function qualityStatusMessage(result) {
   if ((action === "direct" || action === "cleaned") && quality.status === "low") return "全文入库，低信度";
   if (action === "direct" || action === "cleaned") return "全文入库";
   if (action === "low_indexed") return "低质量入库";
+  if (action === "image_ocr") return "图片 OCR 入库";
+  if (action === "image_ocr_low") return "图片 OCR 低信度入库";
   if (action === "ocr") {
     if (quality.ocr_partial) {
       const processed = Number(quality.ocr_pages_processed) || 0;
@@ -190,6 +192,8 @@ function qualityBadge(result) {
     return { className: "quality-ocr-partial", text: processed ? `OCR 部分入库（前 ${processed} 页）` : "OCR 部分入库" };
   }
   if (action === "ocr") return { className: "quality-ocr", text: "OCR 入库" };
+  if (action === "image_ocr") return { className: "quality-ocr", text: "图片 OCR 入库" };
+  if (action === "image_ocr_low") return { className: "quality-low", text: "图片 OCR 低信度" };
   if (action === "low_indexed" && quality.status === "low") {
     return { className: "quality-low", text: "低质量入库" };
   }
