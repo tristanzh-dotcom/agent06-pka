@@ -20,7 +20,9 @@ let selectedFiles = [];
 let fileUploadResults = [];
 let expandedQualityFiles = new Set();
 let uploadTaskPollTimers = new Map();
+let pendingUploadSlotIndex = null;
 const MAX_UPLOAD_FILES = 6;
+const ORG_CHART_SLOT_INDEX = 5;
 const MAX_UPLOAD_FEEDBACK = "最多上传 6 个文件，请先移除一个文件。";
 const OCR_TASK_POLL_INTERVAL_MS = 1500;
 
@@ -311,6 +313,37 @@ function uploadSlotStatus(result) {
   return "complete";
 }
 
+function selectedFileEntries() {
+  return selectedFiles
+    .map((file, slotIndex) => ({ file, slotIndex }))
+    .filter((entry) => !!entry.file);
+}
+
+function selectedFileCount() {
+  return selectedFileEntries().length;
+}
+
+function nextEmptyUploadSlot(startIndex = 0) {
+  for (let offset = 0; offset < MAX_UPLOAD_FILES; offset += 1) {
+    const index = (startIndex + offset) % MAX_UPLOAD_FILES;
+    if (!selectedFiles[index]) return index;
+  }
+  return -1;
+}
+
+function addFilesToUploadSlots(files, preferredSlotIndex = null) {
+  let nextStart = Number.isInteger(preferredSlotIndex) ? preferredSlotIndex : 0;
+  const accepted = [];
+  for (const file of files) {
+    const targetIndex = nextEmptyUploadSlot(nextStart);
+    if (targetIndex < 0) break;
+    selectedFiles[targetIndex] = file;
+    accepted.push(file);
+    nextStart = targetIndex + 1;
+  }
+  return accepted;
+}
+
 function renderQualityBadge(row, result, fileKey) {
   const badge = qualityBadge(result);
   const chartBadge = orgChartBadge(result);
@@ -391,7 +424,7 @@ function summarizeBatchFeedback(result) {
 }
 
 function summarizeCurrentUploadFeedback() {
-  const files = fileUploadResults || [];
+  const files = (fileUploadResults || []).filter(Boolean);
   const succeeded = files.filter((item) => ["ok", "completed"].includes(item.status)).length;
   const accepted = files.filter((item) => ["accepted", "queued", "processing"].includes(item.status)).length;
   const skipped = files.filter((item) => item.status === "skipped").length;
@@ -447,7 +480,7 @@ async function pollUploadTask(taskId) {
     const response = await fetch(`api/tasks/${encodeURIComponent(taskId)}`);
     if (!response.ok) throw new Error(await response.text());
     const task = await response.json();
-    const index = fileUploadResults.findIndex((item) => item.task_id === taskId);
+    const index = fileUploadResults.findIndex((item) => item?.task_id === taskId);
     if (index >= 0) {
       fileUploadResults[index] = mergeUploadTaskResult(fileUploadResults[index], task);
       renderUploadSlots();
@@ -483,38 +516,43 @@ function renderUploadSlots() {
   const fileInput = document.getElementById("file-input");
   if (!list || !summary) return;
   list.textContent = "";
-  if (fileInput) fileInput.disabled = selectedFiles.length >= MAX_UPLOAD_FILES;
-  if (!selectedFiles.length) {
+  const count = selectedFileCount();
+  if (fileInput) fileInput.disabled = selectedFileCount() >= MAX_UPLOAD_FILES;
+  if (!count) {
     summary.textContent = `未选择文件 · 最多 ${MAX_UPLOAD_FILES} 个`;
     if (clearButton) clearButton.hidden = true;
   } else {
-    const totalSize = selectedFiles.reduce((sum, file) => sum + file.size, 0);
-    summary.textContent = `已选择 ${selectedFiles.length} / ${MAX_UPLOAD_FILES} 个文件 · ${formatBytes(totalSize)}`;
+    const totalSize = selectedFileEntries().reduce((sum, entry) => sum + entry.file.size, 0);
+    summary.textContent = `已选择 ${count} / ${MAX_UPLOAD_FILES} 个文件 · ${formatBytes(totalSize)}`;
     if (clearButton) clearButton.hidden = false;
   }
 
   for (let index = 0; index < MAX_UPLOAD_FILES; index += 1) {
     const file = selectedFiles[index];
     if (!file) {
+      const isOrgChartSlot = index === ORG_CHART_SLOT_INDEX;
       const slot = document.createElement("button");
       slot.type = "button";
-      slot.className = "upload-slot is-empty";
-      slot.setAttribute("aria-label", `上传槽 ${index + 1}：添加文件`);
-      slot.innerHTML = '<span class="upload-slot-plus">+</span><span class="upload-slot-label">添加文件</span>';
+      slot.className = `upload-slot is-empty${isOrgChartSlot ? " is-org-chart-slot" : ""}`;
+      slot.setAttribute("aria-label", `上传槽 ${index + 1}：${isOrgChartSlot ? "添加 Org Chart 文件" : "添加文件"}`);
+      slot.innerHTML = isOrgChartSlot
+        ? '<span class="upload-slot-plus">+</span><span class="upload-slot-label">Org Chart</span><span class="upload-slot-meta">组织图专用</span>'
+        : '<span class="upload-slot-plus">+</span><span class="upload-slot-label">添加文件</span>';
       slot.addEventListener("click", () => {
-        if (selectedFiles.length >= MAX_UPLOAD_FILES) {
+        if (selectedFileCount() >= MAX_UPLOAD_FILES) {
           setFeedback("file-feedback", MAX_UPLOAD_FEEDBACK);
           return;
         }
+        pendingUploadSlotIndex = index;
         fileInput?.click();
       });
       list.appendChild(slot);
       continue;
     }
-    const result = fileUploadResults.find((item) => item.filename === file.name);
+    const result = fileUploadResults[index] || null;
     const status = uploadSlotStatus(result);
     const row = document.createElement("div");
-    row.className = `upload-slot is-filled is-${status}`;
+    row.className = `upload-slot is-filled is-${status}${index === ORG_CHART_SLOT_INDEX ? " is-org-chart-slot" : ""}`;
     row.setAttribute("aria-label", `上传槽 ${index + 1}：${file.name}`);
     const head = document.createElement("div");
     head.className = "upload-slot-head";
@@ -526,10 +564,10 @@ function renderUploadSlots() {
     remove.className = "upload-slot-remove";
     remove.textContent = "移除";
     remove.addEventListener("click", () => {
-      const removedResult = fileUploadResults.find((item) => item.filename === file.name);
+      const removedResult = fileUploadResults[index];
       if (removedResult?.task_id) stopUploadTaskPolling(removedResult.task_id);
-      selectedFiles.splice(index, 1);
-      fileUploadResults = fileUploadResults.filter((item) => item.filename !== file.name);
+      selectedFiles[index] = null;
+      fileUploadResults[index] = null;
       expandedQualityFiles.delete(file.name);
       renderUploadSlots();
       publishEmbeddedSnapshot();
@@ -586,7 +624,7 @@ function setupIngest() {
   });
   fileInput?.addEventListener("change", () => {
     const incomingFiles = Array.from(fileInput.files || []);
-    const remainingSlots = MAX_UPLOAD_FILES - selectedFiles.length;
+    const remainingSlots = MAX_UPLOAD_FILES - selectedFileCount();
     const acceptedFiles = incomingFiles.slice(0, Math.max(remainingSlots, 0));
     if (incomingFiles.length > acceptedFiles.length) {
       setFeedback("file-feedback", MAX_UPLOAD_FEEDBACK);
@@ -594,11 +632,12 @@ function setupIngest() {
       setFeedback("file-feedback", "");
     }
     if (acceptedFiles.length) {
-      selectedFiles = selectedFiles.concat(acceptedFiles);
+      addFilesToUploadSlots(acceptedFiles, pendingUploadSlotIndex);
       fileUploadResults = [];
       expandedQualityFiles = new Set();
       stopAllUploadTaskPolling();
     }
+    pendingUploadSlotIndex = null;
     fileInput.value = "";
     renderUploadSlots();
     publishEmbeddedSnapshot();
@@ -615,22 +654,31 @@ function setupIngest() {
   renderUploadSlots();
   fileForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!selectedFiles.length) {
+    const uploadEntries = selectedFileEntries();
+    if (!uploadEntries.length) {
       setFeedback("file-feedback", "请选择文件。");
       return;
     }
     const form = new FormData();
-    selectedFiles.forEach((file) => form.append("files", file));
+    uploadEntries.forEach((entry) => {
+      form.append("files", entry.file);
+      form.append("org_chart_modes", entry.slotIndex === ORG_CHART_SLOT_INDEX ? "enabled" : "disabled");
+    });
     try {
-      setFeedback("file-feedback", `上传中... ${selectedFiles.length} 个文件`);
+      setFeedback("file-feedback", `上传中... ${uploadEntries.length} 个文件`);
       const response = await fetch("api/ingest/files", { method: "POST", body: form });
       if (!response.ok) throw new Error(await response.text());
       const result = await response.json();
-      fileUploadResults = result.files || [];
+      const nextResults = new Array(MAX_UPLOAD_FILES).fill(null);
+      (result.files || []).forEach((item, uploadIndex) => {
+        const slotIndex = uploadEntries[uploadIndex]?.slotIndex;
+        if (Number.isInteger(slotIndex)) nextResults[slotIndex] = item;
+      });
+      fileUploadResults = nextResults;
       setFeedback("file-feedback", summarizeBatchFeedback(result));
       renderUploadSlots();
       if ((result.succeeded || 0) > 0 || (result.total_chunks || 0) > 0) notifyKnowledgeUpdated("ingest:file");
-      startUploadTaskPolling(fileUploadResults);
+      startUploadTaskPolling(fileUploadResults.filter(Boolean));
       publishEmbeddedSnapshot();
     } catch (error) {
       setFeedback("file-feedback", formatErrorFeedback("上传", error));

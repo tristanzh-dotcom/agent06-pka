@@ -147,7 +147,7 @@ async def test_parse_pdf_detects_org_chart_page_and_emits_pre_chunk(monkeypatch,
         ],
     )
 
-    parsed = await parse_file(str(path))
+    parsed = await parse_file(str(path), extract_org_charts=True)
 
     assert len(parsed.pre_chunks) == 1
     pre_chunk = parsed.pre_chunks[0]
@@ -156,6 +156,44 @@ async def test_parse_pdf_detects_org_chart_page_and_emits_pre_chunk(monkeypatch,
     assert "[ORG_CHART]" in pre_chunk.text
     assert pre_chunk.metadata["page"] == 1
     assert pre_chunk.metadata["org_chart_mode"] == "pdf_layout_fallback"
+
+
+async def test_parse_pdf_ignores_org_chart_fallback_by_default(monkeypatch, tmp_path):
+    path = tmp_path / "jlr_org.pdf"
+    path.write_bytes(b"%PDF fake")
+    _install_fake_fitz(
+        monkeypatch,
+        [
+            FakePDFPage(
+                "ORG CHART\nNico Reimel\nOff Cycle\nJames Vallance\nConcepts",
+                _org_chart_blocks(),
+            )
+        ],
+    )
+
+    parsed = await parse_file(str(path))
+
+    assert parsed.pre_chunks == []
+    assert "Nico Reimel" in parsed.text
+
+
+async def test_parse_pdf_detects_org_chart_when_explicitly_enabled(monkeypatch, tmp_path):
+    path = tmp_path / "jlr_org.pdf"
+    path.write_bytes(b"%PDF fake")
+    _install_fake_fitz(
+        monkeypatch,
+        [
+            FakePDFPage(
+                "ORG CHART\nNico Reimel\nOff Cycle\nJames Vallance\nConcepts",
+                _org_chart_blocks(),
+            )
+        ],
+    )
+
+    parsed = await parse_file(str(path), extract_org_charts=True)
+
+    assert len(parsed.pre_chunks) == 1
+    assert parsed.pre_chunks[0].source_type == "org_chart"
 
 
 async def test_parse_pdf_splits_large_org_chart_projection_for_embedding_safety(monkeypatch, tmp_path):
@@ -181,7 +219,7 @@ async def test_parse_pdf_splits_large_org_chart_projection_for_embedding_safety(
         ],
     )
 
-    parsed = await parse_file(str(path))
+    parsed = await parse_file(str(path), extract_org_charts=True)
 
     assert len(parsed.pre_chunks) > 1
     assert all(record.source_type == "org_chart" for record in parsed.pre_chunks)
@@ -217,7 +255,7 @@ async def test_org_chart_page_is_removed_from_normal_pdf_text(monkeypatch, tmp_p
         ],
     )
 
-    parsed = await parse_file(str(path))
+    parsed = await parse_file(str(path), extract_org_charts=True)
 
     assert "This normal paragraph discusses programme milestones" in parsed.text
     assert "Nico Reimel" not in parsed.text
@@ -439,6 +477,87 @@ async def test_milestone_table_pdf_page_is_not_detected_as_org_chart(monkeypatch
 
     assert parsed.pre_chunks == []
     assert "开发计划与阶段里程碑" in parsed.text
+
+
+async def test_automotive_business_diagram_pdf_page_is_not_detected_as_org_chart(monkeypatch, tmp_path):
+    path = tmp_path / "honda_business.pdf"
+    path.write_bytes(b"%PDF fake")
+    blocks = [
+        (72, 72, 360, 88, "Advancement in the application of intelligent technologies", 0, 0),
+        (72, 110, 180, 124, "Next-generation ADAS", 1, 0),
+        (210, 110, 360, 124, "Expressway ADAS", 2, 0),
+        (390, 110, 540, 124, "Surface road ADAS", 3, 0),
+        (72, 145, 170, 159, "Autonomous parking assist", 4, 0),
+        (210, 145, 360, 159, "NO TURN ON RED STOP", 5, 0),
+        (390, 145, 540, 159, "Shopping Office Travel", 6, 0),
+        (72, 190, 220, 204, "Advancing e:HEV and platforms", 7, 0),
+        (250, 190, 360, 204, "Fuel economy", 8, 0),
+        (390, 190, 470, 204, "10%", 9, 0),
+        (72, 230, 220, 244, "Realignment of EV strategy", 10, 0),
+        (250, 230, 360, 244, "Carbon neutrality", 11, 0),
+        (390, 230, 470, 244, "2030 2035 2040", 12, 0),
+        (72, 270, 220, 284, "Motorcycle business", 13, 0),
+        (250, 270, 360, 284, "Global market share", 14, 0),
+        (390, 270, 470, 284, "ROIC 10％", 15, 0),
+    ]
+    _install_fake_fitz(
+        monkeypatch,
+        [
+            FakePDFPage(
+                "Advancement in the application of intelligent technologies\n"
+                "Next-generation ADAS Expressway ADAS Surface road ADAS Autonomous parking assist\n"
+                "Advancing e:HEV and platforms Fuel economy Improvement by more than 10%\n"
+                "Realignment of EV strategy Carbon neutrality 2030 2035 2040\n"
+                "Motorcycle business Global market share Operating profit ROIC 10％",
+                blocks,
+            )
+        ],
+    )
+
+    parsed = await parse_file(str(path))
+
+    assert parsed.pre_chunks == []
+    assert "Next-generation ADAS" in parsed.text
+
+
+async def test_platform_deployment_architecture_pdf_page_is_not_detected_as_org_chart(monkeypatch, tmp_path):
+    path = tmp_path / "celonis_omnia.pdf"
+    path.write_bytes(b"%PDF fake")
+    blocks = [
+        (72, 72, 360, 88, "Celonis “Omnia” - self-managed deployment", 0, 0),
+        (72, 110, 280, 124, "partner- or customer-managed Kubernetes clusters", 1, 0),
+        (310, 110, 480, 124, "dedicated OCI registry", 2, 0),
+        (72, 150, 190, 164, "AWS or Azure Cloud Account", 3, 0),
+        (220, 150, 360, 164, "Customer Cloud Account", 4, 0),
+        (390, 150, 520, 164, "Customer Datacenter", 5, 0),
+        (72, 190, 190, 204, "Storage & Compute", 6, 0),
+        (220, 190, 360, 204, "Shared multi-tenant realm", 7, 0),
+        (390, 190, 520, 204, "Single-tenant realm", 8, 0),
+        (72, 230, 190, 244, "AI-Powered Process Copilots", 9, 0),
+        (220, 230, 360, 244, "AI Apps", 10, 0),
+        (390, 230, 520, 244, "AI for Data Enrichment", 11, 0),
+        (72, 270, 190, 284, "ML Workbench", 12, 0),
+        (220, 270, 360, 284, "AI Integrations & Partnerships", 13, 0),
+    ]
+    _install_fake_fitz(
+        monkeypatch,
+        [
+            FakePDFPage(
+                "Celonis “Omnia” - self-managed deployment\n"
+                "Enable flexible deployment on partner- or customer-managed Kubernetes clusters\n"
+                "Distribute Celonis as releases via a dedicated OCI registry\n"
+                "AWS or Azure Cloud Account Customer Cloud Account Customer Datacenter\n"
+                "Storage & Compute Shared multi-tenant realm Single-tenant realm\n"
+                "AI-Powered Process Copilots AI Apps AI for Data Enrichment ML Workbench",
+                blocks,
+            )
+        ],
+    )
+
+    parsed = await parse_file(str(path))
+
+    assert parsed.pre_chunks == []
+    assert "self-managed deployment" in parsed.text
 
 
 async def test_parse_pdf_cleaning_reassesses_quality(tmp_path):

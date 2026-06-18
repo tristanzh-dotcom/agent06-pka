@@ -630,6 +630,257 @@ def test_hybrid_search_with_debug_returns_dict_with_chunk_id_keys():
     assert org_debug["intent_bias_applied"] is True
 
 
+def test_org_chart_relation_query_keeps_named_person_page_before_unrelated_org_pages():
+    marcus_structure = """[ORG_CHART_SUBTREE]
+Source: jlr.pdf
+Page: 2
+Context Root: OUR D P FIRST LINE STRUCTURE
+Structure:
+- Field 1: Digital Platform Marcus (Field 2: Keith)
+  - Field 1: Rosie Stephens
+    - Field 1: Functions
+      - Field 1: Peter Bergmiller Chris Simpson
+        - Field 1: Global Sites Global Sites
+          - Field 1: China China
+            - Field 1: Dave
+              - Field 1: Ross
+Semantic Search Triggers:
+- Field 1: Digital Platform Marcus (Field 2: Keith) is structurally under Field 1: Personal Assistant Business Manager.
+[/ORG_CHART_SUBTREE]"""
+    marcus_continuation = """[ORG_CHART_SUBTREE]
+Source: jlr.pdf
+Page: 2
+Context Root: OUR D P FIRST LINE STRUCTURE
+- Field 1: China China is structurally under Field 1: Global Sites Global Sites.
+- Field 1: Dave is structurally under Field 1: China China.
+- Field 1: Ross is structurally under Field 1: Dave.
+[/ORG_CHART_SUBTREE]"""
+    unrelated_china_digital = """[ORG_CHART_SUBTREE]
+Source: jlr.pdf
+Page: 32
+Context Root: INFOTAINMENT & CONNECTIVITY Jim Morgan
+- Field 1: China Digital is structurally under Field 1: INFOTAINMENT & CONNECTIVITY Jim Morgan.
+- Field 1: Linnan Yu is structurally under Field 1: China Digital.
+- Field 1: Apps and Services is structurally under Field 1: INFOTAINMENT & CONNECTIVITY Jim Morgan.
+[/ORG_CHART_SUBTREE]"""
+
+    class FocusIndexer:
+        def search_fts(self, query, top_k):
+            if query.lower() == "marcus":
+                return [
+                    {
+                        "chunk_id": "jlr.pdf#org_chart_2",
+                        "text": marcus_structure,
+                        "source_name": "jlr.pdf",
+                        "source_type": "org_chart",
+                        "chunk_index": 2,
+                        "score": 0.0,
+                    }
+                ]
+            return [
+                {
+                    "chunk_id": "jlr.pdf#org_chart_32",
+                    "text": unrelated_china_digital,
+                    "source_name": "jlr.pdf",
+                    "source_type": "org_chart",
+                    "chunk_index": 32,
+                    "score": 0.0,
+                },
+                {
+                    "chunk_id": "jlr.pdf#org_chart_2",
+                    "text": marcus_structure,
+                    "source_name": "jlr.pdf",
+                    "source_type": "org_chart",
+                    "chunk_index": 2,
+                    "score": 0.0,
+                },
+                {
+                    "chunk_id": "jlr.pdf#4",
+                    "text": "HOW TO READ THE ORGANISATION CHARTS",
+                    "source_name": "jlr.pdf",
+                    "source_type": "pdf",
+                    "chunk_index": 4,
+                    "score": 0.0,
+                },
+                {
+                    "chunk_id": "manual.txt#0",
+                    "text": "A prior incorrect note claims Jim Morgan is responsible for China R&D.",
+                    "source_name": "manual.txt",
+                    "source_type": "text",
+                    "chunk_index": 0,
+                    "score": 0.0,
+                },
+            ]
+
+        def search_vector(self, query, top_k):
+            return [
+                {
+                    "chunk_id": "jlr.pdf#org_chart_2b",
+                    "text": marcus_continuation,
+                    "source_name": "jlr.pdf",
+                    "source_type": "org_chart",
+                    "chunk_index": 3,
+                    "score": 0.0,
+                },
+                {
+                    "chunk_id": "jlr.pdf#org_chart_32",
+                    "text": unrelated_china_digital,
+                    "source_name": "jlr.pdf",
+                    "source_type": "org_chart",
+                    "chunk_index": 32,
+                    "score": 0.0,
+                },
+            ]
+
+    retriever = HybridRetriever(indexer=FocusIndexer(), rrf_k=60)
+
+    chunks = retriever.hybrid_search(
+        "JLR org Marcus what is his position and who is the China R&D leader responsible for him?",
+        top_k=4,
+    )
+
+    assert [chunk.chunk_id for chunk in chunks] == [
+        "jlr.pdf#org_chart_2",
+        "jlr.pdf#org_chart_2b",
+        "jlr.pdf#4",
+    ]
+    assert "jlr.pdf#org_chart_32" not in [chunk.chunk_id for chunk in chunks]
+    assert "manual.txt#0" not in [chunk.chunk_id for chunk in chunks]
+
+    english_leads_chunks = retriever.hybrid_search(
+        "In the JLR org, what is Marcus role and who leads China under him?",
+        top_k=4,
+    )
+
+    assert [chunk.chunk_id for chunk in english_leads_chunks] == [
+        "jlr.pdf#org_chart_2",
+        "jlr.pdf#org_chart_2b",
+        "jlr.pdf#4",
+    ]
+    assert "jlr.pdf#org_chart_32" not in [chunk.chunk_id for chunk in english_leads_chunks]
+    assert "manual.txt#0" not in [chunk.chunk_id for chunk in english_leads_chunks]
+
+    english_report_to_chunks = retriever.hybrid_search(
+        "In the JLR org chart, who does Marcus report to?",
+        top_k=4,
+    )
+
+    assert [chunk.chunk_id for chunk in english_report_to_chunks] == [
+        "jlr.pdf#org_chart_2",
+        "jlr.pdf#org_chart_2b",
+        "jlr.pdf#4",
+    ]
+    assert "jlr.pdf#org_chart_32" not in [chunk.chunk_id for chunk in english_report_to_chunks]
+    assert "manual.txt#0" not in [chunk.chunk_id for chunk in english_report_to_chunks]
+
+    english_structurally_under_chunks = retriever.hybrid_search(
+        "Who is Marcus structurally under in the JLR org?",
+        top_k=4,
+    )
+
+    assert [chunk.chunk_id for chunk in english_structurally_under_chunks] == [
+        "jlr.pdf#org_chart_2",
+        "jlr.pdf#org_chart_2b",
+        "jlr.pdf#4",
+    ]
+    assert "jlr.pdf#org_chart_32" not in [chunk.chunk_id for chunk in english_structurally_under_chunks]
+    assert "manual.txt#0" not in [chunk.chunk_id for chunk in english_structurally_under_chunks]
+
+    chinese_chunks = retriever.hybrid_search(
+        "JLR 的 org 里面，Marcus 是什么职位？他的负责中国的研发领导是谁？",
+        top_k=4,
+    )
+
+    assert [chunk.chunk_id for chunk in chinese_chunks] == [
+        "jlr.pdf#org_chart_2",
+        "jlr.pdf#org_chart_2b",
+        "jlr.pdf#4",
+    ]
+    assert "jlr.pdf#org_chart_32" not in [chunk.chunk_id for chunk in chinese_chunks]
+    assert "manual.txt#0" not in [chunk.chunk_id for chunk in chinese_chunks]
+
+    lowercase_chunks = retriever.hybrid_search(
+        "marcus下面负责爱尔兰的负责人是谁？",
+        top_k=4,
+    )
+
+    assert [chunk.chunk_id for chunk in lowercase_chunks] == [
+        "jlr.pdf#org_chart_2",
+        "jlr.pdf#org_chart_2b",
+        "jlr.pdf#4",
+    ]
+
+
+def test_unanchored_org_chart_relation_query_can_prefer_detailed_entity_page():
+    overview = """[ORG_CHART_SUBTREE]
+Source: jlr.pdf
+Page: 2
+Context Root: OUR D P FIRST LINE STRUCTURE
+- Field 1: Jim Morgan is structurally under Field 1: Functions.
+[/ORG_CHART_SUBTREE]"""
+    detailed = """[ORG_CHART_SUBTREE]
+Source: jlr.pdf
+Page: 32
+Context Root: INFOTAINMENT & CONNECTIVITY Jim Morgan
+Structure:
+- Field 1: INFOTAINMENT & CONNECTIVITY Jim Morgan
+  - Field 1: China Digital
+  - Field 1: Apps and Services
+Semantic Search Triggers:
+- Field 1: China Digital is structurally under Field 1: INFOTAINMENT & CONNECTIVITY Jim Morgan.
+[/ORG_CHART_SUBTREE]"""
+
+    class DetailIndexer:
+        def search_fts(self, query, top_k):
+            return [
+                {
+                    "chunk_id": "jlr.pdf#org_chart_32",
+                    "text": detailed,
+                    "source_name": "jlr.pdf",
+                    "source_type": "org_chart",
+                    "chunk_index": 32,
+                    "score": 0.0,
+                },
+                {
+                    "chunk_id": "jlr.pdf#org_chart_2",
+                    "text": overview,
+                    "source_name": "jlr.pdf",
+                    "source_type": "org_chart",
+                    "chunk_index": 2,
+                    "score": 0.0,
+                },
+            ]
+
+        def search_vector(self, query, top_k):
+            return [
+                {
+                    "chunk_id": "jlr.pdf#org_chart_32",
+                    "text": detailed,
+                    "source_name": "jlr.pdf",
+                    "source_type": "org_chart",
+                    "chunk_index": 32,
+                    "score": 0.0,
+                },
+                {
+                    "chunk_id": "jlr.pdf#org_chart_2",
+                    "text": overview,
+                    "source_name": "jlr.pdf",
+                    "source_type": "org_chart",
+                    "chunk_index": 2,
+                    "score": 0.0,
+                },
+            ]
+
+    retriever = HybridRetriever(indexer=DetailIndexer(), rrf_k=60)
+
+    chunks = retriever.hybrid_search("Who is responsible for Jim Morgan?", top_k=2)
+
+    assert [chunk.chunk_id for chunk in chunks] == [
+        "jlr.pdf#org_chart_32",
+        "jlr.pdf#org_chart_2",
+    ]
+
+
 def test_reranker_receives_display_text_not_embedding_text():
     captured = {}
 

@@ -343,8 +343,8 @@ def test_ingest_upload_uses_six_slot_board_interaction_contract():
     assert "const MAX_UPLOAD_FILES = 6;" in app_js
     assert "function renderUploadSlots" in app_js
     assert "index < MAX_UPLOAD_FILES" in app_js
-    assert "selectedFiles.length >= MAX_UPLOAD_FILES" in app_js
-    assert "fileInput.disabled = selectedFiles.length >= MAX_UPLOAD_FILES" in app_js
+    assert "selectedFileCount() >= MAX_UPLOAD_FILES" in app_js
+    assert "fileInput.disabled = selectedFileCount() >= MAX_UPLOAD_FILES" in app_js
     assert "最多上传 6 个文件，请先移除一个文件。" in app_js
     assert "uploadSlotStatus" in app_js
     assert "上传槽" in app_js
@@ -360,6 +360,20 @@ def test_ingest_upload_uses_six_slot_board_interaction_contract():
     assert ".upload-slot.is-error" in style_css
 
 
+def test_sixth_upload_slot_is_explicit_org_chart_channel():
+    root = Path(__file__).resolve().parents[1]
+    app_js = (root / "static/app.js").read_text(encoding="utf-8")
+    style_css = (root / "static/style.css").read_text(encoding="utf-8")
+
+    assert "const ORG_CHART_SLOT_INDEX = 5;" in app_js
+    assert "pendingUploadSlotIndex = index" in app_js
+    assert "org_chart_modes" in app_js
+    assert 'entry.slotIndex === ORG_CHART_SLOT_INDEX ? "enabled" : "disabled"' in app_js
+    assert "Org Chart" in app_js
+    assert "组织图专用" in app_js
+    assert ".upload-slot.is-org-chart-slot" in style_css
+
+
 def test_ingest_upload_polls_async_ocr_tasks_from_accepted_results():
     root = Path(__file__).resolve().parents[1]
     app_js = (root / "static/app.js").read_text(encoding="utf-8")
@@ -370,7 +384,7 @@ def test_ingest_upload_polls_async_ocr_tasks_from_accepted_results():
     assert 'result.status === "accepted"' in app_js
     assert 'fetch(`api/tasks/${encodeURIComponent(taskId)}`)' in app_js
     assert "setTimeout" in app_js
-    assert 'startUploadTaskPolling(fileUploadResults)' in app_js
+    assert "startUploadTaskPolling(fileUploadResults.filter(Boolean))" in app_js
     assert "notifyKnowledgeUpdated(\"ingest:file:ocr\")" in app_js
     assert "后台 OCR" in app_js
 

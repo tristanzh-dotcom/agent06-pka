@@ -177,6 +177,40 @@ def test_deepseek_prompts_forbid_external_knowledge_when_no_answer():
     assert required in report_prompt
 
 
+def test_deepseek_prompt_for_org_chart_forbids_cross_page_relation_synthesis():
+    prompt = build_deepseek_analysis_prompt(
+        "Marcus 是什么职位，他负责中国的研发领导是谁？",
+        [
+            RetrievedChunk(
+                chunk_id="jlr.pdf#org_chart_2",
+                text="[ORG_CHART_SUBTREE]\nPage: 2\n- Field 1: Digital Platform Marcus (Field 2: Keith)",
+                source_name="jlr.pdf",
+                source_type="org_chart",
+                chunk_index=2,
+                score=0.9,
+                rank_fts5=1,
+                rank_vector=1,
+            ),
+            RetrievedChunk(
+                chunk_id="jlr.pdf#org_chart_32",
+                text="[ORG_CHART_SUBTREE]\nPage: 32\n- Field 1: China Digital is structurally under Field 1: Jim Morgan.",
+                source_name="jlr.pdf",
+                source_type="org_chart",
+                chunk_index=32,
+                score=0.8,
+                rank_fts5=2,
+                rank_vector=2,
+            ),
+        ],
+        include_chinese_advice=True,
+    )
+
+    assert "组织架构图关系题额外规则" in prompt
+    assert "不要把不同 Page、不同 Context Root 或不同分支的人员关系拼接成新的汇报链" in prompt
+    assert "必须只依据同一个结构链中的明示父子关系" in prompt
+    assert '例如 "Ireland" 下是 "Paul" 再下一层 "Girr"，应合并为 Paul Girr' in prompt
+
+
 @pytest.mark.asyncio
 async def test_generate_answer_streams_tokens_sources_and_done():
     deepseek_client = FakeDeepSeekClient()
@@ -1079,7 +1113,7 @@ def test_file_ingest_streams_uploaded_content_to_disk(tmp_path, monkeypatch):
     original = install_temp_runtime(server, tmp_path, "test_file_stream")
     seen = {}
 
-    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
         seen["size"] = Path(file_path).stat().st_size
         return ParseResult(
             text="大文件内容",
@@ -1110,7 +1144,7 @@ def test_file_ingest_preserves_raw_file_path_in_source_lookup(tmp_path, monkeypa
 
     original = install_temp_runtime(server, tmp_path, "test_raw_file_path")
 
-    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
         return ParseResult(
             text="附件中的组织架构调整方案已经完成，包含岗位职责、汇报关系和跨部门协作边界说明。",
             source_name=Path(file_path).name,
@@ -1133,6 +1167,69 @@ def test_file_ingest_preserves_raw_file_path_in_source_lookup(tmp_path, monkeypa
 
         assert source["raw_file_path"].startswith("raw/")
         assert source["raw_file_path"].endswith("report.pdf")
+    finally:
+        restore_runtime(server, original)
+
+
+def test_file_ingest_disables_org_chart_extraction_by_default(tmp_path, monkeypatch):
+    import server
+    from engine.models import ParseResult
+
+    original = install_temp_runtime(server, tmp_path, "test_org_chart_default_disabled")
+    seen = {}
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
+        seen["extract_org_charts"] = extract_org_charts
+        return ParseResult(
+            text="普通 PDF 业务图内容，不应自动作为 org chart 入库。",
+            source_name=Path(file_path).name,
+            source_type="pdf",
+            metadata={},
+        )
+
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    client = TestClient(app)
+
+    try:
+        response = client.post(
+            "/api/ingest/file",
+            files={"file": ("business.pdf", b"pdf bytes", "application/pdf")},
+        )
+
+        assert response.status_code == 200
+        assert seen["extract_org_charts"] is False
+    finally:
+        restore_runtime(server, original)
+
+
+def test_file_ingest_enables_org_chart_extraction_when_requested(tmp_path, monkeypatch):
+    import server
+    from engine.models import ParseResult
+
+    original = install_temp_runtime(server, tmp_path, "test_org_chart_enabled")
+    seen = {}
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
+        seen["extract_org_charts"] = extract_org_charts
+        return ParseResult(
+            text="组织结构图内容。" * 40,
+            source_name=Path(file_path).name,
+            source_type="pdf",
+            metadata={},
+        )
+
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    client = TestClient(app)
+
+    try:
+        response = client.post(
+            "/api/ingest/file",
+            data={"org_chart_mode": "enabled"},
+            files={"file": ("org.pdf", b"pdf bytes", "application/pdf")},
+        )
+
+        assert response.status_code == 200
+        assert seen["extract_org_charts"] is True
     finally:
         restore_runtime(server, original)
 
@@ -1167,7 +1264,7 @@ def test_file_ingest_rejects_too_many_sync_chunks_before_upsert(tmp_path, monkey
             for index in range(count)
         ]
 
-    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
         return ParseResult(
             text="oversized pdf text",
             source_name=Path(file_path).name,
@@ -1206,7 +1303,7 @@ def test_bulk_file_ingest_returns_per_file_results_and_preserves_raw_files(tmp_p
     original = install_temp_runtime(server, tmp_path, "test_bulk_files")
     parsed_files = []
 
-    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
         parsed_files.append((Path(file_path).name, mime_type))
         return ParseResult(
             text=f"{Path(file_path).stem} 里的知识内容",
@@ -1260,7 +1357,7 @@ def test_bulk_file_ingest_marks_oversized_file_error_and_keeps_small_success(tmp
         def count_chunks(self):
             return sum(len(chunks) for chunks, _ in self.upsert_calls)
 
-    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
         return ParseResult(
             text=f"{Path(file_path).name} text",
             source_name=Path(file_path).name,
@@ -1324,7 +1421,7 @@ def test_bulk_file_ingest_keeps_successes_when_one_file_fails(tmp_path, monkeypa
 
     original = install_temp_runtime(server, tmp_path, "test_bulk_partial")
 
-    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
         if Path(file_path).name == "bad.pdf":
             raise ValueError("无法解析文件内容")
         return ParseResult(

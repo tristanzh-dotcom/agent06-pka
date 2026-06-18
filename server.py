@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 from uuid import uuid4
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -189,10 +189,10 @@ async def ingest_text(request: TextIngestRequest):
 
 
 @app.post("/api/ingest/file")
-async def ingest_file(file: UploadFile = File(...)):
+async def ingest_file(file: UploadFile = File(...), org_chart_mode: str = Form("disabled")):
     ocr = _build_ocr_client()
     try:
-        result = await _ingest_upload_file(file, ocr)
+        result = await _ingest_upload_file(file, ocr, extract_org_charts=_is_org_chart_mode_enabled(org_chart_mode))
     except HTTPException:
         raise
     except Exception as exc:
@@ -230,7 +230,7 @@ async def get_task(task_id: str):
 
 
 @app.post("/api/ingest/files")
-async def ingest_files(files: list[UploadFile] = File(...)):
+async def ingest_files(files: list[UploadFile] = File(...), org_chart_modes: Optional[list[str]] = Form(None)):
     if not files:
         raise HTTPException(status_code=400, detail="files are required")
     ocr = _build_ocr_client()
@@ -240,10 +240,15 @@ async def ingest_files(files: list[UploadFile] = File(...)):
     skipped = 0
     failed = 0
     total_chunks = 0
-    for file in files:
+    modes = org_chart_modes if isinstance(org_chart_modes, list) else []
+    for index, file in enumerate(files):
         filename = Path(file.filename or "upload").name
         try:
-            result = await _ingest_upload_file(file, ocr)
+            result = await _ingest_upload_file(
+                file,
+                ocr,
+                extract_org_charts=_is_org_chart_mode_enabled(modes[index] if index < len(modes) else "disabled"),
+            )
             if result.get("status") == "accepted":
                 accepted += 1
                 if ocr is not None:
@@ -288,6 +293,10 @@ async def ingest_files(files: list[UploadFile] = File(...)):
         response_payload["status"] = "accepted" if failed == 0 else "partial"
         return JSONResponse(status_code=202, content=response_payload)
     return response_payload
+
+
+def _is_org_chart_mode_enabled(value: Optional[str]) -> bool:
+    return str(value or "").strip().lower() in {"enabled", "true", "1", "yes", "on"}
 
 
 def _build_ocr_client():
@@ -339,7 +348,7 @@ def recover_queued_ocr_tasks(executor=None) -> dict:
     return summary
 
 
-async def _ingest_upload_file(file: UploadFile, ocr):
+async def _ingest_upload_file(file: UploadFile, ocr, extract_org_charts: bool = False):
     raw_dir = Path(runtime.config["data_dir"]) / "raw" / datetime.now().strftime("%Y-%m-%d")
     raw_dir.mkdir(parents=True, exist_ok=True)
     output_path = raw_dir / Path(file.filename or "upload").name
@@ -350,7 +359,12 @@ async def _ingest_upload_file(file: UploadFile, ocr):
             if not chunk:
                 break
             output.write(chunk)
-    parsed = await parse_file(str(output_path), mime_type=file.content_type, ocr_client=ocr)
+    parsed = await parse_file(
+        str(output_path),
+        mime_type=file.content_type,
+        ocr_client=ocr,
+        extract_org_charts=extract_org_charts,
+    )
     raw_file_path = str(output_path.relative_to(Path(runtime.config["data_dir"])))
     quality = parsed.quality
     if quality is not None and quality.status == "needs_ocr":

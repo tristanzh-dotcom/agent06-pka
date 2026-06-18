@@ -27,7 +27,12 @@ def parse_text(text: str, source_name: str = "manual_input") -> ParseResult:
     )
 
 
-async def parse_file(file_path: str, mime_type: Optional[str] = None, ocr_client: Any = None) -> ParseResult:
+async def parse_file(
+    file_path: str,
+    mime_type: Optional[str] = None,
+    ocr_client: Any = None,
+    extract_org_charts: bool = False,
+) -> ParseResult:
     path = Path(file_path)
     suffix = path.suffix.lower()
     detected_mime = mime_type or mimetypes.guess_type(str(path))[0] or ""
@@ -45,7 +50,7 @@ async def parse_file(file_path: str, mime_type: Optional[str] = None, ocr_client
         if suffix == ".pptx":
             return _parse_pptx(path)
         if suffix == ".pdf":
-            return _parse_pdf(path)
+            return _parse_pdf(path, extract_org_charts=extract_org_charts)
         if suffix == ".xlsx":
             return _parse_xlsx(path)
         if suffix in IMAGE_TYPES or detected_mime.startswith("image/"):
@@ -106,7 +111,7 @@ def _parse_pptx(path: Path) -> ParseResult:
     )
 
 
-def _parse_pdf(path: Path) -> ParseResult:
+def _parse_pdf(path: Path, extract_org_charts: bool = False) -> ParseResult:
     import fitz
     from engine.quality import assess_pdf_quality, clean_pdf_text
 
@@ -119,7 +124,7 @@ def _parse_pdf(path: Path) -> ParseResult:
             raw_blocks = page.get_text("blocks")
             if page_text:
                 blocks = _pdf_text_blocks(raw_blocks, page_number)
-                if _detect_org_chart_page(page_text, blocks):
+                if extract_org_charts and _detect_org_chart_page(page_text, blocks):
                     pre_chunks.extend(
                         _org_chart_pre_chunks(
                             source_name=path.name,

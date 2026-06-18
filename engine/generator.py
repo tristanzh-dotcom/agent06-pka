@@ -49,6 +49,7 @@ def build_deepseek_analysis_prompt(
             f"source: {chunk.source_name}#{chunk.chunk_index}\n"
             f"text: {chunk.text}"
         )
+    org_chart_instruction = _org_chart_grounding_instruction(chunks)
     if include_chinese_advice:
         return f"""你是一个个人知识库中文问答助手。用户给出了一个问题，以及从其个人资料库中检索到的相关材料。
 请直接给用户一段自然、可读的中文个人建议，不要输出 JSON、代码块、字段名或调试结构。
@@ -60,6 +61,7 @@ def build_deepseek_analysis_prompt(
 4. 在回答末尾列出来源，格式为“来源：文件名#段落号”
 5. 如果资料不足，明确说明当前知识库缺少哪些信息
 {NO_ANSWER_CONSTRAINT}
+{org_chart_instruction}
 
 [参考内容]
 {chr(10).join(references)}
@@ -88,6 +90,7 @@ English Report mode:
 2. 列出关键术语中英对照表
 3. 梳理材料之间的逻辑关系（因果、时间线、对比等）
 {NO_ANSWER_CONSTRAINT}
+{org_chart_instruction}
 
 输出 JSON 格式：
 {{
@@ -106,6 +109,18 @@ English Report mode:
 [用户问题]
 {question}
 """
+
+
+def _org_chart_grounding_instruction(chunks: List[RetrievedChunk]) -> str:
+    if not any(chunk.source_type == "org_chart" or chunk.text.startswith("[ORG_CHART") for chunk in chunks):
+        return ""
+    return """
+组织架构图关系题额外规则：
+- 必须只依据同一个结构链中的明示父子关系、"is structurally under" 关系或同一 Page/Context Root 内的结构缩进回答。
+- 不要把不同 Page、不同 Context Root 或不同分支的人员关系拼接成新的汇报链。
+- 如果多个 org chart 片段看起来都相关，优先使用包含问题中明确人名/团队名的片段；其它片段只能作为补充背景，不能创造跨分支结论。
+- 如果参考内容只显示名字拆行，可以合并为同一个人名，但必须说明这是基于同一结构链的合并；例如 "Dave" 下一层是 "Ross"，应合并为 Dave Ross；例如 "Ireland" 下是 "Paul" 再下一层 "Girr"，应合并为 Paul Girr。
+""".strip()
 
 
 def build_english_report_prompt(question: str, analysis: str, chunks: List[RetrievedChunk]) -> str:

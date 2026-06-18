@@ -239,6 +239,11 @@ button.upload-slot {
   color: var(--ink);
 }
 
+.upload-slot.is-org-chart-slot {
+  border-color: rgba(43, 116, 175, 0.48);
+  background: rgba(43, 116, 175, 0.08);
+}
+
 .upload-slot.is-filled {
   border-style: solid;
   background: var(--message-bg);

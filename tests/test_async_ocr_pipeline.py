@@ -75,7 +75,7 @@ def ocr_quality():
 def test_ingest_file_returns_202_and_queued_status_for_scan_pdf(monkeypatch, tmp_path):
     original = install_temp_runtime(tmp_path, "test_async_ocr_accepts_scan")
 
-    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
         return ParseResult(
             text="",
             source_name=Path(file_path).name,
@@ -107,7 +107,7 @@ def test_ingest_file_returns_202_and_queued_status_for_scan_pdf(monkeypatch, tmp
 def test_task_store_persistence_and_polling_endpoint(monkeypatch, tmp_path):
     original = install_temp_runtime(tmp_path, "test_async_ocr_task_polling")
 
-    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
         return ParseResult(
             text="",
             source_name=Path(file_path).name,
@@ -145,7 +145,7 @@ def test_task_store_persistence_and_polling_endpoint(monkeypatch, tmp_path):
 def test_ingest_files_returns_202_when_any_file_is_queued(monkeypatch, tmp_path):
     original = install_temp_runtime(tmp_path, "test_async_ocr_batch_accepts_scan")
 
-    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
         return ParseResult(
             text="",
             source_name=Path(file_path).name,
@@ -177,7 +177,7 @@ def test_ingest_files_returns_202_when_any_file_is_queued(monkeypatch, tmp_path)
 def test_async_ocr_worker_flows_back_to_unified_ingest_and_respects_limits(monkeypatch, tmp_path):
     original = install_temp_runtime(tmp_path, "test_async_ocr_failure_atomicity")
 
-    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
         return ParseResult(
             text="",
             source_name=Path(file_path).name,

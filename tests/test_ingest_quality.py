@@ -154,7 +154,7 @@ async def test_needs_ocr_without_ocr_is_skipped_and_not_indexed(monkeypatch, tmp
     monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
     monkeypatch.setattr(server.runtime, "indexer", indexer)
 
-    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
         return ParseResult(
             text="",
             source_name=Path(file_path).name,
@@ -177,7 +177,7 @@ async def test_needs_ocr_sync_ingest_skips_without_running_ocr_chain(monkeypatch
     monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
     monkeypatch.setattr(server.runtime, "indexer", indexer)
 
-    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
         return ParseResult(
             text="",
             source_name=Path(file_path).name,
@@ -221,7 +221,7 @@ async def test_ingest_upload_indexes_pre_chunks_without_chunk_text_split(monkeyp
     projection = "[ORG_CHART]\n" + "\n".join(f"- Person {idx}" for idx in range(200)) + "\n[/ORG_CHART]"
     pre_chunk = _pre_chunk(projection)
 
-    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
         return SimpleNamespace(
             text="",
             source_name=Path(file_path).name,
@@ -253,7 +253,7 @@ async def test_mixed_pdf_indexes_normal_chunks_and_org_chart_chunks(monkeypatch,
     monkeypatch.setattr(server.runtime, "indexer", indexer)
     pre_chunk = _pre_chunk()
 
-    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
         return SimpleNamespace(
             text="This normal PDF paragraph is long enough to survive PDF chunk noise filtering and be indexed.",
             source_name=Path(file_path).name,
@@ -282,7 +282,7 @@ async def test_needs_ocr_with_legacy_pdf_ocr_is_skipped_before_ocr(monkeypatch, 
     monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
     monkeypatch.setattr(server.runtime, "indexer", indexer)
 
-    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
         return ParseResult(
             text="",
             source_name=Path(file_path).name,
@@ -318,7 +318,7 @@ async def test_needs_ocr_provider_chain_is_not_called_in_sync_ingest(monkeypatch
     monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
     monkeypatch.setattr(server.runtime, "indexer", indexer)
 
-    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
         return ParseResult(
             text="",
             source_name=Path(file_path).name,
@@ -362,7 +362,7 @@ async def test_needs_ocr_skips_before_provider_chain_timeout_path(monkeypatch, t
     monkeypatch.setitem(server.runtime.config["ocr"], "timeout_seconds", 0.01)
     monkeypatch.setattr(server.runtime, "indexer", indexer)
 
-    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
         return ParseResult(
             text="",
             source_name=Path(file_path).name,
@@ -399,7 +399,7 @@ async def test_needs_ocr_skips_before_provider_chain_failure_path(monkeypatch, t
     monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
     monkeypatch.setattr(server.runtime, "indexer", indexer)
 
-    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
         return ParseResult(
             text="",
             source_name=Path(file_path).name,
@@ -431,7 +431,7 @@ async def test_low_quality_pdf_does_not_trigger_ocr_chain(monkeypatch, tmp_path)
     monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
     monkeypatch.setattr(server.runtime, "indexer", indexer)
 
-    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
         return ParseResult(
             text="\n".join(["低质量但仍有正文，包含企业战略、市场份额和供应链变化。"] * 10),
             source_name=Path(file_path).name,
@@ -461,7 +461,7 @@ async def test_needs_ocr_skips_before_legacy_pdf_ocr_failure_path(monkeypatch, t
     monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
     monkeypatch.setattr(server.runtime, "indexer", indexer)
 
-    async def fake_parse_file(file_path, mime_type=None, ocr_client=None):
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
         return ParseResult(
             text="",
             source_name=Path(file_path).name,
@@ -491,7 +491,7 @@ async def test_needs_ocr_skips_before_legacy_pdf_ocr_failure_path(monkeypatch, t
 
 @pytest.mark.asyncio
 async def test_batch_counts_skipped_separately_from_failed(monkeypatch):
-    async def fake_ingest_upload_file(file, ocr):
+    async def fake_ingest_upload_file(file, ocr, extract_org_charts=False):
         if file.filename == "ok.txt":
             return {
                 "status": "ok",

@@ -53,12 +53,16 @@ class MatrixHttpClient:
             response.raise_for_status()
             return response.json(), time.perf_counter() - start
 
-    def ingest_file(self, path: str, mime_type: str) -> Tuple[Dict[str, Any], float]:
+    def ingest_file(self, path: str, mime_type: str, org_chart_mode: str = "disabled") -> Tuple[Dict[str, Any], float]:
         start = time.perf_counter()
         with Path(path).open("rb") as handle:
             files = {"files": (Path(path).name, handle, mime_type)}
             with httpx.Client(timeout=self.timeout_seconds) as client:
-                response = client.post(f"{self.base_url}/api/ingest/files", files=files)
+                response = client.post(
+                    f"{self.base_url}/api/ingest/files",
+                    data={"org_chart_modes": org_chart_mode},
+                    files=files,
+                )
                 response.raise_for_status()
                 return response.json(), time.perf_counter() - start
 
@@ -172,7 +176,11 @@ def run_verification(
     }
 
     client.clear()
-    jlr_payload, jlr_elapsed = client.ingest_file(asset_paths.jlr_pdf, "application/pdf")
+    jlr_payload, jlr_elapsed = client.ingest_file(
+        asset_paths.jlr_pdf,
+        "application/pdf",
+        org_chart_mode="enabled",
+    )
     jlr_file = _single_file(jlr_payload)
     _assert(jlr_payload["status"] == "ok", "JLR ingest batch must succeed")
     _assert(jlr_payload["total_chunks"] == 105, "JLR ingest must produce 105 chunks")
@@ -208,7 +216,11 @@ def run_verification(
     }
 
     client.clear()
-    restore_payload, restore_elapsed = client.ingest_file(asset_paths.jlr_pdf, "application/pdf")
+    restore_payload, restore_elapsed = client.ingest_file(
+        asset_paths.jlr_pdf,
+        "application/pdf",
+        org_chart_mode="enabled",
+    )
     restore_file = _single_file(restore_payload)
     restore_counts = client.physical_counts()
     _assert(restore_payload["total_chunks"] == 105, "final restore must leave JLR 105 chunk baseline")

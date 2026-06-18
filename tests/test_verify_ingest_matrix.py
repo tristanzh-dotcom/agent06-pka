@@ -27,8 +27,8 @@ class FakeMatrixClient:
             "quality": {"status": "high", "action": "direct"},
         }, 1.17
 
-    def ingest_file(self, path, mime_type):
-        self.calls.append(("ingest_file", Path(path).name))
+    def ingest_file(self, path, mime_type, org_chart_mode="disabled"):
+        self.calls.append(("ingest_file", Path(path).name, org_chart_mode))
         name = Path(path).name
         if "Turtle" in name:
             self.total_chunks = 0
@@ -116,9 +116,11 @@ def test_verify_ingest_matrix_restores_jlr_baseline_and_writes_json_report(tmp_p
     assert client.calls[0] == ("clear",)
     assert client.calls[-3:] == [
         ("clear",),
-        ("ingest_file", "JLR_Corporate_Deck_Template_MASTER_25_.pptx.pdf"),
+        ("ingest_file", "JLR_Corporate_Deck_Template_MASTER_25_.pptx.pdf", "enabled"),
         ("physical_counts",),
     ]
+    assert ("ingest_file", "Turtle of the world 2010.pdf", "disabled") in client.calls
+    assert ("ingest_file", "2026中国新能源汽车品牌GEO现状研究报告-亿欧智库.pdf", "disabled") in client.calls
     assert report["summary"]["total_cases"] == 7
     assert report["summary"]["failed_cases"] == 0
     assert report["cases"]["manual_text"]["chunks"] == 1

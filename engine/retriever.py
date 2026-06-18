@@ -1,19 +1,29 @@
 import re
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from engine.models import RetrievedChunk
 
 
 ORG_CHART_INTENT_PATTERNS = [
     re.compile(r"\bstructurally under\b", re.IGNORECASE),
+    re.compile(r"\breport\s+to\b", re.IGNORECASE),
     re.compile(r"\breports to\b", re.IGNORECASE),
     re.compile(r"\bwho reports\b", re.IGNORECASE),
     re.compile(r"\bpeople under\b", re.IGNORECASE),
     re.compile(r"\bteams? under\b", re.IGNORECASE),
     re.compile(r"\bwhich people\b.*\bunder\b", re.IGNORECASE),
     re.compile(r"\bwho is responsible for\b", re.IGNORECASE),
+    re.compile(r"\bresponsible for\b", re.IGNORECASE),
+    re.compile(r"\bleader\b", re.IGNORECASE),
+    re.compile(r"\bleads?\b", re.IGNORECASE),
+    re.compile(r"\bunder\s+(?:him|her|them)\b", re.IGNORECASE),
     re.compile(r"\bwho works with\b", re.IGNORECASE),
     re.compile(r"\bwho is associated with\b", re.IGNORECASE),
+    re.compile(r"负责"),
+    re.compile(r"领导"),
+    re.compile(r"汇报"),
+    re.compile(r"职位"),
+    re.compile(r"组织架构"),
 ]
 
 ORG_CHART_EXPLANATION_PATTERNS = [
@@ -23,6 +33,36 @@ ORG_CHART_EXPLANATION_PATTERNS = [
 ]
 
 ORG_CHART_INTENT_BONUS = 0.02
+ORG_CHART_FOCUS_STOPWORDS = {
+    "apac",
+    "and",
+    "china",
+    "digital",
+    "jlr",
+    "leader",
+    "leaders",
+    "lead",
+    "leads",
+    "org",
+    "chart",
+    "charts",
+    "does",
+    "in",
+    "position",
+    "report",
+    "responsible",
+    "role",
+    "structurally",
+    "the",
+    "to",
+    "under",
+    "what",
+    "who",
+    "him",
+    "his",
+    "her",
+    "them",
+}
 
 
 def reciprocal_rank_fusion(
@@ -115,11 +155,25 @@ class HybridRetriever:
 
     def _search_fused_with_intent_debug(self, query: str) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         fts_results = self.indexer.search_fts(query, self.fts5_top_k)
+        fts_results = self._with_org_chart_focus_fts_results(query, fts_results)
         vector_results = self.indexer.search_vector(query, self.vector_top_k)
         fused = reciprocal_rank_fusion(fts_results, vector_results, self.rrf_k)
         intent_debug = _org_chart_intent_debug(query, fused)
         fused = apply_org_chart_intent_bias(query, fused)
         return self._rerank(query, fused), intent_debug
+
+    def _with_org_chart_focus_fts_results(self, query: str, fts_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        if not _has_org_chart_relation_intent(query):
+            return fts_results
+        seen = {item["chunk_id"] for item in fts_results}
+        expanded = list(fts_results)
+        for token in _org_chart_focus_tokens(query):
+            for item in self.indexer.search_fts(token, min(self.fts5_top_k, 5)):
+                if item["chunk_id"] in seen:
+                    continue
+                seen.add(item["chunk_id"])
+                expanded.append(item)
+        return expanded
 
     def _chunks_from_fused(self, fused: List[Dict[str, Any]]) -> List[RetrievedChunk]:
         return [
@@ -183,7 +237,8 @@ def apply_org_chart_intent_bias(query: str, fused: List[Dict[str, Any]]) -> List
             rank_fts5 if rank_fts5 is not None else float("inf"),
         )
 
-    return sorted(fused, key=sort_key)
+    biased = sorted(fused, key=sort_key)
+    return _prioritize_named_org_chart_focus_pages(query, biased)
 
 
 def _org_chart_intent_debug(query: str, fused: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -216,3 +271,69 @@ def _has_org_chart_projection_evidence(text: str) -> bool:
             or "Structure:" in text
         )
     )
+
+
+def _prioritize_named_org_chart_focus_pages(query: str, fused: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    focus_tokens = _org_chart_focus_tokens(query)
+    if not focus_tokens:
+        return fused
+
+    focus_pages = set()
+    focus_source_names = set()
+    for item in fused:
+        if item.get("source_type") != "org_chart":
+            continue
+        text = item.get("text", "")
+        if not _text_contains_any_token(text, focus_tokens):
+            continue
+        page_key = _org_chart_page_key(item)
+        if page_key is not None:
+            focus_pages.add(page_key)
+            focus_source_names.add(page_key[0])
+    if not focus_pages:
+        return fused
+
+    focused_org = []
+    other_non_org = []
+    other_org = []
+    for item in fused:
+        if item.get("source_type") != "org_chart" and item.get("source_name") in focus_source_names:
+            other_non_org.append(item)
+        elif _org_chart_page_key(item) in focus_pages:
+            focused_org.append(item)
+        else:
+            other_org.append(item)
+    focused_org = sorted(
+        focused_org,
+        key=lambda item: not _text_contains_any_token(item.get("text", ""), focus_tokens),
+    )
+    return focused_org + other_non_org
+
+
+def _org_chart_focus_tokens(query: str) -> List[str]:
+    tokens = []
+    for token in re.findall(r"(?<![A-Za-z])[A-Za-z]{3,}(?![A-Za-z])", query):
+        lowered = token.lower()
+        if lowered in ORG_CHART_FOCUS_STOPWORDS:
+            continue
+        if token not in tokens:
+            tokens.append(token)
+    return tokens
+
+
+def _text_contains_any_token(text: str, tokens: List[str]) -> bool:
+    return any(re.search(rf"\b{re.escape(token)}\b", text, re.IGNORECASE) for token in tokens)
+
+
+def _org_chart_page_key(item: Dict[str, Any]) -> Optional[Tuple[str, int]]:
+    page = _org_chart_page_number(item.get("text", ""))
+    if page is None:
+        return None
+    return (str(item.get("source_name", "")), page)
+
+
+def _org_chart_page_number(text: str) -> Optional[int]:
+    match = re.search(r"^Page:\s*(\d+)\s*$", text, re.MULTILINE)
+    if not match:
+        return None
+    return int(match.group(1))
