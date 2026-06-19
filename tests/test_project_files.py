@@ -635,6 +635,17 @@ def test_ask_embedded_state_preserves_answer_transcript_across_shell_switches():
     assert "askState.messages[messageIndex].text = askState.answer" in app_js
 
 
+def test_knowledge_update_clears_stale_ask_transcript_before_snapshot():
+    root = Path(__file__).resolve().parents[1]
+    app_js = (root / "static/app.js").read_text(encoding="utf-8")
+
+    assert "function resetAskStateForKnowledgeUpdate" in app_js
+    notify_body = app_js[app_js.index("function notifyKnowledgeUpdated") : app_js.index("function collectEmbeddedState")]
+    assert "resetAskStateForKnowledgeUpdate();" in notify_body
+    assert notify_body.index("resetAskStateForKnowledgeUpdate();") < notify_body.index("postMessage")
+    assert "askState.messages = [];" in app_js
+
+
 def test_ask_submit_shows_pending_feedback_before_stream_tokens():
     root = Path(__file__).resolve().parents[1]
     app_js = (root / "static/app.js").read_text(encoding="utf-8")

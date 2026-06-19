@@ -1,0 +1,640 @@
+/Users/tristanzh/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+INFO:     Started server process [28284]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
+INFO:     127.0.0.1:56506 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/app.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /ask HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /ask HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56778 - "GET /api/config HTTP/1.1" 200 OK
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/by/ryk2x0p133n0q7syh20tp2l40000gn/T/jieba.cache
+Loading model cost 0.177 seconds.
+Prefix dict has been built successfully.
+INFO:     127.0.0.1:56781 - "POST /api/query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56786 - "POST /api/ingest/text HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56802 - "POST /api/ingest/text HTTP/1.1" 200 OK
+Number of requested results 10 is greater than number of elements in index 2, updating n_results = 2
+INFO:     127.0.0.1:56804 - "POST /api/query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56810 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [28284]
+/Users/tristanzh/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+INFO:     Started server process [34239]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
+INFO:     127.0.0.1:0 - "GET /api/files/../../../etc/passwd HTTP/1.1" 403 Forbidden
+INFO:     127.0.0.1:0 - "GET /settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/app.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57323 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/app.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57546 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/app.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /ask HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/by/ryk2x0p133n0q7syh20tp2l40000gn/T/jieba.cache
+Loading model cost 0.167 seconds.
+Prefix dict has been built successfully.
+INFO:     127.0.0.1:0 - "POST /api/ingest/text HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/style.css HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:0 - "GET /static/app.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/app.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "POST /api/ingest/text HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "POST /api/ingest/text HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "POST /api/ingest/text HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "POST /api/ingest/text HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /ask HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/app.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/app.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "POST /api/ingest/text HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/app.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "POST /api/ingest/text HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/style.css?v=20260604-1850 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/app.js?v=20260604-1850 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [34239]
+/Users/tristanzh/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+INFO:     Started server process [76163]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
+INFO:     127.0.0.1:0 - "HEAD / HTTP/1.1" 405 Method Not Allowed
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/style.css?v=20260604-1850 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/app.js?v=20260604-1850 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /ask HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/style.css?v=20260604-1915 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /ask HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/style.css?v=20260604-1915 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/app.js?v=20260604-1915 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /ask HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/style.css?v=20260604-1915 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:0 - "GET /static/app.js?v=20260604-1915 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/app.js?v=20260604-1850 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/app.js?v=20260604-1850 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /static/app.js?v=20260604-1935 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /ask HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/style.css?v=20260604-1935 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /ask HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/style.css?v=20260604-1935 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/app.js?v=20260604-1935 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/style.css?v=20260604-1935 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/app.js?v=20260604-1935 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/style.css?v=20260604-1935 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:0 - "GET /static/app.js?v=20260604-1935 HTTP/1.1" 304 Not Modified
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/by/ryk2x0p133n0q7syh20tp2l40000gn/T/jieba.cache
+Loading model cost 0.185 seconds.
+Prefix dict has been built successfully.
+INFO:     127.0.0.1:0 - "POST /api/ingest/text HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/app.js?v=20260604-1935 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:0 - "GET /static/style.css?v=20260604-1935 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:0 - "GET /ask HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /ask HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "POST /api/query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/style.css?v=20260604-1935 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:0 - "GET /static/app.js?v=20260604-1935 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /ask HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/style.css?v=20260604-1935 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:0 - "GET /static/app.js?v=20260604-1935 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/app.js?v=20260604-1955 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /ask HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/style.css?v=20260604-1955 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/app.js?v=20260604-1955 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/app.js?v=20260604-1955 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/app.js?v=20260604-1955 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/style.css?v=20260604-1955 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/app.js?v=20260604-1955 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /ask HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /ask HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /ask HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/style.css?v=20260604-2010 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/app.js?v=20260604-2010 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /ask HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/style.css?v=20260604-2010 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/app.js?v=20260604-2010 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /ask HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/app.js?v=20260604-2025 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/style.css?v=20260604-2025 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/app.js?v=20260604-2025 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /ask HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/style.css?v=20260604-2025 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/app.js?v=20260604-2025 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/style.css?v=20260604-2025 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:0 - "GET /static/app.js?v=20260604-2025 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /ask HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /static/app.js?v=20260604-2025 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:0 - "GET /static/style.css?v=20260604-2025 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:0 - "GET /ask HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "POST /api/query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /ask HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "POST /api/query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:0 - "GET /api/v1/ledger HTTP/1.1" 404 Not Found
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [76163]

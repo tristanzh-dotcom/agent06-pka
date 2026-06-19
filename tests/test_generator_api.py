@@ -83,6 +83,15 @@ class FakeNoAnswerIrrelevantMaterialClient:
         yield "\n\n来源：org.txt#2"
 
 
+class FakeExactNoAnswerClient:
+    def __init__(self):
+        self.prompts = []
+
+    async def stream(self, prompt):
+        self.prompts.append(prompt)
+        yield "当前知识库缺少相关信息，无法回答该问题。建议补充相关资料后重新提问。"
+
+
 class FakeEmbeddingClient:
     def embed(self, texts):
         return [[1.0] + [0.0] * 1023 for _ in texts]
@@ -112,6 +121,23 @@ def sample_file_chunk():
         rank_fts5=1,
         rank_vector=1,
         raw_file_path="raw/2026-06-04/report.pdf",
+    )
+
+
+def sample_jlr_onboarding_chunk():
+    return RetrievedChunk(
+        chunk_id="manual_20260619_121722#1",
+        text=(
+            "JLR 最新全球战略纪要显示，当前 Offer 谈判及未来入职具有决定性利好。"
+            "在收到英国 HR 官方正式的 Offer Letter 之前，当前策略维持静态观测。"
+            "一旦数字下单，启动两轨制反馈输出。"
+        ),
+        source_name="manual_20260619_121722",
+        source_type="text",
+        chunk_index=1,
+        score=0.95,
+        rank_fts5=1,
+        rank_vector=1,
     )
 
 
@@ -357,6 +383,28 @@ async def test_generate_answer_marks_irrelevant_material_language_as_no_answer()
     assert "来源" not in token_text
     assert sources_event["source_status"] == "no_answer"
     assert sources_event["sources"] == []
+
+
+@pytest.mark.asyncio
+async def test_generate_answer_falls_back_when_no_answer_conflicts_with_direct_evidence():
+    events = []
+    async for event in generate_answer(
+        question="目前我的JLR入职是什么状态？",
+        chunks=[sample_jlr_onboarding_chunk()],
+        language="zh",
+        deepseek_endpoint="https://deepseek.example",
+        deepseek_api_key="deepseek-secret",
+        deepseek_model="deepseek-v4-pro",
+        deepseek_client=FakeExactNoAnswerClient(),
+    ):
+        events.append(json.loads(event.removeprefix("data: ").strip()))
+
+    token_text = "".join(event.get("content", "") for event in events if event["type"] == "token")
+    sources_event = next(event for event in events if event["type"] == "sources")
+    assert "当前知识库缺少相关信息" not in token_text
+    assert "检索到与问题直接相关的资料" in token_text
+    assert sources_event["source_status"] == "grounded"
+    assert sources_event["sources"][0]["chunk_id"] == "manual_20260619_121722#1"
 
 
 @pytest.mark.asyncio

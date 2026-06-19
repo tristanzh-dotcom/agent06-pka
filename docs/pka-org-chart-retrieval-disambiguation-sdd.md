@@ -9,7 +9,7 @@ Org-chart retrieval must choose evidence by the user's structural intent, not by
 ## Decision
 
 1. Anchored-chain queries prefer the named ancestor chain.
-   - Examples: `Marcus 下面负责中国的是谁`, `who leads China under him`, `who does Marcus report to`.
+   - Examples: `Marcus 下面负责中国的是谁`, `who leads China under him`, `who leads Hungary under Marcus`, `who does Marcus report to`.
    - Expected behavior: keep the page containing the explicit named anchor before unrelated detailed pages.
    - Reason: the user is asking within a specific hierarchy, so cross-page detail charts can contaminate the answer.
 

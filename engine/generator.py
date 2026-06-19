@@ -235,6 +235,8 @@ async def generate_answer(
                 include_chinese_advice=True,
             )
             answer = _format_chinese_answer(analysis, chunks)
+            if _is_no_answer(answer) and _has_direct_query_evidence(question, chunks):
+                answer = _generate_grounded_chinese_fallback(question, chunks)
             yield _sse({"type": "token", "content": answer})
         except Exception as exc:
             yield _sse({"type": "error", "content": f"DeepSeek 调用失败: {exc}"})
@@ -385,6 +387,20 @@ def _generate_codex_base_fallback(question: str, chunks: List[RetrievedChunk]) -
     return lines
 
 
+def _generate_grounded_chinese_fallback(question: str, chunks: List[RetrievedChunk]) -> str:
+    lines = [
+        "检索到与问题直接相关的资料，但模型未能完成综合判断。先基于当前知识库给出可追溯的初步结论。\n\n",
+        f"问题：{question}\n\n",
+        "相关依据：\n",
+    ]
+    for index, chunk in enumerate(chunks[:5], start=1):
+        excerpt = _compact_text(chunk.text, 220)
+        if excerpt:
+            lines.append(f"{index}. {excerpt}（来源：{chunk.source_name}#{chunk.chunk_index}）\n")
+    lines.append("\n建议：请优先打开以上来源核对原文；如需更明确状态判断，可以继续追问“只基于这些来源归纳当前状态”。")
+    return "".join(lines)
+
+
 def _generate_codex_base_english_report(question: str, analysis: str, chunks: List[RetrievedChunk]) -> Iterable[str]:
     parsed = _parse_json_object(analysis)
     facts = parsed.get("key_facts") if isinstance(parsed, dict) and isinstance(parsed.get("key_facts"), list) else []
@@ -509,6 +525,53 @@ def _compact_text(text: str, limit: int) -> str:
     if len(compact) > limit:
         return compact[:limit].rstrip() + "..."
     return compact
+
+
+DIRECT_EVIDENCE_STOPWORDS = {
+    "目前",
+    "我的",
+    "什么",
+    "哪些",
+    "是否",
+    "怎么",
+    "如何",
+    "这个",
+    "那个",
+    "当前",
+    "一下",
+    "相关",
+}
+
+
+def _has_direct_query_evidence(question: str, chunks: List[RetrievedChunk]) -> bool:
+    terms = _meaningful_query_terms(question)
+    if len(terms) < 2:
+        return False
+    required_hits = min(2, len(terms))
+    for chunk in chunks[:5]:
+        text = chunk.text.lower()
+        hits = sum(1 for term in terms if term.lower() in text)
+        if hits >= required_hits:
+            return True
+    return False
+
+
+def _meaningful_query_terms(question: str) -> List[str]:
+    try:
+        import jieba
+
+        raw_terms = [term.strip() for term in jieba.cut(question) if term.strip()]
+    except Exception:
+        raw_terms = re.findall(r"[A-Za-z0-9]+|[\u4e00-\u9fff]{2,}", question)
+
+    terms = []
+    for term in raw_terms:
+        normalized = term.strip(" ?？!！,，.。:：;；、").lower()
+        if not normalized or normalized in DIRECT_EVIDENCE_STOPWORDS:
+            continue
+        if len(normalized) >= 2 and normalized not in terms:
+            terms.append(normalized)
+    return terms
 
 
 def _parse_json_object(text: str) -> Optional[dict]:

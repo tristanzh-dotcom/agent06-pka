@@ -26,11 +26,19 @@ const ORG_CHART_SLOT_INDEX = 5;
 const MAX_UPLOAD_FEEDBACK = "最多上传 6 个文件，请先移除一个文件。";
 const OCR_TASK_POLL_INTERVAL_MS = 1500;
 
+function resetAskStateForKnowledgeUpdate() {
+  askState.question = "";
+  askState.answer = "";
+  askState.sources = [];
+  askState.messages = [];
+}
+
 function currentEmbeddedRoute() {
   return `${window.location.pathname}${window.location.search}${window.location.hash}`;
 }
 
 function notifyKnowledgeUpdated(action) {
+  resetAskStateForKnowledgeUpdate();
   if (window.parent === window) return;
   window.parent.postMessage({ type: "agent06:knowledge-updated", action }, window.location.origin);
 }

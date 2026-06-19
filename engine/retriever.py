@@ -278,13 +278,15 @@ def _prioritize_named_org_chart_focus_pages(query: str, fused: List[Dict[str, An
     if not focus_tokens:
         return fused
 
+    anchor_tokens = _org_chart_under_anchor_tokens(query)
     focus_pages = set()
     focus_source_names = set()
+    page_match_tokens = anchor_tokens or focus_tokens
     for item in fused:
         if item.get("source_type") != "org_chart":
             continue
         text = item.get("text", "")
-        if not _text_contains_any_token(text, focus_tokens):
+        if not _text_contains_any_token(text, page_match_tokens):
             continue
         page_key = _org_chart_page_key(item)
         if page_key is not None:
@@ -319,6 +321,22 @@ def _org_chart_focus_tokens(query: str) -> List[str]:
         if token not in tokens:
             tokens.append(token)
     return tokens
+
+
+def _org_chart_under_anchor_tokens(query: str) -> List[str]:
+    anchors = []
+    patterns = [
+        r"\bunder\s+([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)?)\b",
+        r"\b([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)?)\s*(?:下面|下方|之下)",
+    ]
+    for pattern in patterns:
+        for match in re.finditer(pattern, query):
+            for token in re.findall(r"[A-Za-z]{3,}", match.group(1)):
+                if token.lower() in ORG_CHART_FOCUS_STOPWORDS:
+                    continue
+                if token not in anchors:
+                    anchors.append(token)
+    return anchors
 
 
 def _text_contains_any_token(text: str, tokens: List[str]) -> bool:
