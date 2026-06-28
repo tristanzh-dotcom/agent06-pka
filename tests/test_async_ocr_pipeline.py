@@ -225,6 +225,121 @@ def test_async_ocr_worker_flows_back_to_unified_ingest_and_respects_limits(monke
         restore_runtime(original)
 
 
+def test_async_ocr_worker_structures_org_chart_text_after_ocr(monkeypatch, tmp_path):
+    original = install_temp_runtime(tmp_path, "test_async_ocr_org_chart_fallback")
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
+        return ParseResult(
+            text="",
+            source_name=Path(file_path).name,
+            source_type="pdf",
+            metadata={"page_count": 1, "non_empty_pages": 0},
+            quality=needs_ocr_quality(),
+        )
+
+    class OrgChartOCRChain:
+        async def extract_pdf_until_usable(self, pdf_path, *, page_count, max_pages):
+            return type(
+                "OCRResult",
+                (),
+                {
+                    "text": (
+                        "ORG CHART\n"
+                        "Marcus Ryrie\n"
+                        "China Digital Platform\n"
+                        "Dave Ross\n"
+                        "Ireland Engineering\n"
+                        "Paul Girr\n"
+                    ),
+                    "quality": ocr_quality(),
+                    "provider": "paddle",
+                    "attempts": [],
+                    "source_page_count": 1,
+                    "pages_processed": 1,
+                    "page_limit_reached": False,
+                    "partial": False,
+                },
+            )()
+
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    monkeypatch.setattr(server, "_build_ocr_client", lambda: None)
+    client = TestClient(app)
+
+    try:
+        response = client.post(
+            "/api/ingest/file",
+            files={"file": ("jlr_org_scan.pdf", b"%PDF scan", "application/pdf")},
+        )
+        task_id = response.json()["task_id"]
+
+        server.run_ocr_task_once(task_id, OrgChartOCRChain())
+
+        task = client.get(f"/api/tasks/{task_id}").json()
+        assert task["status"] == "completed"
+        assert task["result"]["chunks_inserted"] == 1
+        assert task["result"]["org_chart_chunks"] == 1
+        assert task["result"]["org_chart_mode"] == "ocr_layout_fallback"
+        assert server.runtime.indexer.count_chunks() == 1
+        stored = server.runtime.indexer.search_fts("Marcus", 5)[0]
+        assert stored["source_type"] == "org_chart"
+        assert "[ORG_CHART_OCR]" in stored["text"]
+    finally:
+        restore_runtime(original)
+
+
+def test_async_ocr_worker_keeps_plain_ocr_text_when_not_org_chart(monkeypatch, tmp_path):
+    original = install_temp_runtime(tmp_path, "test_async_ocr_plain_text")
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
+        return ParseResult(
+            text="",
+            source_name=Path(file_path).name,
+            source_type="pdf",
+            metadata={"page_count": 1, "non_empty_pages": 0},
+            quality=needs_ocr_quality(),
+        )
+
+    class PlainOCRChain:
+        async def extract_pdf_until_usable(self, pdf_path, *, page_count, max_pages):
+            return type(
+                "OCRResult",
+                (),
+                {
+                    "text": "This scanned report discusses onboarding status and offer negotiation next steps.",
+                    "quality": ocr_quality(),
+                    "provider": "paddle",
+                    "attempts": [],
+                    "source_page_count": 1,
+                    "pages_processed": 1,
+                    "page_limit_reached": False,
+                    "partial": False,
+                },
+            )()
+
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    monkeypatch.setattr(server, "_build_ocr_client", lambda: None)
+    client = TestClient(app)
+
+    try:
+        response = client.post(
+            "/api/ingest/file",
+            files={"file": ("plain_scan.pdf", b"%PDF scan", "application/pdf")},
+        )
+        task_id = response.json()["task_id"]
+
+        server.run_ocr_task_once(task_id, PlainOCRChain())
+
+        task = client.get(f"/api/tasks/{task_id}").json()
+        assert task["status"] == "completed"
+        assert task["result"]["chunks_inserted"] == 1
+        assert "org_chart_chunks" not in task["result"]
+        stored = server.runtime.indexer.search_fts("onboarding", 5)[0]
+        assert stored["source_type"] == "pdf"
+        assert "offer negotiation" in stored["text"]
+    finally:
+        restore_runtime(original)
+
+
 def test_recover_queued_tasks_requeues_existing_raw_file_and_fails_missing_raw_file(tmp_path):
     original = install_temp_runtime(tmp_path, "test_async_ocr_recovery")
     store = server.OcrTaskStore(server.runtime.config["data_dir"])

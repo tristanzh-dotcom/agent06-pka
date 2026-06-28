@@ -16,6 +16,7 @@ from engine.org_chart import (
 TEXT_TYPES = {".txt": "txt", ".md": "md"}
 IMAGE_TYPES = {".png", ".jpg", ".jpeg", ".webp"}
 ORG_CHART_MAX_PRE_CHUNK_CHARS = 3500
+OCR_ORG_CHART_MAX_LINES = 80
 
 
 def parse_text(text: str, source_name: str = "manual_input") -> ParseResult:
@@ -349,6 +350,82 @@ def _org_chart_pre_chunks(
             start=1,
         )
     ]
+
+
+def ocr_org_chart_pre_chunks(
+    text: str,
+    *,
+    source_name: str,
+    page_number: int = 1,
+) -> list[PreChunkedParseRecord]:
+    if not _detect_ocr_org_chart_text(text):
+        return []
+    lines = _ocr_org_chart_lines(text)
+    if not lines:
+        return []
+    projection = _ocr_org_chart_projection(source_name, page_number, lines)
+    return [
+        PreChunkedParseRecord(
+            text=projection,
+            source_name=source_name,
+            source_type="org_chart",
+            is_pre_chunked=True,
+            metadata={
+                "page": page_number,
+                "chart_id": f"{source_name}#page_{page_number}#ocr_chart_1",
+                "confidence": "low",
+                "org_chart_mode": "ocr_layout_fallback",
+            },
+        )
+    ]
+
+
+def _detect_ocr_org_chart_text(text: str) -> bool:
+    compact = str(text or "").strip()
+    if not compact:
+        return False
+    normalized = compact.upper()
+    has_org_chart_marker = bool(re.search(r"\bORG(?:ANISATION|ANIZATION)?\s+CHART\b", normalized)) or "组织架构" in compact
+    if not has_org_chart_marker:
+        return False
+    lines = _ocr_org_chart_lines(compact)
+    short_lines = [line for line in lines if len(line) <= 48]
+    return len(short_lines) >= 4
+
+
+def _ocr_org_chart_lines(text: str) -> list[str]:
+    lines = []
+    for raw_line in str(text or "").splitlines():
+        line = raw_line.strip(" \t-•·|")
+        if not line:
+            continue
+        if re.search(r"\bORG(?:ANISATION|ANIZATION)?\s+CHART\b", line, re.IGNORECASE) or line == "组织架构":
+            continue
+        lines.append(line)
+        if len(lines) >= OCR_ORG_CHART_MAX_LINES:
+            break
+    return lines
+
+
+def _ocr_org_chart_projection(source_name: str, page_number: int, lines: list[str]) -> str:
+    body = [f"- {line}" for line in lines]
+    triggers = [f"- {line} appears in OCR org chart text." for line in lines[:20]]
+    return "\n".join(
+        [
+            "[ORG_CHART_OCR]",
+            f"Source: {source_name}",
+            f"Page: {page_number}",
+            "Extraction mode: ocr_layout_fallback",
+            "Confidence: low",
+            "",
+            "Structure:",
+            *body,
+            "",
+            "Semantic Search Triggers:",
+            *triggers,
+            "[/ORG_CHART_OCR]",
+        ]
+    )
 
 
 def _pre_chunk_record(

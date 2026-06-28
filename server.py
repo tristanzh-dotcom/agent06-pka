@@ -22,8 +22,9 @@ from engine.generator import generate_answer
 from engine.indexer import HybridIndexer, OllamaEmbeddingClient
 from engine.models import Chunk, ParseQuality, ParseResult
 from engine.ocr import build_ocr_provider_chain
-from engine.parser import parse_file, parse_text
+from engine.parser import ocr_org_chart_pre_chunks, parse_file, parse_text
 from engine.ppt_maker_adapter import export_to_quality_ppt
+from engine.reranker import RerankerClient
 from engine.retriever import HybridRetriever
 
 
@@ -415,17 +416,26 @@ def run_ocr_task_once(task_id: str, ocr_chain=None) -> None:
         if ocr_result is None:
             raise RuntimeError("OCR did not produce usable text")
         quality = replace(ocr_result.quality, action="ocr") if ocr_result.quality is not None else None
-        parsed = ParseResult(
-            text=ocr_result.text,
+        pre_chunks = ocr_org_chart_pre_chunks(
+            ocr_result.text,
             source_name=task["file_name"],
-            source_type="pdf",
+            page_number=1,
+        )
+        parsed = ParseResult(
+            text="" if pre_chunks else ocr_result.text,
+            source_name=task["file_name"],
+            source_type="org_chart" if pre_chunks else "pdf",
             metadata={
                 "page_count": ocr_result.source_page_count,
                 "non_empty_pages": ocr_result.pages_processed,
                 "quality_status": quality.status if quality else "",
                 "quality_action": quality.action if quality else "",
+                "org_chart_pages": [record.metadata["page"] for record in pre_chunks],
+                "org_chart_chunks": len(pre_chunks),
+                "org_chart_mode": "ocr_layout_fallback" if pre_chunks else "",
             },
             quality=quality,
+            pre_chunks=pre_chunks,
         )
         ingest_result = _run_coroutine_sync(
             _ingest_parsed_result(
@@ -446,6 +456,7 @@ def run_ocr_task_once(task_id: str, ocr_chain=None) -> None:
                     "chunks_inserted": ingest_result["chunks"],
                     "quality_action": "ocr",
                     "error": None,
+                    **_ocr_task_org_chart_result(ingest_result),
                 },
             },
         )
@@ -500,7 +511,7 @@ async def _ingest_parsed_result(
     if quality_payload is not None and pre_chunks:
         quality_payload["org_chart_chunks"] = len(pre_chunks)
         quality_payload["org_chart_pages"] = org_chart_pages
-        quality_payload["org_chart_mode"] = "pdf_layout_fallback"
+        quality_payload["org_chart_mode"] = _org_chart_mode(pre_chunks)
     return {
         "status": "ok",
         "chunks": count,
@@ -612,6 +623,28 @@ def _attempts_payload(attempts):
     ]
 
 
+def _org_chart_mode(pre_chunks) -> str:
+    for record in pre_chunks:
+        metadata = getattr(record, "metadata", {}) or {}
+        mode = metadata.get("org_chart_mode")
+        if mode:
+            return mode
+    return "pdf_layout_fallback"
+
+
+def _ocr_task_org_chart_result(ingest_result: dict) -> dict:
+    quality = ingest_result.get("quality") or {}
+    org_chart_chunks = quality.get("org_chart_chunks") or ingest_result.get("org_chart_chunks")
+    if not org_chart_chunks:
+        return {}
+    payload = {"org_chart_chunks": org_chart_chunks}
+    if quality.get("org_chart_mode"):
+        payload["org_chart_mode"] = quality["org_chart_mode"]
+    if quality.get("org_chart_pages"):
+        payload["org_chart_pages"] = quality["org_chart_pages"]
+    return payload
+
+
 def _dedupe_upload_path(path: Path) -> Path:
     if not path.exists():
         return path
@@ -634,11 +667,23 @@ async def clear_knowledge():
 
 @app.post("/api/query")
 async def query(request: QueryRequest):
+    reranker_config = runtime.config.get("reranker", {})
+    reranker = None
+    if reranker_config.get("enabled"):
+        reranker = RerankerClient(
+            host=reranker_config.get("host", "http://localhost:11434"),
+            model=reranker_config.get("model", ""),
+            query_prefix=reranker_config.get("query_prefix", ""),
+            timeout_seconds=reranker_config.get("timeout_seconds", 30),
+        )
     retriever = HybridRetriever(
         indexer=runtime.indexer,
         fts5_top_k=runtime.config["retrieval"]["fts5_top_k"],
         vector_top_k=runtime.config["retrieval"]["vector_top_k"],
         rrf_k=runtime.config["retrieval"]["rrf_k"],
+        reranker=reranker,
+        rerank_candidate_top_k=reranker_config.get("candidate_top_k", 20),
+        rerank_timeout_seconds=reranker_config.get("timeout_seconds", 30),
     )
     debug_payload = None
     if request.debug:

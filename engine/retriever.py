@@ -1,7 +1,12 @@
+import concurrent.futures
+import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from engine.models import RetrievedChunk
+
+
+logger = logging.getLogger(__name__)
 
 
 ORG_CHART_INTENT_PATTERNS = [
@@ -114,6 +119,9 @@ class HybridRetriever:
         rrf_k: int = 60,
         reranker=None,
         rerank_candidate_top_k: int = 20,
+        rerank_timeout_seconds: float = 30.0,
+        reranker_executor=None,
+        search_executor=None,
     ):
         self.indexer = indexer
         self.fts5_top_k = fts5_top_k
@@ -121,6 +129,15 @@ class HybridRetriever:
         self.rrf_k = rrf_k
         self.reranker = reranker
         self.rerank_candidate_top_k = rerank_candidate_top_k
+        self.rerank_timeout_seconds = float(rerank_timeout_seconds or 30.0)
+        self._reranker_executor = reranker_executor or concurrent.futures.ThreadPoolExecutor(
+            max_workers=4,
+            thread_name_prefix="pka-reranker-pool",
+        )
+        self._search_executor = search_executor or concurrent.futures.ThreadPoolExecutor(
+            max_workers=2,
+            thread_name_prefix="pka-retrieval-pool",
+        )
 
     def hybrid_search(self, query: str, top_k: int = 10) -> List[RetrievedChunk]:
         fused = self._search_fused(query)
@@ -154,13 +171,17 @@ class HybridRetriever:
         return fused
 
     def _search_fused_with_intent_debug(self, query: str) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-        fts_results = self.indexer.search_fts(query, self.fts5_top_k)
+        fts_results, vector_results = self._search_primary_results(query)
         fts_results = self._with_org_chart_focus_fts_results(query, fts_results)
-        vector_results = self.indexer.search_vector(query, self.vector_top_k)
         fused = reciprocal_rank_fusion(fts_results, vector_results, self.rrf_k)
         intent_debug = _org_chart_intent_debug(query, fused)
         fused = apply_org_chart_intent_bias(query, fused)
         return self._rerank(query, fused), intent_debug
+
+    def _search_primary_results(self, query: str) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        fts_future = self._search_executor.submit(self.indexer.search_fts, query, self.fts5_top_k)
+        vector_future = self._search_executor.submit(self.indexer.search_vector, query, self.vector_top_k)
+        return fts_future.result(), vector_future.result()
 
     def _with_org_chart_focus_fts_results(self, query: str, fts_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if not _has_org_chart_relation_intent(query):
@@ -197,8 +218,15 @@ class HybridRetriever:
         candidates = fused[: self.rerank_candidate_top_k]
         remainder = fused[self.rerank_candidate_top_k :]
         try:
-            reranked = self.reranker.rerank(query, candidates)
-        except Exception:
+            reranked = _run_reranker_with_timeout(
+                self._reranker_executor,
+                self.reranker,
+                query,
+                candidates,
+                self.rerank_timeout_seconds,
+            )
+        except Exception as exc:
+            logger.warning("Reranker failed open: %s", exc)
             return fused
         candidate_map = {item["chunk_id"]: item for item in candidates}
         seen = set()
@@ -213,6 +241,21 @@ class HybridRetriever:
         ordered.extend(item for item in candidates if item["chunk_id"] not in seen)
         ordered.extend(remainder)
         return ordered
+
+
+def _run_reranker_with_timeout(
+    executor,
+    reranker,
+    query: str,
+    candidates: List[Dict[str, Any]],
+    timeout_seconds: float,
+):
+    future = executor.submit(reranker.rerank, query, candidates)
+    try:
+        return future.result(timeout=timeout_seconds)
+    except concurrent.futures.TimeoutError:
+        future.cancel()
+        raise
 
 
 def apply_org_chart_intent_bias(query: str, fused: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

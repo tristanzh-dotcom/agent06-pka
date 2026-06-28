@@ -575,19 +575,92 @@ def _meaningful_query_terms(question: str) -> List[str]:
 
 
 def _parse_json_object(text: str) -> Optional[dict]:
-    cleaned = text.strip()
-    if cleaned.startswith("```"):
-        lines = cleaned.splitlines()
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
-        cleaned = "\n".join(lines).strip()
-    try:
-        parsed = json.loads(cleaned)
-    except json.JSONDecodeError:
+    cleaned = _strip_json_markdown_wrapper(text)
+    for candidate in _json_object_candidates(cleaned):
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            recovered = _recover_json_object_fragment(candidate)
+            if recovered is None:
+                continue
+            try:
+                parsed = json.loads(recovered)
+            except json.JSONDecodeError:
+                continue
+        if isinstance(parsed, dict):
+            return parsed
+    return None
+
+
+def _strip_json_markdown_wrapper(text: str) -> str:
+    cleaned = str(text or "").strip()
+    cleaned = re.sub(r"^\s*```[ \t]*(?:json|JSON)?[ \t]*\r?\n?", "", cleaned)
+    cleaned = re.sub(r"\r?\n?\s*```\s*$", "", cleaned)
+    return cleaned.strip()
+
+
+def _json_object_candidates(text: str) -> List[str]:
+    cleaned = str(text or "").strip()
+    if not cleaned:
+        return []
+    candidates = [cleaned]
+    first = cleaned.find("{")
+    if first == -1:
+        return candidates
+    last = cleaned.rfind("}")
+    if last >= first:
+        candidates.append(cleaned[first : last + 1])
+    else:
+        candidates.append(cleaned[first:])
+    deduped = []
+    for candidate in candidates:
+        if candidate and candidate not in deduped:
+            deduped.append(candidate)
+    return deduped
+
+
+def _recover_json_object_fragment(text: str) -> Optional[str]:
+    fragment = _remove_trailing_json_commas(str(text or "").strip())
+    if not fragment.startswith("{"):
         return None
-    return parsed if isinstance(parsed, dict) else None
+    stack = []
+    in_string = False
+    escaped = False
+    for char in fragment:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char in "{[":
+            stack.append(char)
+        elif char in "}]":
+            if not stack:
+                return None
+            expected = "{" if char == "}" else "["
+            if stack[-1] != expected:
+                return None
+            stack.pop()
+    if in_string:
+        fragment += '"'
+    while stack:
+        opener = stack.pop()
+        fragment += "}" if opener == "{" else "]"
+    return _remove_trailing_json_commas(fragment)
+
+
+def _remove_trailing_json_commas(text: str) -> str:
+    previous = None
+    cleaned = text
+    while cleaned != previous:
+        previous = cleaned
+        cleaned = re.sub(r",\s*([}\]])", r"\1", cleaned)
+    return cleaned
 
 
 def _is_deepseek_available(endpoint: str, client: Optional[Any]) -> bool:

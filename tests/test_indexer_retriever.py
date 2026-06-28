@@ -1,12 +1,13 @@
 import asyncio
 import sqlite3
+import time
 from urllib.error import URLError
 
 import pytest
 
 from engine.indexer import HybridIndexer, OllamaEmbeddingClient
 from engine.models import Chunk
-from engine.reranker import RerankResult
+from engine.reranker import RerankResult, RerankerClient
 from engine.retriever import HybridRetriever, apply_org_chart_intent_bias, reciprocal_rank_fusion
 
 
@@ -477,6 +478,135 @@ def test_hybrid_retriever_fails_open_when_reranker_errors():
 
     assert len(results) == 2
     assert {item.chunk_id for item in results}
+
+
+def test_hybrid_retriever_fails_open_when_reranker_times_out():
+    class SlowReranker:
+        def rerank(self, query, candidates):
+            time.sleep(0.2)
+            return [RerankResult(chunk_id="answer", score=0.99)]
+
+    retriever = HybridRetriever(
+        indexer=FakeSearchIndexer(),
+        reranker=SlowReranker(),
+        rerank_timeout_seconds=0.01,
+    )
+
+    started_at = time.monotonic()
+    results = retriever.hybrid_search("组织架构", top_k=2)
+
+    assert time.monotonic() - started_at < 0.15
+    assert len(results) == 2
+
+
+def test_hybrid_retriever_reuses_reranker_executor(monkeypatch):
+    created_executors = []
+
+    class ImmediateFuture:
+        def __init__(self, value):
+            self.value = value
+
+        def result(self, timeout=None):
+            return self.value
+
+    class RecordingExecutor:
+        def __init__(self, max_workers=None, thread_name_prefix=""):
+            self.max_workers = max_workers
+            self.thread_name_prefix = thread_name_prefix
+            self.submit_calls = 0
+            created_executors.append(self)
+
+        def submit(self, fn, *args):
+            self.submit_calls += 1
+            return ImmediateFuture(fn(*args))
+
+    class StableReranker:
+        def rerank(self, query, candidates):
+            return [RerankResult(chunk_id=candidates[0]["chunk_id"], score=0.77)]
+
+    monkeypatch.setattr("concurrent.futures.ThreadPoolExecutor", RecordingExecutor)
+    retriever = HybridRetriever(indexer=FakeSearchIndexer(), reranker=StableReranker())
+
+    retriever.hybrid_search("组织架构", top_k=1)
+    retriever.hybrid_search("组织架构", top_k=1)
+
+    reranker_executors = [
+        executor for executor in created_executors if executor.thread_name_prefix == "pka-reranker-pool"
+    ]
+    assert len(reranker_executors) == 1
+    assert reranker_executors[0].submit_calls == 2
+
+
+def test_hybrid_retriever_runs_fts_and_vector_searches_concurrently():
+    class SlowDualIndexer:
+        def search_fts(self, query, top_k):
+            time.sleep(0.1)
+            return [
+                {
+                    "chunk_id": "fts",
+                    "text": "FTS result",
+                    "source_name": "fts.txt",
+                    "source_type": "txt",
+                    "chunk_index": 0,
+                }
+            ]
+
+        def search_vector(self, query, top_k):
+            time.sleep(0.1)
+            return [
+                {
+                    "chunk_id": "vector",
+                    "text": "Vector result",
+                    "source_name": "vector.txt",
+                    "source_type": "txt",
+                    "chunk_index": 0,
+                }
+            ]
+
+    retriever = HybridRetriever(indexer=SlowDualIndexer())
+
+    started_at = time.monotonic()
+    results = retriever.hybrid_search("市场规模", top_k=2)
+
+    assert time.monotonic() - started_at < 0.16
+    assert {result.chunk_id for result in results} == {"fts", "vector"}
+
+
+def test_reranker_client_posts_candidates_and_maps_scores(monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+        def read(self):
+            return b'{"results":[{"score":0.8},{"score":0.3}]}'
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["timeout"] = timeout
+        captured["body"] = request.data.decode("utf-8")
+        return FakeResponse()
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    client = RerankerClient(host="http://localhost:11434", model="reranker-model", timeout_seconds=7)
+
+    results = client.rerank(
+        "组织架构",
+        [
+            {"chunk_id": "a", "text": "候选 A"},
+            {"chunk_id": "b", "text": "候选 B"},
+        ],
+    )
+
+    assert captured["url"] == "http://localhost:11434/api/rerank"
+    assert captured["timeout"] == 7
+    assert '"model": "reranker-model"' in captured["body"]
+    assert [result.chunk_id for result in results] == ["a", "b"]
+    assert [result.score for result in results] == [0.8, 0.3]
 
 
 def test_org_chart_intent_bias_only_reorders_nearby_projection_chunks():

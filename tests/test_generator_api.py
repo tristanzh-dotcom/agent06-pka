@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from engine.generator import build_deepseek_analysis_prompt, build_prompt, generate_answer
+from engine.generator import build_deepseek_analysis_prompt, build_prompt, generate_answer, _parse_json_object
 from engine.indexer import HybridIndexer
 from engine.models import Chunk, RetrievedChunk
 from server import app
@@ -81,6 +81,15 @@ class FakeNoAnswerIrrelevantMaterialClient:
         yield "根据您当前提供的知识库内容，我无法为您解答关于宠物医疗保险理赔流程的问题。"
         yield "这些材料与宠物医疗保险的理赔流程完全不相关，没有涵盖任何保险条款。"
         yield "\n\n来源：org.txt#2"
+
+
+class FakePartialJsonDeepSeekClient:
+    def __init__(self):
+        self.prompts = []
+
+    async def stream(self, prompt):
+        self.prompts.append(prompt)
+        yield '```JSON\n{"key_facts": [{"content": "ABC", "source": "org.txt", "language": "zh"}]'
 
 
 class FakeExactNoAnswerClient:
@@ -201,6 +210,12 @@ def test_deepseek_prompts_forbid_external_knowledge_when_no_answer():
     )
     assert required in zh_prompt
     assert required in report_prompt
+
+
+def test_parse_json_object_recovers_markdown_wrapped_truncated_key_facts():
+    parsed = _parse_json_object('  ```JSON\n{"key_facts": [{"content": "ABC"}]\n')
+
+    assert parsed == {"key_facts": [{"content": "ABC"}]}
 
 
 def test_deepseek_prompt_for_org_chart_forbids_cross_page_relation_synthesis():
@@ -483,6 +498,28 @@ async def test_generate_answer_with_language_zh_formats_deepseek_json_as_natural
 
 
 @pytest.mark.asyncio
+async def test_generate_answer_with_language_zh_recovers_partial_deepseek_json():
+    events = []
+    async for event in generate_answer(
+        question="怎么调整组织？",
+        chunks=[sample_chunk()],
+        language="zh",
+        deepseek_endpoint="https://deepseek.example",
+        deepseek_api_key="deepseek-secret",
+        deepseek_model="deepseek-v4-pro",
+        deepseek_client=FakePartialJsonDeepSeekClient(),
+    ):
+        events.append(json.loads(event.removeprefix("data: ").strip()))
+
+    token_text = "".join(event.get("content", "") for event in events if event["type"] == "token")
+    assert "核心结论" in token_text
+    assert "关键依据" in token_text
+    assert "ABC" in token_text
+    assert not token_text.lstrip().startswith("{")
+    assert "key_facts" not in token_text
+
+
+@pytest.mark.asyncio
 async def test_generate_answer_with_language_en_uses_deepseek_then_codex():
     deepseek_client = FakeDeepSeekClient()
     llm_client = FakeLLMClient()
@@ -621,6 +658,31 @@ async def test_english_report_codex_base_fallback_is_readable_not_raw_analysis_d
     assert "Reference excerpts:" not in token_text
     assert "key_facts" not in token_text
     assert not token_text.lstrip().startswith("{")
+
+
+@pytest.mark.asyncio
+async def test_english_report_codex_base_fallback_recovers_partial_deepseek_json():
+    events = []
+
+    async for event in generate_answer(
+        question="Create an English report.",
+        chunks=[sample_chunk()],
+        language="en",
+        deepseek_endpoint="https://deepseek.example",
+        deepseek_api_key="deepseek-secret",
+        deepseek_model="deepseek-v4-pro",
+        generation_endpoint="",
+        generation_api_key="",
+        generation_model="codex-base",
+        deepseek_client=FakePartialJsonDeepSeekClient(),
+    ):
+        events.append(json.loads(event.removeprefix("data: ").strip()))
+
+    token_text = "".join(event.get("content", "") for event in events if event["type"] == "token")
+    assert "English Report" in token_text
+    assert "Key Findings" in token_text
+    assert "ABC" in token_text
+    assert "key_facts" not in token_text
 
 
 def test_web_pages_and_core_api_routes_are_available():
@@ -1052,6 +1114,59 @@ def test_query_endpoint_passes_language_and_dual_model_config(monkeypatch):
         assert captured["generate_kwargs"]["deepseek_api_key"] == "deepseek-secret"
         assert captured["generate_kwargs"]["deepseek_model"] == "deepseek-v4-pro"
         assert captured["generate_kwargs"]["generation_model"] == "codex-base"
+    finally:
+        server.runtime.reload(original_config)
+
+
+def test_query_endpoint_wires_enabled_reranker_from_config(monkeypatch):
+    import server
+
+    captured = {}
+    original_config = deepcopy(server.runtime.config)
+
+    class FakeRerankerClient:
+        def __init__(self, **kwargs):
+            captured["reranker_client_kwargs"] = kwargs
+
+    class FakeRetriever:
+        def __init__(self, **kwargs):
+            captured["retriever_kwargs"] = kwargs
+
+        def hybrid_search(self, question, top_k):
+            return [sample_chunk()]
+
+    async def fake_generate_answer(**kwargs):
+        yield 'data: {"type":"done"}\n\n'
+
+    monkeypatch.setattr(server, "RerankerClient", FakeRerankerClient)
+    monkeypatch.setattr(server, "HybridRetriever", FakeRetriever)
+    monkeypatch.setattr(server, "generate_answer", fake_generate_answer)
+    server.runtime.config = {
+        **deepcopy(original_config),
+        "reranker": {
+            "enabled": True,
+            "host": "http://localhost:11434",
+            "model": "qllama/bge-reranker-v2-m3",
+            "query_prefix": "Represent this sentence: ",
+            "candidate_top_k": 12,
+            "timeout_seconds": 3,
+        },
+    }
+    client = TestClient(app)
+
+    try:
+        response = client.post("/api/query", json={"question": "组织架构怎么调？"})
+
+        assert response.status_code == 200
+        assert captured["reranker_client_kwargs"] == {
+            "host": "http://localhost:11434",
+            "model": "qllama/bge-reranker-v2-m3",
+            "query_prefix": "Represent this sentence: ",
+            "timeout_seconds": 3,
+        }
+        assert isinstance(captured["retriever_kwargs"]["reranker"], FakeRerankerClient)
+        assert captured["retriever_kwargs"]["rerank_candidate_top_k"] == 12
+        assert captured["retriever_kwargs"]["rerank_timeout_seconds"] == 3
     finally:
         server.runtime.reload(original_config)
 
