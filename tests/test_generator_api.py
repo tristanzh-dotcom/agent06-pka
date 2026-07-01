@@ -1269,6 +1269,138 @@ def test_query_api_omits_debug_by_default(monkeypatch):
         server.runtime.reload(original_config)
 
 
+def test_query_api_trace_includes_internal_mode_and_chunk_coverage(monkeypatch):
+    import server
+
+    captured = {"queries": []}
+    original_config = deepcopy(server.runtime.config)
+
+    class FakeRetriever:
+        def hybrid_search(self, question, top_k):
+            captured["queries"].append(question)
+            if "反馈" in question:
+                return []
+            return [
+                RetrievedChunk(
+                    chunk_id="jlr_notes.md#0",
+                    text="JLR 面试准备内容",
+                    source_name="jlr_notes.md",
+                    source_type="txt",
+                    chunk_index=0,
+                    score=0.9,
+                    rank_fts5=1,
+                    rank_vector=1,
+                )
+            ]
+
+    monkeypatch.setattr(server, "HybridRetriever", lambda **kwargs: FakeRetriever())
+    server.runtime.config = {
+        **deepcopy(original_config),
+        "deepseek": {"endpoint": "", "api_key": "", "model": "deepseek-v4-pro"},
+    }
+    client = TestClient(app)
+
+    try:
+        response = client.post(
+            "/api/query",
+            json={"question": "把 JLR 面试准备整理成面试故事", "trace": True},
+        )
+
+        assert response.status_code == 200
+        sources_event = next(event for event in parse_sse_response(response) if event["type"] == "sources")
+        assert "JLR 面试准备" in captured["queries"]
+        assert any("JLR 面试反馈" == query for query in captured["queries"])
+        assert sources_event["evidence"]["coverage"]["chunk_count"] == 1
+        assert sources_event["evidence"]["coverage"]["source_count"] == 1
+        assert sources_event["evidence"]["coverage"]["coverage_status"] == "thin"
+        assert sources_event["evidence"]["answer_mode"]["mode"] == "interview_story"
+        assert "No chunks were retrieved for JLR 面试反馈." in sources_event["evidence"]["missing_evidence"]
+    finally:
+        server.runtime.reload(original_config)
+
+
+def test_query_api_does_not_accept_public_output_mode_contract(monkeypatch):
+    import server
+
+    captured = {}
+    original_config = deepcopy(server.runtime.config)
+
+    class FakeRetriever:
+        def hybrid_search(self, question, top_k):
+            return [sample_chunk()]
+
+    async def fake_generate_answer(**kwargs):
+        captured["generate_kwargs"] = kwargs
+        yield 'data: {"type":"done"}\n\n'
+
+    monkeypatch.setattr(server, "HybridRetriever", lambda **kwargs: FakeRetriever())
+    monkeypatch.setattr(server, "generate_answer", fake_generate_answer)
+    server.runtime.config = {
+        **deepcopy(original_config),
+        "deepseek": {"endpoint": "", "api_key": "", "model": "deepseek-v4-pro"},
+    }
+    client = TestClient(app)
+
+    try:
+        response = client.post(
+            "/api/query",
+            json={"question": "普通问题", "output_mode": "interview_story"},
+        )
+
+        assert response.status_code == 200
+        assert "output_mode" not in captured["generate_kwargs"]
+        assert "answer_mode" not in captured["generate_kwargs"]
+    finally:
+        server.runtime.reload(original_config)
+
+
+def test_knowledge_health_endpoint_returns_deterministic_local_stats(monkeypatch, tmp_path):
+    import server
+
+    original = install_temp_runtime(server, tmp_path, "test_knowledge_health")
+    server.runtime.indexer.upsert(
+        [
+            Chunk(
+                id="notes.md#0",
+                text="JLR 面试准备",
+                source_name="notes.md",
+                source_type="txt",
+                chunk_index=0,
+                created_at="2026-07-01T10:00:00+08:00",
+            ),
+            Chunk(
+                id="deck.pdf#0",
+                text="Audi 项目复盘",
+                source_name="deck.pdf",
+                source_type="pdf",
+                chunk_index=0,
+                created_at="2026-07-01T10:00:00+08:00",
+            ),
+        ]
+    )
+    task_id = server._ocr_task_store().create_task(
+        file_name="scan.pdf",
+        raw_file_path="raw/scan.pdf",
+        content_type="application/pdf",
+        page_count=3,
+    )
+    server._ocr_task_store().update_task(task_id, {"status": "queued"})
+    client = TestClient(app)
+
+    try:
+        response = client.get("/api/knowledge/health")
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["indexed_sources"] == 2
+        assert payload["total_chunks"] == 2
+        assert payload["source_types"] == {"txt": 1, "pdf": 1}
+        assert payload["ocr_tasks"]["queued"] == 1
+        assert payload["model_calls_required"] is False
+    finally:
+        restore_runtime(server, original)
+
+
 def test_file_ingest_streams_uploaded_content_to_disk(tmp_path, monkeypatch):
     import server
     from engine.models import ParseResult

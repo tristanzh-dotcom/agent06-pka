@@ -1,4 +1,5 @@
 import asyncio
+from collections import Counter
 import json
 import threading
 from contextlib import asynccontextmanager
@@ -17,6 +18,8 @@ from pydantic import BaseModel
 
 from engine.chunker import chunk_text
 from engine.config import load_config, sanitize_config, save_config, update_config
+from engine.answer_planner import infer_answer_mode
+from engine.evidence import build_evidence_report
 from engine.exporter import export_to_ppt, export_to_word
 from engine.generator import generate_answer
 from engine.indexer import HybridIndexer, OllamaEmbeddingClient
@@ -24,8 +27,10 @@ from engine.models import Chunk, ParseQuality, ParseResult
 from engine.ocr import build_ocr_provider_chain
 from engine.parser import ocr_org_chart_pre_chunks, parse_file, parse_text
 from engine.ppt_maker_adapter import export_to_quality_ppt
+from engine.query_rewriter import expand_query
 from engine.reranker import RerankerClient
 from engine.retriever import HybridRetriever
+from engine.topic_aggregator import build_topic_dossier
 
 
 CONFIG_PATH = Path("config.yaml")
@@ -114,6 +119,7 @@ class QueryRequest(BaseModel):
     question: str
     language: str = "zh"
     debug: bool = False
+    trace: bool = False
 
 
 class ExportRequest(BaseModel):
@@ -685,14 +691,11 @@ async def query(request: QueryRequest):
         rerank_candidate_top_k=reranker_config.get("candidate_top_k", 20),
         rerank_timeout_seconds=reranker_config.get("timeout_seconds", 30),
     )
-    debug_payload = None
-    if request.debug:
-        chunks, debug_payload = retriever.hybrid_search_with_debug(
-            request.question,
-            runtime.config["retrieval"]["final_top_k"],
-        )
-    else:
-        chunks = retriever.hybrid_search(request.question, runtime.config["retrieval"]["final_top_k"])
+    chunks, debug_payload, evidence_payload = _retrieve_quality_context(
+        retriever=retriever,
+        request=request,
+        top_k=runtime.config["retrieval"]["final_top_k"],
+    )
     generator = generate_answer(
         question=request.question,
         chunks=chunks,
@@ -704,8 +707,46 @@ async def query(request: QueryRequest):
         generation_api_key=runtime.config["generation"]["api_key"],
         generation_model=runtime.config["generation"]["model"],
         debug_payload=debug_payload,
+        evidence_payload=evidence_payload,
     )
     return StreamingResponse(generator, media_type="text/event-stream")
+
+
+def _retrieve_quality_context(*, retriever, request: QueryRequest, top_k: int):
+    expansion = expand_query(request.question)
+    variant_results = []
+    variant_chunk_ids = {}
+    debug_payload = None
+    for index, variant in enumerate(expansion.queries):
+        if request.debug and index == 0 and hasattr(retriever, "hybrid_search_with_debug"):
+            chunks, debug_payload = retriever.hybrid_search_with_debug(variant.query, top_k)
+        else:
+            chunks = retriever.hybrid_search(variant.query, top_k)
+        variant_results.append((variant, chunks))
+        variant_chunk_ids[variant.query] = [chunk.chunk_id for chunk in chunks]
+    dossier = build_topic_dossier(question=request.question, variant_results=variant_results)
+    answer_mode = infer_answer_mode(request.question, request.language)
+    evidence_payload = None
+    if request.trace or request.debug:
+        evidence_payload = build_evidence_report(
+            chunks=dossier.chunks,
+            query_variants=expansion.queries,
+            variant_chunk_ids=variant_chunk_ids,
+        ).to_dict()
+        evidence_payload["answer_mode"] = {
+            "mode": answer_mode.mode,
+            "reason": answer_mode.reason,
+        }
+    if debug_payload is not None:
+        debug_payload = {
+            **debug_payload,
+            "query_expansion": [
+                {"query": variant.query, "reason": variant.reason}
+                for variant in expansion.queries
+            ],
+            "answer_mode": {"mode": answer_mode.mode, "reason": answer_mode.reason},
+        }
+    return dossier.chunks, debug_payload, evidence_payload
 
 
 @app.post("/api/export/word")
@@ -742,6 +783,32 @@ async def stats():
         "total_chunks": runtime.indexer.count_chunks(),
         "last_updated": runtime.last_updated,
     }
+
+
+@app.get("/api/knowledge/health")
+async def knowledge_health():
+    tasks = _ocr_task_store().list_tasks()
+    task_statuses = Counter(task.get("status", "unknown") for task in tasks)
+    quality_actions = Counter(
+        (task.get("result") or {}).get("quality_action", "") for task in tasks
+    )
+    quality_actions.pop("", None)
+    return {
+        "indexed_sources": runtime.indexer.count_sources(),
+        "total_chunks": runtime.indexer.count_chunks(),
+        "source_types": _source_type_distribution(runtime.indexer),
+        "ocr_tasks": dict(task_statuses),
+        "recent_quality_actions": dict(quality_actions),
+        "model_calls_required": False,
+    }
+
+
+def _source_type_distribution(indexer) -> dict:
+    try:
+        result = indexer.collection.get(include=["metadatas"])
+    except Exception:
+        return {}
+    return dict(Counter((metadata or {}).get("source_type", "") for metadata in result.get("metadatas", []) if metadata))
 
 
 @app.get("/api/config")

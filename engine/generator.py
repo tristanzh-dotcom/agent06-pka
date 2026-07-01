@@ -210,16 +210,18 @@ async def generate_answer(
     deepseek_client: Optional[Any] = None,
     llm_client: Optional[Any] = None,
     debug_payload: Optional[dict] = None,
+    evidence_payload: Optional[dict] = None,
 ) -> AsyncGenerator[str, None]:
     if not chunks:
         yield _sse({"type": "token", "content": "暂无相关内容。"})
+        yield _sse(_sources_event(chunks, debug_payload=debug_payload, evidence_payload=evidence_payload))
         yield _sse({"type": "done"})
         return
 
     normalized_language = language if language in {"zh", "en"} else "zh"
     if not _is_deepseek_available(deepseek_endpoint, deepseek_client):
         yield _sse({"type": "token", "content": "DeepSeek 模型未配置。"})
-        yield _sse(_sources_event(chunks, debug_payload=debug_payload))
+        yield _sse(_sources_event(chunks, debug_payload=debug_payload, evidence_payload=evidence_payload))
         yield _sse({"type": "done"})
         return
 
@@ -241,7 +243,7 @@ async def generate_answer(
         except Exception as exc:
             yield _sse({"type": "error", "content": f"DeepSeek 调用失败: {exc}"})
             answer = ""
-        yield _sse(_sources_event(chunks, answer, debug_payload=debug_payload))
+        yield _sse(_sources_event(chunks, answer, debug_payload=debug_payload, evidence_payload=evidence_payload))
         yield _sse({"type": "done"})
         return
 
@@ -257,13 +259,13 @@ async def generate_answer(
         )
     except Exception as exc:
         yield _sse({"type": "error", "content": f"DeepSeek 调用失败: {exc}"})
-        yield _sse(_sources_event(chunks, debug_payload=debug_payload))
+        yield _sse(_sources_event(chunks, debug_payload=debug_payload, evidence_payload=evidence_payload))
         yield _sse({"type": "done"})
         return
 
     if not generation_model and llm_client is None:
         yield _sse({"type": "token", "content": "英文输出模型未配置。"})
-        yield _sse(_sources_event(chunks, debug_payload=debug_payload))
+        yield _sse(_sources_event(chunks, debug_payload=debug_payload, evidence_payload=evidence_payload))
         yield _sse({"type": "done"})
         return
 
@@ -271,11 +273,11 @@ async def generate_answer(
         if generation_model == "codex-base":
             for token in _generate_codex_base_english_report(question, analysis, chunks):
                 yield _sse({"type": "token", "content": token})
-            yield _sse(_sources_event(chunks, analysis, debug_payload=debug_payload))
+            yield _sse(_sources_event(chunks, analysis, debug_payload=debug_payload, evidence_payload=evidence_payload))
             yield _sse({"type": "done"})
             return
         yield _sse({"type": "token", "content": "英文输出模型未配置。"})
-        yield _sse(_sources_event(chunks, debug_payload=debug_payload))
+        yield _sse(_sources_event(chunks, debug_payload=debug_payload, evidence_payload=evidence_payload))
         yield _sse({"type": "done"})
         return
 
@@ -286,7 +288,7 @@ async def generate_answer(
             yield _sse({"type": "token", "content": token})
     except Exception as exc:
         yield _sse({"type": "error", "content": f"LLM 调用失败: {exc}"})
-    yield _sse(_sources_event(chunks, analysis, debug_payload=debug_payload))
+    yield _sse(_sources_event(chunks, analysis, debug_payload=debug_payload, evidence_payload=evidence_payload))
     yield _sse({"type": "done"})
 
 
@@ -317,6 +319,7 @@ def _sources_event(
     chunks: Iterable[RetrievedChunk],
     answer: str = "",
     debug_payload: Optional[dict] = None,
+    evidence_payload: Optional[dict] = None,
 ) -> dict:
     if _is_no_answer(answer):
         event = {"type": "sources", "source_status": "no_answer", "sources": []}
@@ -324,6 +327,8 @@ def _sources_event(
         event = {"type": "sources", "source_status": "grounded", "sources": _sources(chunks)}
     if debug_payload is not None:
         event["_debug"] = debug_payload
+    if evidence_payload is not None:
+        event["evidence"] = evidence_payload
     return event
 
 
