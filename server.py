@@ -23,6 +23,7 @@ from engine.evidence import build_evidence_report
 from engine.exporter import export_to_ppt, export_to_word
 from engine.generator import generate_answer
 from engine.indexer import HybridIndexer, OllamaEmbeddingClient
+from engine.input_fidelity import expand_adjacent_chunks
 from engine.models import Chunk, ParseQuality, ParseResult
 from engine.ocr import build_ocr_provider_chain
 from engine.parser import ocr_org_chart_pre_chunks, parse_file, parse_text
@@ -725,14 +726,16 @@ def _retrieve_quality_context(*, retriever, request: QueryRequest, top_k: int):
         variant_results.append((variant, chunks))
         variant_chunk_ids[variant.query] = [chunk.chunk_id for chunk in chunks]
     dossier = build_topic_dossier(question=request.question, variant_results=variant_results)
+    chunks, fidelity_report = expand_adjacent_chunks(dossier.chunks, runtime.indexer)
     answer_mode = infer_answer_mode(request.question, request.language)
     evidence_payload = None
     if request.trace or request.debug:
         evidence_payload = build_evidence_report(
-            chunks=dossier.chunks,
+            chunks=chunks,
             query_variants=expansion.queries,
             variant_chunk_ids=variant_chunk_ids,
         ).to_dict()
+        evidence_payload["input_fidelity"] = fidelity_report.to_dict()
         evidence_payload["answer_mode"] = {
             "mode": answer_mode.mode,
             "reason": answer_mode.reason,
@@ -746,7 +749,7 @@ def _retrieve_quality_context(*, retriever, request: QueryRequest, top_k: int):
             ],
             "answer_mode": {"mode": answer_mode.mode, "reason": answer_mode.reason},
         }
-    return dossier.chunks, debug_payload, evidence_payload
+    return chunks, debug_payload, evidence_payload
 
 
 @app.post("/api/export/word")

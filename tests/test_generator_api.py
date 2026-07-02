@@ -1319,6 +1319,72 @@ def test_query_api_trace_includes_internal_mode_and_chunk_coverage(monkeypatch):
         server.runtime.reload(original_config)
 
 
+def test_query_api_trace_reports_input_fidelity_and_uses_adjacent_context(monkeypatch):
+    import server
+
+    original_config = deepcopy(server.runtime.config)
+    selected = RetrievedChunk(
+        chunk_id="story.md#2",
+        text="中间：我做了架构取舍。",
+        source_name="story.md",
+        source_type="md",
+        chunk_index=2,
+        score=0.9,
+        rank_fts5=1,
+        rank_vector=1,
+    )
+
+    class FakeRetriever:
+        def hybrid_search(self, question, top_k):
+            return [selected]
+
+    def fake_get_chunk(chunk_id):
+        records = {
+            "story.md#1": {
+                "chunk_id": "story.md#1",
+                "text": "前文：项目背景。",
+                "source_name": "story.md",
+                "source_type": "md",
+                "chunk_index": 1,
+                "raw_file_path": "",
+            },
+            "story.md#3": {
+                "chunk_id": "story.md#3",
+                "text": "后文：结果复盘。",
+                "source_name": "story.md",
+                "source_type": "md",
+                "chunk_index": 3,
+                "raw_file_path": "",
+            },
+        }
+        return records.get(chunk_id)
+
+    monkeypatch.setattr(server, "HybridRetriever", lambda **kwargs: FakeRetriever())
+    monkeypatch.setattr(server.runtime.indexer, "get_chunk", fake_get_chunk)
+    server.runtime.config = {
+        **deepcopy(original_config),
+        "deepseek": {"endpoint": "", "api_key": "", "model": "deepseek-v4-pro"},
+    }
+    client = TestClient(app)
+
+    try:
+        response = client.post(
+            "/api/query",
+            json={"question": "把 story 项目整理成面试故事", "trace": True},
+        )
+
+        assert response.status_code == 200
+        sources_event = next(event for event in parse_sse_response(response) if event["type"] == "sources")
+        fidelity = sources_event["evidence"]["input_fidelity"]
+        source_ids = [source["chunk_id"] for source in sources_event["sources"]]
+        assert source_ids == ["story.md#1", "story.md#2", "story.md#3"]
+        assert fidelity["added_context_chunks"] == 2
+        assert fidelity["continuity_status"] == "continuous"
+        assert [item["role"] for item in fidelity["chunks"]] == ["context_before", "retrieved", "context_after"]
+    finally:
+        server.runtime.reload(original_config)
+
+
 def test_query_api_does_not_accept_public_output_mode_contract(monkeypatch):
     import server
 
