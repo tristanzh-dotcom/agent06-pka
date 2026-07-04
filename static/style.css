@@ -544,6 +544,7 @@ button:disabled,
 
 .exportbar {
   display: flex;
+  align-items: center;
   gap: 8px;
 }
 
@@ -559,6 +560,235 @@ button:disabled,
   border-color: var(--accent);
   background: var(--message-user-bg);
   color: var(--ink);
+}
+
+.save-asset-status {
+  min-width: 86px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.asset-header-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  color: var(--accent);
+  text-decoration: none;
+  background: var(--panel);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.asset-workbench {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 22px;
+  background: var(--bg);
+}
+
+.asset-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  margin-bottom: 16px;
+}
+
+.asset-header h1 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.asset-header p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.asset-layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(280px, 380px) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.asset-list-pane,
+.asset-detail {
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.asset-list-pane {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.asset-pane-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.asset-pane-title h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.asset-pane-title span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.asset-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.asset-list-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 5px;
+  margin: 0 0 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--bg);
+  color: var(--ink);
+  text-align: left;
+  box-shadow: none;
+}
+
+.asset-list-open {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  box-shadow: none;
+}
+
+.asset-list-delete,
+.asset-delete-button {
+  border-color: color-mix(in srgb, #c2410c 42%, var(--line));
+  background: color-mix(in srgb, #c2410c 9%, var(--panel));
+  color: #9a3412;
+}
+
+.asset-list-delete {
+  min-height: 30px;
+  padding: 0 9px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.asset-list-title,
+.asset-list-question,
+.asset-list-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asset-list-title {
+  font-weight: 800;
+}
+
+.asset-list-question,
+.asset-list-meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.asset-detail {
+  overflow-y: auto;
+  padding: 18px;
+}
+
+.asset-detail-empty {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.asset-detail-toolbar {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.asset-detail-toolbar h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.asset-detail-toolbar p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.asset-detail-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.asset-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.asset-badges span {
+  min-height: 24px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.asset-detail h3 {
+  margin: 18px 0 8px;
+  font-size: 14px;
+}
+
+.asset-detail p {
+  margin: 0;
+}
+
+.asset-detail pre {
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--bg);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .ask-conversation {

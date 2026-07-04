@@ -1,0 +1,54 @@
+data_dir: /Users/tristanzh/Documents/PKA_Data
+chroma:
+  collection_name: pka_knowledge
+  persist_dir: /Users/tristanzh/Documents/PKA_Data/.vector
+fts5:
+  db_path: /Users/tristanzh/Documents/PKA_Data/.fts5/pka.db
+embedding:
+  host: http://localhost:11434
+  model: bge-m3
+  query_prefix: ''
+ocr:
+  endpoint: ''
+  api_key: ''
+  model: doubao-1-5-vision-pro-32k
+  max_images_per_request: 10
+deepseek:
+  endpoint: 'https://api.deepseek.com/v1/chat/completions'
+  api_key: 'sk-004ef303f84e4369903795a294bff5f1sk-004ef303f84e4369903795a294bff5f1sk-004ef303f84e4369903795a294bff5f1sk-004ef303f84e4369903795a294bfsk-004ef303f84e4369903795a294bff5f1'
+  model: deepseek-v4-pro
+generation:
+  endpoint: ''
+  api_key: ''
+  model: codex-base
+  max_context_chunks: 10
+ppt_maker:
+  enabled: true
+  http_base_url: http://127.0.0.1:8000
+  ws_url: ws://127.0.0.1:8000/ws/generate
+  timeout_seconds: 180
+  page_count: 5
+  style: business-summary
+chunking:
+  max_chunk_size: 1024
+  chunk_overlap: 128
+  md_split_by: '##'
+ingest:
+  max_sync_chunks_per_file: 150
+retrieval:
+  fts5_top_k: 10
+  vector_top_k: 10
+  rrf_k: 60
+  final_top_k: 10
+reranker:
+  enabled: false
+  host: http://localhost:11434
+  model: qllama/bge-reranker-v2-m3
+  query_prefix: 'Represent this sentence for searching relevant passages: '
+  candidate_top_k: 20
+  final_top_k: 7
+  timeout_seconds: 30
+  fail_open: true
+server:
+  host: 0.0.0.0
+  port: 8086

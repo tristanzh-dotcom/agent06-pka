@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PKA 资料库</title>
+  <link rel="stylesheet" href="static/style.css?v=20260703-assets">
+</head>
+<body data-page="assets">
+  <main class="asset-workbench">
+    <header class="asset-header">
+      <div>
+        <h1>资料库</h1>
+        <p>已保存的问答结果 · 默认不进入知识库</p>
+      </div>
+      <a class="asset-header-link" href="/ask">返回问答</a>
+    </header>
+    <section class="asset-layout" aria-label="资料库">
+      <aside class="asset-list-pane" aria-label="资料列表">
+        <div class="asset-pane-title">
+          <h2>已保存资料</h2>
+          <span id="asset-list-status">加载中...</span>
+        </div>
+        <div id="asset-list" class="asset-list"></div>
+      </aside>
+      <article id="asset-detail" class="asset-detail" aria-label="资料详情">
+        <div class="asset-detail-empty" id="asset-detail-empty">选择一条资料查看详情</div>
+        <div class="asset-detail-content" id="asset-detail-content" hidden>
+          <div class="asset-detail-toolbar">
+            <div>
+              <h2 id="asset-title"></h2>
+              <p id="asset-meta"></p>
+            </div>
+            <div class="asset-detail-actions">
+              <button type="button" id="asset-export-word">导出 Word</button>
+              <button type="button" id="asset-export-ppt">导出 PPT</button>
+              <button type="button" id="asset-delete" class="asset-delete-button">删除</button>
+            </div>
+          </div>
+          <div class="asset-badges">
+            <span id="asset-source-status"></span>
+            <span id="asset-rag-status"></span>
+            <span id="asset-export-status" aria-live="polite"></span>
+          </div>
+          <section>
+            <h3>原始问题</h3>
+            <p id="asset-question"></p>
+          </section>
+          <section>
+            <h3>回答内容</h3>
+            <pre id="asset-answer"></pre>
+          </section>
+        </div>
+      </article>
+    </section>
+  </main>
+  <script src="static/app.js?v=20260703-assets"></script>
+</body>
+</html>

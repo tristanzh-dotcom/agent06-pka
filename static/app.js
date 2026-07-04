@@ -13,6 +13,8 @@ const askState = {
   language: "zh",
   answer: "",
   sources: [],
+  sourceStatus: "",
+  savedAssetId: "",
   messages: [],
 };
 
@@ -30,6 +32,8 @@ function resetAskStateForKnowledgeUpdate() {
   askState.question = "";
   askState.answer = "";
   askState.sources = [];
+  askState.sourceStatus = "";
+  askState.savedAssetId = "";
   askState.messages = [];
 }
 
@@ -56,6 +60,8 @@ function collectEmbeddedState() {
       language: askState.language,
       answer: askState.answer,
       sources: askState.sources,
+      sourceStatus: askState.sourceStatus,
+      savedAssetId: askState.savedAssetId,
       messages: askState.messages,
     },
     settingsFeedback: document.getElementById("settings-feedback")?.textContent || "",
@@ -752,6 +758,8 @@ function restoreAskConversation(state) {
   askState.language = typeof state.language === "string" ? state.language : askState.language;
   askState.answer = typeof state.answer === "string" ? state.answer : "";
   askState.sources = Array.isArray(state.sources) ? state.sources : [];
+  askState.sourceStatus = typeof state.sourceStatus === "string" ? state.sourceStatus : "";
+  askState.savedAssetId = typeof state.savedAssetId === "string" ? state.savedAssetId : "";
   askState.messages = messages
     .filter((message) => message && typeof message.text === "string")
     .map((message) => ({
@@ -773,6 +781,7 @@ function restoreAskConversation(state) {
   });
   const exportBar = document.getElementById("export-bar");
   if (exportBar) exportBar.style.display = askState.question && askState.answer ? "flex" : "none";
+  updateAnswerOperationState();
 }
 
 function normalizeSourceList(sources) {
@@ -817,6 +826,26 @@ function sourceHref(source) {
   return `api/sources?chunk_id=${encodeURIComponent(source.chunk_id)}`;
 }
 
+function buildAnswerResultSnapshot() {
+  return {
+    question: askState.question,
+    answer: askState.answer,
+    sources: askState.sources,
+    source_status: askState.sourceStatus || "grounded",
+    evidence: {},
+    language: askState.language || "zh",
+    answer_mode: "answer",
+    model_route: askState.language === "en" ? "dual" : "deepseek",
+    title: askState.question,
+  };
+}
+
+function updateAnswerOperationState() {
+  const saveAssetButton = document.getElementById("save-asset");
+  if (!saveAssetButton) return;
+  saveAssetButton.disabled = !(askState.question && askState.answer);
+}
+
 function setupAsk() {
   const form = document.getElementById("query-form");
   const chips = document.querySelectorAll(".empty-chip");
@@ -828,6 +857,7 @@ function setupAsk() {
   });
   document.getElementById("export-word")?.addEventListener("click", () => exportAnswer("word"));
   document.getElementById("export-ppt")?.addEventListener("click", () => exportAnswer("ppt"));
+  document.getElementById("save-asset")?.addEventListener("click", saveAnswerAsset);
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const input = document.getElementById("question-input");
@@ -839,9 +869,14 @@ function setupAsk() {
     askState.language = language;
     askState.answer = "";
     askState.sources = [];
+    askState.sourceStatus = "";
+    askState.savedAssetId = "";
     input.value = "";
     const exportBar = document.getElementById("export-bar");
     if (exportBar) exportBar.style.display = "none";
+    const saveAssetStatus = document.getElementById("save-asset-status");
+    if (saveAssetStatus) saveAssetStatus.textContent = "";
+    updateAnswerOperationState();
     const answer = appendMessage("", "assistant");
     const messageIndex = Number(answer.dataset.messageIndex);
     const pendingText = "检索中...";
@@ -877,6 +912,7 @@ function setupAsk() {
             answer.textContent += payload.content;
             askState.answer += payload.content;
             askState.messages[messageIndex].text = askState.answer;
+            updateAnswerOperationState();
             publishEmbeddedSnapshot();
           }
           if (payload.type === "error") {
@@ -890,6 +926,7 @@ function setupAsk() {
           }
           if (payload.type === "sources") {
             const sourceStatus = payload.source_status || "grounded";
+            askState.sourceStatus = sourceStatus;
             askState.sources = sourceStatus === "no_answer" ? [] : payload.sources;
             askState.messages[messageIndex].sources = askState.sources;
             askState.messages[messageIndex].sourceStatus = sourceStatus;
@@ -915,6 +952,7 @@ function setupAsk() {
             }
             const exportBar = document.getElementById("export-bar");
             if (exportBar) exportBar.style.display = "flex";
+            updateAnswerOperationState();
             publishEmbeddedSnapshot();
           }
         }
@@ -926,6 +964,24 @@ function setupAsk() {
       publishEmbeddedSnapshot();
     }
   });
+}
+
+async function saveAnswerAsset() {
+  if (!askState.question || !askState.answer) return;
+  const saveAssetButton = document.getElementById("save-asset");
+  const saveAssetStatus = document.getElementById("save-asset-status");
+  if (saveAssetButton) saveAssetButton.disabled = true;
+  if (saveAssetStatus) saveAssetStatus.textContent = "保存中...";
+  try {
+    const result = await postJSON("api/assets/answers", buildAnswerResultSnapshot());
+    askState.savedAssetId = result.asset_id || "";
+    if (saveAssetStatus) saveAssetStatus.textContent = "已保存到资料库";
+  } catch (error) {
+    if (saveAssetStatus) saveAssetStatus.textContent = "保存失败";
+  } finally {
+    updateAnswerOperationState();
+    publishEmbeddedSnapshot();
+  }
 }
 
 async function exportAnswer(format) {
@@ -944,6 +1000,166 @@ async function exportAnswer(format) {
   link.download = match ? match[1] : `pka-answer.${format === "word" ? "docx" : "pptx"}`;
   link.click();
   URL.revokeObjectURL(link.href);
+}
+
+let currentAssetId = "";
+
+async function setupAssets() {
+  if (document.body?.dataset?.page !== "assets") return;
+  document.getElementById("asset-export-word")?.addEventListener("click", () => exportCurrentAsset("word"));
+  document.getElementById("asset-export-ppt")?.addEventListener("click", () => exportCurrentAsset("ppt"));
+  document.getElementById("asset-delete")?.addEventListener("click", deleteCurrentAsset);
+  await loadAssetList();
+  const params = new URLSearchParams(window.location.search);
+  const requestedAssetId = params.get("asset_id");
+  if (requestedAssetId) {
+    await loadAssetDetail(requestedAssetId);
+  }
+}
+
+async function loadAssetList() {
+  const list = document.getElementById("asset-list");
+  const status = document.getElementById("asset-list-status");
+  if (!list) return;
+  if (status) status.textContent = "加载中...";
+  try {
+    const response = await fetch("api/assets/answers?limit=50");
+    if (!response.ok) throw new Error(await response.text());
+    const payload = await response.json();
+    renderAssetList(payload.assets || []);
+    if (status) status.textContent = `${(payload.assets || []).length} 条`;
+  } catch (error) {
+    list.textContent = "资料库加载失败。";
+    if (status) status.textContent = "加载失败";
+  }
+}
+
+function renderAssetList(assets) {
+  const list = document.getElementById("asset-list");
+  if (!list) return;
+  list.innerHTML = "";
+  if (!assets.length) {
+    list.textContent = "暂无资料。完成一次问答后点击“保存到资料库”。";
+    return;
+  }
+  for (const asset of assets) {
+    const item = document.createElement("div");
+    item.className = "asset-list-item";
+    item.dataset.assetId = asset.asset_id || "";
+    const openButton = document.createElement("button");
+    openButton.type = "button";
+    openButton.className = "asset-list-open";
+    openButton.innerHTML = `
+      <span class="asset-list-title"></span>
+      <span class="asset-list-question"></span>
+      <span class="asset-list-meta"></span>
+    `;
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "asset-list-delete";
+    deleteButton.textContent = "删除";
+    deleteButton.addEventListener("click", () => deleteAsset(asset.asset_id, asset.title || "未命名资料"));
+    openButton.querySelector(".asset-list-title").textContent = asset.title || "未命名资料";
+    openButton.querySelector(".asset-list-question").textContent = asset.question || "";
+    openButton.querySelector(".asset-list-meta").textContent = [
+      asset.created_at || "",
+      asset.language || "",
+      asset.answer_mode || "",
+      asset.source_status || "",
+      asset.rag_status || "",
+      `${asset.source_count || 0} 来源`,
+      `${asset.export_count || 0} 导出`,
+    ].filter(Boolean).join(" · ");
+    openButton.addEventListener("click", () => loadAssetDetail(asset.asset_id));
+    item.append(openButton, deleteButton);
+    list.appendChild(item);
+  }
+}
+
+async function loadAssetDetail(assetId) {
+  if (!assetId) return;
+  const response = await fetch(`api/assets/answers/${encodeURIComponent(assetId)}`);
+  if (!response.ok) {
+    showAssetDetailError("资料不存在或已移动。");
+    return;
+  }
+  const payload = await response.json();
+  renderAssetDetail(payload.asset);
+}
+
+function renderAssetDetail(asset) {
+  currentAssetId = asset.asset_id || "";
+  const manifest = asset.manifest || {};
+  document.getElementById("asset-detail-empty")?.setAttribute("hidden", "");
+  document.getElementById("asset-detail-content")?.removeAttribute("hidden");
+  document.getElementById("asset-title").textContent = manifest.title || "未命名资料";
+  document.getElementById("asset-meta").textContent = [manifest.created_at, manifest.language, manifest.answer_mode]
+    .filter(Boolean)
+    .join(" · ");
+  document.getElementById("asset-source-status").textContent = manifest.source_status || "";
+  document.getElementById("asset-rag-status").textContent = manifest.rag_status || "not_indexed";
+  document.getElementById("asset-question").textContent = manifest.question || "";
+  document.getElementById("asset-answer").textContent = asset.answer_markdown || "";
+  const exportStatus = document.getElementById("asset-export-status");
+  if (exportStatus) exportStatus.textContent = "";
+}
+
+function showAssetDetailError(message) {
+  currentAssetId = "";
+  const empty = document.getElementById("asset-detail-empty");
+  const content = document.getElementById("asset-detail-content");
+  if (empty) {
+    empty.textContent = message;
+    empty.removeAttribute("hidden");
+  }
+  if (content) content.setAttribute("hidden", "");
+}
+
+async function exportCurrentAsset(format) {
+  if (!currentAssetId) return;
+  const status = document.getElementById("asset-export-status");
+  if (status) status.textContent = "导出中...";
+  const response = await fetch(`api/assets/answers/${encodeURIComponent(currentAssetId)}/export/${format}`, {
+    method: "POST",
+  });
+  if (!response.ok) {
+    if (status) status.textContent = "导出失败";
+    return;
+  }
+  const blob = await response.blob();
+  const link = document.createElement("a");
+  const disposition = response.headers.get("content-disposition") || "";
+  const match = disposition.match(/filename="?([^"]+)"?/);
+  link.href = URL.createObjectURL(blob);
+  link.download = match ? match[1] : `pka-asset.${format === "word" ? "docx" : "pptx"}`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+  if (status) status.textContent = "导出完成";
+  await loadAssetDetail(currentAssetId);
+}
+
+async function deleteCurrentAsset() {
+  if (!currentAssetId) return;
+  const title = document.getElementById("asset-title")?.textContent || "当前资料";
+  await deleteAsset(currentAssetId, title);
+}
+
+async function deleteAsset(assetId, title) {
+  if (!assetId) return;
+  if (!window.confirm(`删除“${title}”？此操作不会影响知识库。`)) return;
+  const status = document.getElementById("asset-export-status");
+  if (status && currentAssetId === assetId) status.textContent = "删除中...";
+  const response = await fetch(`api/assets/answers/${encodeURIComponent(assetId)}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    if (status && currentAssetId === assetId) status.textContent = "删除失败";
+    return;
+  }
+  if (currentAssetId === assetId) {
+    showAssetDetailError("资料已删除。");
+  }
+  await loadAssetList();
 }
 
 function setDeep(target, dottedKey, value) {
@@ -1037,4 +1253,5 @@ function setupClearKnowledgeGuard() {
 setupEmbeddedStateBridge();
 setupIngest();
 setupAsk();
+setupAssets();
 setupSettings();

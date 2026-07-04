@@ -19,6 +19,14 @@ from pydantic import BaseModel
 from engine.chunker import chunk_text
 from engine.config import load_config, sanitize_config, save_config, update_config
 from engine.answer_planner import infer_answer_mode
+from engine.answer_assets import (
+    answer_asset_paths,
+    delete_answer_asset,
+    list_answer_assets,
+    read_answer_asset,
+    record_answer_asset_export,
+    save_answer_asset,
+)
 from engine.evidence import build_evidence_report
 from engine.exporter import export_to_ppt, export_to_word
 from engine.generator import generate_answer
@@ -129,6 +137,18 @@ class ExportRequest(BaseModel):
     sources: list[dict] = []
 
 
+class SaveAnswerAssetRequest(BaseModel):
+    question: str
+    answer: str
+    sources: list[dict] = []
+    source_status: str = "grounded"
+    evidence: dict = {}
+    language: str = "zh"
+    answer_mode: str = "answer"
+    model_route: str = ""
+    title: str = ""
+
+
 class Runtime:
     def __init__(self):
         self.config = load_config(CONFIG_PATH)
@@ -164,6 +184,11 @@ async def index_page():
 @app.get("/ask", response_class=HTMLResponse)
 async def ask_page():
     return _html("ask.html")
+
+
+@app.get("/assets", response_class=HTMLResponse)
+async def assets_page():
+    return _html("assets.html")
 
 
 @app.get("/settings", response_class=HTMLResponse)
@@ -777,6 +802,90 @@ async def export_ppt(request: ExportRequest):
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
         filename=Path(path).name,
     )
+
+
+@app.post("/api/assets/answers")
+async def save_answer_asset_endpoint(request: SaveAnswerAssetRequest):
+    payload = request.model_dump() if hasattr(request, "model_dump") else request.dict()
+    if not payload["question"].strip():
+        raise HTTPException(status_code=400, detail="question is required")
+    if not payload["answer"].strip():
+        raise HTTPException(status_code=400, detail="answer is required")
+    try:
+        return save_answer_asset(runtime.config["data_dir"], payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/assets/answers")
+async def list_answer_assets_endpoint(limit: int = 50, before: str = ""):
+    return {"status": "ok", "assets": list_answer_assets(runtime.config["data_dir"], limit=limit, before=before)}
+
+
+@app.post("/api/assets/answers/{asset_id}/export/word")
+async def export_answer_asset_word(asset_id: str):
+    paths = answer_asset_paths(runtime.config["data_dir"], asset_id)
+    asset = read_answer_asset(runtime.config["data_dir"], asset_id)
+    if paths is None or asset is None:
+        raise HTTPException(status_code=404, detail="asset not found")
+    manifest = asset["manifest"]
+    output_dir = paths["exports_dir"]
+    output_path = output_dir / f"answer_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.docx"
+    path = export_to_word(manifest["question"], manifest["answer"], manifest.get("sources", []), str(output_path))
+    try:
+        record_answer_asset_export(runtime.config["data_dir"], asset_id, export_format="word", export_path=path)
+    except ValueError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return FileResponse(
+        path,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        filename=Path(path).name,
+    )
+
+
+@app.post("/api/assets/answers/{asset_id}/export/ppt")
+async def export_answer_asset_ppt(asset_id: str):
+    paths = answer_asset_paths(runtime.config["data_dir"], asset_id)
+    asset = read_answer_asset(runtime.config["data_dir"], asset_id)
+    if paths is None or asset is None:
+        raise HTTPException(status_code=404, detail="asset not found")
+    manifest = asset["manifest"]
+    output_dir = paths["exports_dir"]
+    output_path = output_dir / f"answer_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.pptx"
+    try:
+        path = export_to_quality_ppt(
+            manifest["question"],
+            manifest["answer"],
+            manifest.get("sources", []),
+            str(output_path),
+            runtime.config,
+        )
+    except Exception:
+        path = export_to_ppt(manifest["question"], manifest["answer"], manifest.get("sources", []), str(output_path))
+    try:
+        record_answer_asset_export(runtime.config["data_dir"], asset_id, export_format="ppt", export_path=path)
+    except ValueError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return FileResponse(
+        path,
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        filename=Path(path).name,
+    )
+
+
+@app.get("/api/assets/answers/{asset_id}")
+async def read_answer_asset_endpoint(asset_id: str):
+    asset = read_answer_asset(runtime.config["data_dir"], asset_id)
+    if asset is None:
+        raise HTTPException(status_code=404, detail="asset not found")
+    return {"status": "ok", "asset": asset}
+
+
+@app.delete("/api/assets/answers/{asset_id}")
+async def delete_answer_asset_endpoint(asset_id: str):
+    if not delete_answer_asset(runtime.config["data_dir"], asset_id):
+        raise HTTPException(status_code=404, detail="asset not found")
+    return {"status": "ok", "deleted_asset_id": asset_id}
 
 
 @app.get("/api/stats")

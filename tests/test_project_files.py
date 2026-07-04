@@ -622,6 +622,51 @@ def test_ask_export_buttons_use_neutral_publishing_theme_style():
     assert "background: var(--accent-2);" not in export_button_rule
 
 
+def test_ask_page_can_save_completed_answer_to_asset_library():
+    root = Path(__file__).resolve().parents[1]
+    ask_html = (root / "static/ask.html").read_text(encoding="utf-8")
+    app_js = (root / "static/app.js").read_text(encoding="utf-8")
+    style_css = (root / "static/style.css").read_text(encoding="utf-8")
+
+    assert '<button type="button" id="save-asset" disabled>保存到资料库</button>' in ask_html
+    assert '<span id="save-asset-status" class="save-asset-status" aria-live="polite"></span>' in ask_html
+    assert "function buildAnswerResultSnapshot" in app_js
+    assert 'document.getElementById("save-asset")?.addEventListener("click", saveAnswerAsset)' in app_js
+    assert 'postJSON("api/assets/answers"' in app_js
+    assert 'source_status: askState.sourceStatus || "grounded"' in app_js
+    assert 'saveAssetButton.disabled = !(askState.question && askState.answer)' in app_js
+    assert 'saveAssetStatus.textContent = "已保存到资料库"' in app_js
+    assert 'fetch("api/knowledge/add-generated"' not in app_js
+    assert ".save-asset-status" in style_css
+
+
+def test_asset_library_page_lists_reads_and_exports_assets_without_knowledge_promotion():
+    root = Path(__file__).resolve().parents[1]
+    assets_html = (root / "static/assets.html").read_text(encoding="utf-8")
+    app_js = (root / "static/app.js").read_text(encoding="utf-8")
+    server_py = (root / "server.py").read_text(encoding="utf-8")
+
+    assert '<body data-page="assets">' in assets_html
+    assert 'id="asset-list"' in assets_html
+    assert 'id="asset-detail"' in assets_html
+    assert 'id="asset-answer"' in assets_html
+    assert 'id="asset-export-word"' in assets_html
+    assert 'id="asset-export-ppt"' in assets_html
+    assert 'id="asset-delete"' in assets_html
+    assert '@app.get("/assets", response_class=HTMLResponse)' in server_py
+    assert 'return _html("assets.html")' in server_py
+    assert "function setupAssets" in app_js
+    assert 'fetch("api/assets/answers?limit=50"' in app_js
+    assert 'fetch(`api/assets/answers/${encodeURIComponent(assetId)}`)' in app_js
+    assert "function deleteCurrentAsset" in app_js
+    assert 'method: "DELETE"' in app_js
+    assert 'textContent = asset.answer_markdown || ""' in app_js
+    assert 'api/assets/answers/${encodeURIComponent(currentAssetId)}/export/${format}' in app_js
+    assert 'exportCurrentAsset("word")' in app_js
+    assert 'exportCurrentAsset("ppt")' in app_js
+    assert 'api/knowledge/add-generated' not in assets_html
+
+
 def test_ask_embedded_state_preserves_answer_transcript_across_shell_switches():
     root = Path(__file__).resolve().parents[1]
     app_js = (root / "static/app.js").read_text(encoding="utf-8")

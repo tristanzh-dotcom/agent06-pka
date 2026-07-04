@@ -11,8 +11,11 @@
     <header class="ask-header">
       <h1>知识库问答</h1>
       <div class="exportbar" id="export-bar" style="display:none">
+        <a class="asset-header-link" href="/assets">资料库</a>
         <button type="button" id="export-word">导出 Word</button>
         <button type="button" id="export-ppt">导出 PPT</button>
+        <button type="button" id="save-asset" disabled>保存到资料库</button>
+        <span id="save-asset-status" class="save-asset-status" aria-live="polite"></span>
       </div>
     </header>
     <div id="conversation" class="ask-conversation">
