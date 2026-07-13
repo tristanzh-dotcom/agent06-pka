@@ -858,17 +858,6 @@ function buildAnswerResultSnapshot() {
   };
 }
 
-function canAddAnswerResultToKnowledge() {
-  return Boolean(askState.question && askState.answer && askState.sourceStatus !== "no_answer");
-}
-
-function updateAnswerOperationState() {
-  const saveAssetButton = document.getElementById("save-asset");
-  if (saveAssetButton) saveAssetButton.disabled = !(askState.question && askState.answer);
-  const addKnowledgeButton = document.getElementById("add-knowledge");
-  if (addKnowledgeButton) addKnowledgeButton.disabled = !canAddAnswerResultToKnowledge();
-}
-
 function setupAsk() {
   const form = document.getElementById("query-form");
   const chips = document.querySelectorAll(".empty-chip");
@@ -879,9 +868,6 @@ function setupAsk() {
     });
   });
   document.getElementById("export-word")?.addEventListener("click", () => exportAnswer("word"));
-  document.getElementById("export-ppt")?.addEventListener("click", () => exportAnswer("ppt"));
-  document.getElementById("save-asset")?.addEventListener("click", saveAnswerAsset);
-  document.getElementById("add-knowledge")?.addEventListener("click", addAnswerResultToKnowledge);
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const input = document.getElementById("question-input");
@@ -898,15 +884,9 @@ function setupAsk() {
     askState.answerMode = "answer";
     askState.modelRoute = language === "en" ? "dual" : "deepseek";
     askState.createdAt = "";
-    askState.savedAssetId = "";
     input.value = "";
     const exportBar = document.getElementById("export-bar");
     if (exportBar) exportBar.style.display = "none";
-    const saveAssetStatus = document.getElementById("save-asset-status");
-    if (saveAssetStatus) saveAssetStatus.textContent = "";
-    const addKnowledgeStatus = document.getElementById("add-knowledge-status");
-    if (addKnowledgeStatus) addKnowledgeStatus.textContent = "";
-    updateAnswerOperationState();
     const answer = appendMessage("", "assistant");
     const messageIndex = Number(answer.dataset.messageIndex);
     const pendingText = "检索中...";
@@ -942,7 +922,6 @@ function setupAsk() {
             answer.textContent += payload.content;
             askState.answer += payload.content;
             askState.messages[messageIndex].text = askState.answer;
-            updateAnswerOperationState();
             publishEmbeddedSnapshot();
           }
           if (payload.type === "error") {
@@ -985,7 +964,6 @@ function setupAsk() {
             if (!askState.createdAt) askState.createdAt = new Date().toISOString();
             const exportBar = document.getElementById("export-bar");
             if (exportBar) exportBar.style.display = "flex";
-            updateAnswerOperationState();
             publishEmbeddedSnapshot();
           }
         }
@@ -997,44 +975,6 @@ function setupAsk() {
       publishEmbeddedSnapshot();
     }
   });
-}
-
-async function addAnswerResultToKnowledge() {
-  if (!canAddAnswerResultToKnowledge()) return;
-  const addKnowledgeButton = document.getElementById("add-knowledge");
-  const addKnowledgeStatus = document.getElementById("add-knowledge-status");
-  if (addKnowledgeButton) addKnowledgeButton.disabled = true;
-  if (addKnowledgeStatus) addKnowledgeStatus.textContent = "等待资料库服务...";
-  try {
-    const result = await postJSON("api/knowledge/add-generated", buildAnswerResultSnapshot());
-    if (addKnowledgeStatus) {
-      addKnowledgeStatus.textContent =
-        result.status === "deferred" ? "资料库服务待接入" : "已加入知识库";
-    }
-  } catch (error) {
-    if (addKnowledgeStatus) addKnowledgeStatus.textContent = "加入失败";
-  } finally {
-    updateAnswerOperationState();
-    publishEmbeddedSnapshot();
-  }
-}
-
-async function saveAnswerAsset() {
-  if (!askState.question || !askState.answer) return;
-  const saveAssetButton = document.getElementById("save-asset");
-  const saveAssetStatus = document.getElementById("save-asset-status");
-  if (saveAssetButton) saveAssetButton.disabled = true;
-  if (saveAssetStatus) saveAssetStatus.textContent = "保存中...";
-  try {
-    const result = await postJSON("api/assets/answers", buildAnswerResultSnapshot());
-    askState.savedAssetId = result.asset_id || "";
-    if (saveAssetStatus) saveAssetStatus.textContent = "已保存到资料库";
-  } catch (error) {
-    if (saveAssetStatus) saveAssetStatus.textContent = "保存失败";
-  } finally {
-    updateAnswerOperationState();
-    publishEmbeddedSnapshot();
-  }
 }
 
 async function exportAnswer(format) {

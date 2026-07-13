@@ -29,6 +29,7 @@ from engine.answer_assets import (
     read_answer_asset,
     record_answer_asset_export,
     save_answer_asset,
+    update_answer_asset_manifest,
 )
 from engine.evidence import build_evidence_report
 from engine.exporter import export_to_ppt, export_to_word
@@ -830,6 +831,51 @@ async def save_answer_asset_endpoint(request: SaveAnswerAssetRequest):
         return save_answer_asset(runtime.config["data_dir"], payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/answer-assets/save-local")
+async def save_local_answer_asset_endpoint(request: SaveAnswerAssetRequest):
+    payload = request.model_dump() if hasattr(request, "model_dump") else request.dict()
+    if not payload["question"].strip():
+        raise HTTPException(status_code=400, detail="question is required")
+    if not payload["answer"].strip():
+        raise HTTPException(status_code=400, detail="answer is required")
+    try:
+        result = save_answer_asset(runtime.config["data_dir"], payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return JSONResponse(status_code=200 if result["outcome"] == "idempotent_reuse" else 201, content=result)
+
+
+@app.post("/api/answer-assets/publish-obsidian")
+async def publish_answer_to_obsidian_endpoint(request: SaveAnswerAssetRequest):
+    payload = request.model_dump() if hasattr(request, "model_dump") else request.dict()
+    if not payload["question"].strip():
+        raise HTTPException(status_code=400, detail="question is required")
+    if not payload["answer"].strip():
+        raise HTTPException(status_code=400, detail="answer is required")
+    try:
+        local_asset = save_answer_asset(runtime.config["data_dir"], payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    local_asset_dir = str((Path(runtime.config["data_dir"]) / local_asset["asset_path"]).resolve())
+    if not _agent10_control_token():
+        update_answer_asset_manifest(runtime.config["data_dir"], local_asset["asset_id"], {"publication_status": "pending_obsidian"})
+        return JSONResponse(
+            status_code=202,
+            content={**local_asset, "status": "partial", "publication_status": "pending_obsidian", "message": "本地已保存，Obsidian 待发布"},
+        )
+    try:
+        agent10_result = _publish_agent10_agent06_asset(local_asset_dir)
+    except Exception as exc:
+        update_answer_asset_manifest(runtime.config["data_dir"], local_asset["asset_id"], {"publication_status": "pending_obsidian"})
+        raise HTTPException(status_code=502, detail={"message": "Obsidian 发布失败", "asset_id": local_asset["asset_id"], "error": str(exc)}) from exc
+    update_answer_asset_manifest(
+        runtime.config["data_dir"],
+        local_asset["asset_id"],
+        {"publication_status": "published", "agent10_asset": {key: agent10_result.get(key, "") for key in ("asset_id", "path", "mode", "mirror_status")}},
+    )
+    return JSONResponse(status_code=201, content={**local_asset, "status": "ok", "publication_status": "published", "agent10": agent10_result})
 
 
 @app.post("/api/knowledge/add-generated")

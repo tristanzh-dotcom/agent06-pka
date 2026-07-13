@@ -1,4 +1,5 @@
 import json
+import hashlib
 import re
 import shutil
 from datetime import datetime
@@ -12,6 +13,13 @@ RAG_STATUS = "not_indexed"
 
 
 def save_answer_asset(data_dir: str, payload: Dict[str, Any], now: Optional[datetime] = None) -> Dict[str, Any]:
+    operation_key = _operation_key(payload)
+    existing = _find_by_operation_key(data_dir, operation_key)
+    if existing is not None:
+        manifest, asset_rel = existing
+        response = _response_payload(manifest, asset_rel)
+        response["outcome"] = "idempotent_reuse"
+        return response
     created_at = (now or datetime.now()).isoformat()
     day = created_at[:10]
     asset_id = f"ans_{_timestamp_id(created_at)}_{uuid4().hex[:6]}"
@@ -37,6 +45,8 @@ def save_answer_asset(data_dir: str, payload: Dict[str, Any], now: Optional[date
         "tags": [],
         "status": "saved",
         "rag_status": RAG_STATUS,
+        "publication_status": "local_only",
+        "operation_key": operation_key,
         "exports": [],
     }
 
@@ -114,6 +124,20 @@ def answer_asset_paths(data_dir: str, asset_id: str) -> Optional[Dict[str, Path]
     }
 
 
+def update_answer_asset_manifest(data_dir: str, asset_id: str, changes: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    paths = answer_asset_paths(data_dir, asset_id)
+    if paths is None:
+        return None
+    try:
+        manifest = json.loads(paths["manifest_path"].read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    manifest.update(changes)
+    manifest["updated_at"] = datetime.now().isoformat()
+    paths["manifest_path"].write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    return manifest
+
+
 def record_answer_asset_export(
     data_dir: str,
     asset_id: str,
@@ -168,8 +192,39 @@ def _response_payload(manifest: Dict[str, Any], asset_rel: Path) -> Dict[str, An
         "manifest_path": manifest_rel.as_posix(),
         "answer_path": answer_rel.as_posix(),
         "rag_status": RAG_STATUS,
+        "publication_status": manifest.get("publication_status", "local_only"),
+        "outcome": "created",
         "created_at": manifest["created_at"],
     }
+
+
+def _operation_key(payload: Dict[str, Any]) -> str:
+    stable = {
+        "question": str(payload.get("question", "")).strip(),
+        "answer": str(payload.get("answer", "")).strip(),
+        "sources": _clean_sources(payload.get("sources") or []),
+        "source_status": str(payload.get("source_status") or "grounded"),
+        "evidence": payload.get("evidence") if isinstance(payload.get("evidence"), dict) else {},
+        "language": str(payload.get("language") or "zh"),
+        "answer_mode": str(payload.get("answer_mode") or "answer"),
+        "model_route": str(payload.get("model_route") or ""),
+    }
+    encoded = json.dumps(stable, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return "sha256:" + hashlib.sha256(encoded).hexdigest()
+
+
+def _find_by_operation_key(data_dir: str, operation_key: str):
+    root = Path(data_dir) / "assets" / "answers"
+    if not root.exists():
+        return None
+    for manifest_path in root.glob("*/*/manifest.json"):
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if manifest.get("operation_key") == operation_key:
+            return manifest, manifest_path.parent.relative_to(Path(data_dir))
+    return None
 
 
 def _list_item(manifest: Dict[str, Any], asset_rel: Path) -> Dict[str, Any]:

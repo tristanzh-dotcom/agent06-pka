@@ -52,6 +52,45 @@ def test_add_generated_contract_rejects_empty_question_and_answer():
     assert missing_answer.json()["detail"] == "answer is required"
 
 
+def test_save_local_destination_reuses_same_answer_snapshot(tmp_path):
+    original_config = server.runtime.config
+    server.runtime.config = {**server.runtime.config, "data_dir": str(tmp_path)}
+    try:
+        client = TestClient(app)
+        first = client.post("/api/answer-assets/save-local", json=answer_result_payload())
+        second = client.post("/api/answer-assets/save-local", json=answer_result_payload())
+    finally:
+        server.runtime.config = original_config
+
+    assert first.status_code == 201
+    assert second.status_code == 200
+    assert first.json()["asset_id"] == second.json()["asset_id"]
+    assert first.json()["publication_status"] == "local_only"
+    assert second.json()["outcome"] == "idempotent_reuse"
+
+
+def test_publish_obsidian_destination_reuses_local_asset_and_reports_agent10_result(tmp_path, monkeypatch):
+    calls = []
+
+    def fake_publish(asset_dir):
+        calls.append(asset_dir)
+        return {"asset_id": "ast_publish", "path": "01_Agents/Agent06/note.md", "mode": "rest", "mirror_status": "upserted"}
+
+    original_config = server.runtime.config
+    server.runtime.config = {**server.runtime.config, "data_dir": str(tmp_path)}
+    monkeypatch.setenv("AGENT10_CONTROL_TOKEN", "0" * 64)
+    monkeypatch.setattr(server, "_publish_agent10_agent06_asset", fake_publish)
+    try:
+        response = TestClient(app).post("/api/answer-assets/publish-obsidian", json=answer_result_payload())
+    finally:
+        server.runtime.config = original_config
+
+    assert response.status_code == 201
+    assert response.json()["publication_status"] == "published"
+    assert response.json()["agent10"]["asset_id"] == "ast_publish"
+    assert len(calls) == 1
+
+
 def test_add_generated_contract_rejects_no_answer_without_indexing(tmp_path):
     original_config = server.runtime.config
     original_indexer = server.runtime.indexer
@@ -131,20 +170,21 @@ def test_add_generated_contract_publishes_saved_answer_asset_to_agent10(tmp_path
     assert calls == [str((tmp_path / body["local_asset"]["asset_path"]).resolve())]
 
 
-def test_ask_page_exposes_answer_result_add_to_knowledge_contract():
+def test_ask_page_exposes_deferred_destination_controls_without_wiring_them():
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[1]
     ask_html = (root / "static/ask.html").read_text(encoding="utf-8")
     app_js = (root / "static/app.js").read_text(encoding="utf-8")
 
-    assert '<button type="button" id="add-knowledge" disabled>加入知识库</button>' in ask_html
-    assert 'id="add-knowledge-status"' in ask_html
+    assert 'id="save-local-asset"' in ask_html
+    assert 'id="publish-obsidian"' in ask_html
+    assert 'id="add-pka-retrieval"' in ask_html
+    assert 'id="add-knowledge"' not in ask_html
     assert "function buildAnswerResultSnapshot" in app_js
     assert "created_at: askState.createdAt" in app_js
     assert "evidence: askState.evidence" in app_js
     assert "source_status: askState.sourceStatus || \"grounded\"" in app_js
-    assert "function canAddAnswerResultToKnowledge" in app_js
-    assert 'askState.sourceStatus !== "no_answer"' in app_js
-    assert 'postJSON("api/knowledge/add-generated", buildAnswerResultSnapshot())' in app_js
-    assert 'document.getElementById("add-knowledge")?.addEventListener("click", addAnswerResultToKnowledge)' in app_js
+    assert "function canAddAnswerResultToKnowledge" not in app_js
+    assert 'postJSON("api/knowledge/add-generated", buildAnswerResultSnapshot())' not in app_js
+    assert 'document.getElementById("add-knowledge")?.addEventListener("click", addAnswerResultToKnowledge)' not in app_js

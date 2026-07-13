@@ -610,7 +610,7 @@ def test_ask_export_buttons_use_neutral_publishing_theme_style():
     style_css = (root / "static/style.css").read_text(encoding="utf-8")
 
     assert '<button type="button" id="export-word">导出 Word</button>' in ask_html
-    assert '<button type="button" id="export-ppt">导出 PPT</button>' in ask_html
+    assert 'id="export-ppt"' not in ask_html
     assert "button[type=\"button\"] {\n  background: var(--accent-2);" in style_css
     assert ".exportbar button[type=\"button\"]" in style_css
     export_button_rule = style_css[
@@ -622,22 +622,32 @@ def test_ask_export_buttons_use_neutral_publishing_theme_style():
     assert "background: var(--accent-2);" not in export_button_rule
 
 
-def test_ask_page_can_save_completed_answer_to_asset_library():
+def test_ask_page_publishes_explicit_destination_controls_without_legacy_side_effects():
     root = Path(__file__).resolve().parents[1]
     ask_html = (root / "static/ask.html").read_text(encoding="utf-8")
     app_js = (root / "static/app.js").read_text(encoding="utf-8")
     style_css = (root / "static/style.css").read_text(encoding="utf-8")
 
-    assert '<button type="button" id="save-asset" disabled>保存到资料库</button>' in ask_html
-    assert '<span id="save-asset-status" class="save-asset-status" aria-live="polite"></span>' in ask_html
+    assert 'href="static/style.css?v=20260713-destination-controls"' in ask_html
+    assert '<a class="asset-header-link" href="/assets">资料库</a>' not in ask_html
+    assert '<button type="button" id="save-local-asset" class="answer-destination" disabled>' in ask_html
+    assert '保存到本地资料' in ask_html
+    assert '<button type="button" id="publish-obsidian" class="answer-destination" disabled>' in ask_html
+    assert '发布到 Obsidian' in ask_html
+    assert '<button type="button" id="add-pka-retrieval" class="answer-destination answer-destination--primary" disabled>' in ask_html
+    assert '加入 PKA 问答检索' in ask_html
+    assert '<small>' not in ask_html[ask_html.index('id="save-local-asset"') : ask_html.index('</div>', ask_html.index('id="save-local-asset"'))]
     assert "function buildAnswerResultSnapshot" in app_js
-    assert 'document.getElementById("save-asset")?.addEventListener("click", saveAnswerAsset)' in app_js
-    assert 'postJSON("api/assets/answers"' in app_js
+    assert 'document.getElementById("export-word")?.addEventListener("click", () => exportAnswer("word"))' in app_js
     assert 'source_status: askState.sourceStatus || "grounded"' in app_js
-    assert 'saveAssetButton.disabled = !(askState.question && askState.answer)' in app_js
-    assert 'saveAssetStatus.textContent = "已保存到资料库"' in app_js
-    assert 'fetch("api/knowledge/add-generated"' not in app_js
-    assert ".save-asset-status" in style_css
+    assert "saveAnswerAsset" not in app_js
+    assert "addAnswerResultToKnowledge" not in app_js
+    assert 'api/knowledge/add-generated' not in app_js
+    assert 'exportAnswer("ppt")' not in app_js
+    assert ".answer-destination" in style_css
+    assert "min-height: 36px;" in style_css
+    assert "font-size: 14px;" in style_css
+    assert "opacity: 1;" in style_css
 
 
 def test_asset_library_page_lists_reads_and_exports_assets_without_knowledge_promotion():

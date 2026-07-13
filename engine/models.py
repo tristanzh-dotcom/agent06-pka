@@ -46,6 +46,7 @@ class Chunk:
     chunk_index: int
     created_at: str
     embedding_text: str = ""
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

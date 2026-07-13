@@ -4,20 +4,24 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PKA 问答</title>
-  <link rel="stylesheet" href="static/style.css?v=20260617-async-ocr">
+  <link rel="stylesheet" href="static/style.css?v=20260713-destination-controls">
 </head>
 <body data-page="ask">
   <main class="ask-workbench">
     <header class="ask-header">
       <h1>知识库问答</h1>
       <div class="exportbar" id="export-bar" style="display:none">
-        <a class="asset-header-link" href="/assets">资料库</a>
         <button type="button" id="export-word">导出 Word</button>
-        <button type="button" id="export-ppt">导出 PPT</button>
-        <button type="button" id="save-asset" disabled>保存到资料库</button>
-        <button type="button" id="add-knowledge" disabled>加入知识库</button>
-        <span id="save-asset-status" class="save-asset-status" aria-live="polite"></span>
-        <span id="add-knowledge-status" class="save-asset-status" aria-live="polite"></span>
+        <span class="answer-destination-divider" aria-hidden="true"></span>
+        <button type="button" id="save-local-asset" class="answer-destination" disabled>
+          保存到本地资料
+        </button>
+        <button type="button" id="publish-obsidian" class="answer-destination" disabled>
+          发布到 Obsidian
+        </button>
+        <button type="button" id="add-pka-retrieval" class="answer-destination answer-destination--primary" disabled>
+          加入 PKA 问答检索
+        </button>
       </div>
     </header>
     <div id="conversation" class="ask-conversation">
