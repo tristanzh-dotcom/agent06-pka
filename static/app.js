@@ -14,6 +14,10 @@ const askState = {
   answer: "",
   sources: [],
   sourceStatus: "",
+  evidence: {},
+  answerMode: "answer",
+  modelRoute: "",
+  createdAt: "",
   savedAssetId: "",
   messages: [],
 };
@@ -33,6 +37,10 @@ function resetAskStateForKnowledgeUpdate() {
   askState.answer = "";
   askState.sources = [];
   askState.sourceStatus = "";
+  askState.evidence = {};
+  askState.answerMode = "answer";
+  askState.modelRoute = "";
+  askState.createdAt = "";
   askState.savedAssetId = "";
   askState.messages = [];
 }
@@ -61,6 +69,10 @@ function collectEmbeddedState() {
       answer: askState.answer,
       sources: askState.sources,
       sourceStatus: askState.sourceStatus,
+      evidence: askState.evidence,
+      answerMode: askState.answerMode,
+      modelRoute: askState.modelRoute,
+      createdAt: askState.createdAt,
       savedAssetId: askState.savedAssetId,
       messages: askState.messages,
     },
@@ -759,6 +771,10 @@ function restoreAskConversation(state) {
   askState.answer = typeof state.answer === "string" ? state.answer : "";
   askState.sources = Array.isArray(state.sources) ? state.sources : [];
   askState.sourceStatus = typeof state.sourceStatus === "string" ? state.sourceStatus : "";
+  askState.evidence = state.evidence && typeof state.evidence === "object" ? state.evidence : {};
+  askState.answerMode = typeof state.answerMode === "string" ? state.answerMode : "answer";
+  askState.modelRoute = typeof state.modelRoute === "string" ? state.modelRoute : "";
+  askState.createdAt = typeof state.createdAt === "string" ? state.createdAt : "";
   askState.savedAssetId = typeof state.savedAssetId === "string" ? state.savedAssetId : "";
   askState.messages = messages
     .filter((message) => message && typeof message.text === "string")
@@ -827,23 +843,30 @@ function sourceHref(source) {
 }
 
 function buildAnswerResultSnapshot() {
+  const answerMode = askState.answerMode || askState.evidence?.answer_mode?.mode || "answer";
   return {
     question: askState.question,
     answer: askState.answer,
     sources: askState.sources,
     source_status: askState.sourceStatus || "grounded",
-    evidence: {},
+    evidence: askState.evidence,
     language: askState.language || "zh",
-    answer_mode: "answer",
-    model_route: askState.language === "en" ? "dual" : "deepseek",
+    answer_mode: answerMode,
+    model_route: askState.modelRoute || (askState.language === "en" ? "dual" : "deepseek"),
+    created_at: askState.createdAt || new Date().toISOString(),
     title: askState.question,
   };
 }
 
+function canAddAnswerResultToKnowledge() {
+  return Boolean(askState.question && askState.answer && askState.sourceStatus !== "no_answer");
+}
+
 function updateAnswerOperationState() {
   const saveAssetButton = document.getElementById("save-asset");
-  if (!saveAssetButton) return;
-  saveAssetButton.disabled = !(askState.question && askState.answer);
+  if (saveAssetButton) saveAssetButton.disabled = !(askState.question && askState.answer);
+  const addKnowledgeButton = document.getElementById("add-knowledge");
+  if (addKnowledgeButton) addKnowledgeButton.disabled = !canAddAnswerResultToKnowledge();
 }
 
 function setupAsk() {
@@ -858,6 +881,7 @@ function setupAsk() {
   document.getElementById("export-word")?.addEventListener("click", () => exportAnswer("word"));
   document.getElementById("export-ppt")?.addEventListener("click", () => exportAnswer("ppt"));
   document.getElementById("save-asset")?.addEventListener("click", saveAnswerAsset);
+  document.getElementById("add-knowledge")?.addEventListener("click", addAnswerResultToKnowledge);
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const input = document.getElementById("question-input");
@@ -870,12 +894,18 @@ function setupAsk() {
     askState.answer = "";
     askState.sources = [];
     askState.sourceStatus = "";
+    askState.evidence = {};
+    askState.answerMode = "answer";
+    askState.modelRoute = language === "en" ? "dual" : "deepseek";
+    askState.createdAt = "";
     askState.savedAssetId = "";
     input.value = "";
     const exportBar = document.getElementById("export-bar");
     if (exportBar) exportBar.style.display = "none";
     const saveAssetStatus = document.getElementById("save-asset-status");
     if (saveAssetStatus) saveAssetStatus.textContent = "";
+    const addKnowledgeStatus = document.getElementById("add-knowledge-status");
+    if (addKnowledgeStatus) addKnowledgeStatus.textContent = "";
     updateAnswerOperationState();
     const answer = appendMessage("", "assistant");
     const messageIndex = Number(answer.dataset.messageIndex);
@@ -928,6 +958,8 @@ function setupAsk() {
             const sourceStatus = payload.source_status || "grounded";
             askState.sourceStatus = sourceStatus;
             askState.sources = sourceStatus === "no_answer" ? [] : payload.sources;
+            askState.evidence = payload.evidence && typeof payload.evidence === "object" ? payload.evidence : {};
+            askState.answerMode = askState.evidence?.answer_mode?.mode || askState.answerMode || "answer";
             askState.messages[messageIndex].sources = askState.sources;
             askState.messages[messageIndex].sourceStatus = sourceStatus;
             if (payload.source_status === "no_answer") {
@@ -950,6 +982,7 @@ function setupAsk() {
               answer.textContent = "";
               delete answer.dataset.pending;
             }
+            if (!askState.createdAt) askState.createdAt = new Date().toISOString();
             const exportBar = document.getElementById("export-bar");
             if (exportBar) exportBar.style.display = "flex";
             updateAnswerOperationState();
@@ -964,6 +997,26 @@ function setupAsk() {
       publishEmbeddedSnapshot();
     }
   });
+}
+
+async function addAnswerResultToKnowledge() {
+  if (!canAddAnswerResultToKnowledge()) return;
+  const addKnowledgeButton = document.getElementById("add-knowledge");
+  const addKnowledgeStatus = document.getElementById("add-knowledge-status");
+  if (addKnowledgeButton) addKnowledgeButton.disabled = true;
+  if (addKnowledgeStatus) addKnowledgeStatus.textContent = "等待资料库服务...";
+  try {
+    const result = await postJSON("api/knowledge/add-generated", buildAnswerResultSnapshot());
+    if (addKnowledgeStatus) {
+      addKnowledgeStatus.textContent =
+        result.status === "deferred" ? "资料库服务待接入" : "已加入知识库";
+    }
+  } catch (error) {
+    if (addKnowledgeStatus) addKnowledgeStatus.textContent = "加入失败";
+  } finally {
+    updateAnswerOperationState();
+    publishEmbeddedSnapshot();
+  }
 }
 
 async function saveAnswerAsset() {

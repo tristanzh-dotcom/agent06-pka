@@ -1,7 +1,7 @@
 # PKA Answer Result Operations SDD
 
 > Date: 2026-07-03
-> Status: design draft
+> Status: implementation contract updated 2026-07-13
 > Scope: post-answer operation layer for PKA RAG answers
 
 ## 1. Problem
@@ -146,14 +146,41 @@ Request:
 
 Response:
 
+When Agent10 is configured and publishing succeeds:
+
 ```json
 {
   "status": "ok",
-  "source_name": "generated_answer_20260703_153012.md",
-  "source_type": "generated_asset",
-  "chunks": 1,
-  "chunk_ids": ["generated_answer_20260703_153012.md#0"],
-  "raw_file_path": "generated/knowledge/2026-07-03/generated_answer_20260703_153012.md"
+  "storage_status": "agent10_published",
+  "indexed": false,
+  "local_asset": {
+    "asset_id": "ans_20260713120000_ab12cd",
+    "asset_path": "assets/answers/2026-07-13/ans_20260713120000_ab12cd",
+    "manifest_path": "assets/answers/2026-07-13/ans_20260713120000_ab12cd/manifest.json",
+    "answer_path": "assets/answers/2026-07-13/ans_20260713120000_ab12cd/answer.md"
+  },
+  "agent10": {
+    "asset_id": "ast_20260713_answer01",
+    "path": "01_Agents/Agent06/2026-07-13 - answer.md",
+    "mode": "rest",
+    "mirror_status": "upserted",
+    "producer_id": "agent06"
+  }
+}
+```
+
+When Agent10 is not configured:
+
+```json
+{
+  "status": "deferred",
+  "storage_status": "agent10_not_configured",
+  "indexed": false,
+  "local_asset": {
+    "asset_id": "ans_20260713120000_ab12cd",
+    "asset_path": "assets/answers/2026-07-13/ans_20260713120000_ab12cd"
+  },
+  "message": "AnswerResult saved locally; Agent10 producer API is not configured."
 }
 ```
 
@@ -186,6 +213,54 @@ The operation layer must pass enough data for that workflow:
 - model route;
 - answer mode;
 - timestamp, either supplied by the frontend or assigned by the backend.
+
+## 7.1 Agent10 Producer Contract
+
+Approved 2026-07-13: Agent06 must not invent the final Obsidian/vault storage path for generated answer knowledge. Agent10 owns the Obsidian-first asset library, schema validation, safe writing, SQLite mirror, and governance.
+
+Agent10 V1 exposes an Agent06 producer path:
+
+```http
+POST /api/agent10/producers/agent06/assets
+Authorization: Bearer <agent10 control token>
+Content-Type: application/json
+
+{
+  "source_asset_path": "/absolute/path/to/PKA_Data/assets/answers/YYYY-MM-DD/ans_..."
+}
+```
+
+The Agent10-owned adapter reads the Agent06 V0 local asset directory:
+
+- `manifest.json`
+- `answer.md`
+
+Then it maps the asset to a unified draft with:
+
+- `agent_id="agent06"`
+- `workflow_id="ask"`
+- `asset_type="agent06_pka_answer"`
+- `knowledge_status` derived from Agent06 `rag_status`
+- `source_refs` derived from AnswerResult sources
+- `input_refs` containing the original question
+- `body_markdown` from `answer.md`
+
+Therefore `POST /api/knowledge/add-generated` in Agent06 should do this in V1:
+
+1. validate the `AnswerResult`;
+2. reject `source_status="no_answer"`;
+3. save a local AnswerAsset using the existing Agent06 asset store;
+4. call Agent10 producer API with the absolute local asset directory path when Agent10 is configured;
+5. return Agent10 `asset_id/path/mirror_status` plus the local Agent06 asset metadata;
+6. if Agent10 is not configured, return `202 deferred` and keep the local asset available for later Agent10 ingestion.
+
+Configuration is local/runtime-only:
+
+- `AGENT10_BASE_URL`, default `http://127.0.0.1:8010`
+- `AGENT10_CONTROL_TOKEN`, or
+- `AGENT10_CONTROL_TOKEN_FILE`
+
+No Agent10 token may be stored in source-controlled config or printed in logs/chat.
 
 ## 8. Guardrails
 
@@ -255,3 +330,25 @@ python3 -m pytest -q --ignore=tests/test_retrieval_quality_gate.py --ignore=test
 7. Run focused backend and static contract tests.
 
 This order keeps the operation layer grounded in data contracts before adding visible controls.
+
+## 12. Live Integration Evidence
+
+2026-07-13 live smoke:
+
+- Agent06 endpoint: `POST /api/knowledge/add-generated`
+- Agent10 endpoint: `POST /api/agent10/producers/agent06/assets`
+- Result: Agent06 returned `201` with `storage_status="agent10_published"`.
+- Local Agent06 asset: `assets/answers/2026-07-13/ans_20260713140227_f5b4c8`
+- Agent10 asset: `ast_20260713_dd56711d`
+- Agent10 vault path: `01_Agents/Agent06/2026-07-13 - agent06 - Agent06 到 Agent10 的问答结果联调是否成功？ - ast_20260713_dd56711d.md`
+- Agent10 writer mode: `fallback`
+- Agent10 mirror status: `upserted`
+
+Post-smoke checks confirmed:
+
+- local Agent06 `manifest.json` exists;
+- local Agent06 `answer.md` exists;
+- Agent10 vault note exists;
+- Agent10 governance endpoint reports the mirror contains the asset.
+
+No model route was invoked during the smoke. The payload used `model_route="local_smoke_no_llm"`.

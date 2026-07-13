@@ -1,6 +1,7 @@
 import asyncio
 from collections import Counter
 import json
+import os
 import threading
 from contextlib import asynccontextmanager
 from concurrent.futures import ThreadPoolExecutor
@@ -9,6 +10,8 @@ from datetime import datetime
 from html import escape
 from pathlib import Path
 from typing import Any, Dict, Optional
+import urllib.error
+import urllib.request
 from uuid import uuid4
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -147,6 +150,18 @@ class SaveAnswerAssetRequest(BaseModel):
     answer_mode: str = "answer"
     model_route: str = ""
     title: str = ""
+
+
+class AddGeneratedKnowledgeRequest(BaseModel):
+    question: str
+    answer: str
+    sources: list[dict] = []
+    source_status: str = "grounded"
+    evidence: dict = {}
+    language: str = "zh"
+    answer_mode: str = "answer"
+    model_route: str = ""
+    created_at: str = ""
 
 
 class Runtime:
@@ -815,6 +830,98 @@ async def save_answer_asset_endpoint(request: SaveAnswerAssetRequest):
         return save_answer_asset(runtime.config["data_dir"], payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/knowledge/add-generated")
+async def add_generated_knowledge_endpoint(request: AddGeneratedKnowledgeRequest):
+    payload = request.model_dump() if hasattr(request, "model_dump") else request.dict()
+    if not payload["question"].strip():
+        raise HTTPException(status_code=400, detail="question is required")
+    if not payload["answer"].strip():
+        raise HTTPException(status_code=400, detail="answer is required")
+    if payload.get("source_status") == "no_answer":
+        raise HTTPException(status_code=409, detail="no_answer results cannot be added to knowledge yet")
+    try:
+        local_asset = save_answer_asset(runtime.config["data_dir"], payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    local_asset_dir = str((Path(runtime.config["data_dir"]) / local_asset["asset_path"]).resolve())
+    if not _agent10_control_token():
+        return JSONResponse(
+            status_code=202,
+            content={
+                "status": "deferred",
+                "storage_status": "agent10_not_configured",
+                "indexed": False,
+                "local_asset": local_asset,
+                "message": "AnswerResult saved locally; Agent10 producer API is not configured.",
+            },
+        )
+
+    try:
+        agent10_result = _publish_agent10_agent06_asset(local_asset_dir)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": "Agent10 producer API failed",
+                "local_asset": local_asset,
+                "error": str(exc),
+            },
+        ) from exc
+
+    return JSONResponse(
+        status_code=201,
+        content={
+            "status": "ok",
+            "storage_status": "agent10_published",
+            "indexed": False,
+            "local_asset": local_asset,
+            "agent10": agent10_result,
+        },
+    )
+
+
+def _publish_agent10_agent06_asset(source_asset_path: str) -> dict:
+    token = _agent10_control_token()
+    if not token:
+        raise ValueError("Agent10 control token is not configured")
+    endpoint = _agent10_base_url().rstrip("/") + "/api/agent10/producers/agent06/assets"
+    body = json.dumps({"source_asset_path": source_asset_path}, ensure_ascii=False).encode("utf-8")
+    request = urllib.request.Request(
+        endpoint,
+        data=body,
+        method="POST",
+        headers={
+            "authorization": f"Bearer {token}",
+            "content-type": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            payload = response.read().decode("utf-8")
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"Agent10 returned HTTP {exc.code}: {detail}") from exc
+    return json.loads(payload)
+
+
+def _agent10_base_url() -> str:
+    return os.environ.get("AGENT10_BASE_URL", "http://127.0.0.1:8010")
+
+
+def _agent10_control_token() -> str:
+    token = os.environ.get("AGENT10_CONTROL_TOKEN", "").strip()
+    if token:
+        return token
+    token_file = os.environ.get("AGENT10_CONTROL_TOKEN_FILE", "").strip()
+    if not token_file:
+        return ""
+    try:
+        return Path(token_file).read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
 
 
 @app.get("/api/assets/answers")
