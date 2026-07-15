@@ -56,3 +56,12 @@
 2. 先做只读复核：`git status --short` 与 `git diff --stat`，确认本地变更仍完整。
 3. 按 Task 5 执行受控实机验证：使用非敏感 AnswerResult 验证本地保存、Obsidian 发布、RAG 晋升、重复操作幂等、Agent10 mirror 及响应中无密钥。
 4. 实机验证后更新本交接状态或生成新的当天交接文件；若需要提交，转 Agent08 Git Control。
+
+## 2026-07-15 Task 5 验收更新
+
+Task 5 已完成。受管 Agent06 已通过 Agent08 重启，并加载三条结果去向接口；非敏感实机样本验证了本地保存、Obsidian 发布、generated-secondary PKA 检索晋升、重复点击幂等复用、Agent10 mirror 与响应脱敏。
+
+- Agent06 聚焦测试 `116 passed`，非实时回归 `259 passed`；Agent10 全套 `103 passed`，Agent08 全套 `106 passed`。
+- 首次 Obsidian 发布与检索晋升均返回已发布且 mirror `upserted`；重复操作保留同一 Agent06/Agent10 资产，返回 `idempotent_reuse` 与 `reused`，不会重写既有 note。
+- Agent10 治理快照显示 3 个 mirror assets、0 个 open gaps、0 个 active/stale locks 与 0 个 temporary files；验证过程未记录答案正文或任何凭据。
+- 联调发现并修复两项受管运行合同缺口：Agent08 启动 Agent06 时遗漏 Agent10 runtime 环境；Agent10 幂等复用响应未明确标示 mirror 已复用。

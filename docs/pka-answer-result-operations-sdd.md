@@ -352,3 +352,12 @@ Post-smoke checks confirmed:
 - Agent10 governance endpoint reports the mirror contains the asset.
 
 No model route was invoked during the smoke. The payload used `model_route="local_smoke_no_llm"`.
+
+### 2026-07-15 controlled Task 5 verification
+
+- Agent06 was restarted through Agent08 on `127.0.0.1:8086`; its live OpenAPI contract exposed all three destination endpoints.
+- Agent06 focused verification passed (`116` tests); the non-live regression suite passed (`259` tests). Agent10's complete suite passed (`103` tests), and Agent08's complete suite passed (`106` tests).
+- A non-sensitive, deterministic validation AnswerResult verified local-only save, governed Obsidian publication, generated-secondary PKA retrieval promotion, and repeated-operation reuse. No model route was invoked.
+- First publication and promotion each returned `201`, `publication_status="published"`, and Agent10 `mirror_status="upserted"`. Repeat requests retained the same Agent06 and Agent10 asset IDs and returned `outcome="idempotent_reuse"`, Agent10 `mode="idempotent_reuse"`, and `mirror_status="reused"`; no existing note was rewritten.
+- Agent10 governance reported three mirror assets, zero open mirror gaps, zero active or stale locks, and zero temporary files. API and governance responses were checked for the Agent10 control token and were secret-free.
+- The validation record intentionally omits answer bodies, vault-note bodies, and credentials.
