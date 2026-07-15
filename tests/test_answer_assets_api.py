@@ -144,8 +144,8 @@ def test_list_and_read_answer_assets(tmp_path):
     original = install_asset_runtime(tmp_path)
     try:
         client = TestClient(app)
-        first = client.post("/api/assets/answers", json=sample_payload(title="第一条资产")).json()
-        second = client.post("/api/assets/answers", json=sample_payload(title="第二条资产")).json()
+        first = client.post("/api/assets/answers", json=sample_payload(title="第一条资产", question="第一条问题")).json()
+        second = client.post("/api/assets/answers", json=sample_payload(title="第二条资产", question="第二条问题")).json()
 
         list_response = client.get("/api/assets/answers?limit=10")
 
@@ -180,9 +180,9 @@ def test_list_answer_assets_supports_before_cursor_and_caps_limit(tmp_path, monk
     monkeypatch.setattr("engine.answer_assets.datetime", FixedDatetime)
     try:
         client = TestClient(app)
-        first = client.post("/api/assets/answers", json=sample_payload(title="第一条资产")).json()
-        second = client.post("/api/assets/answers", json=sample_payload(title="第二条资产")).json()
-        third = client.post("/api/assets/answers", json=sample_payload(title="第三条资产")).json()
+        first = client.post("/api/assets/answers", json=sample_payload(title="第一条资产", question="第一条问题")).json()
+        second = client.post("/api/assets/answers", json=sample_payload(title="第二条资产", question="第二条问题")).json()
+        third = client.post("/api/assets/answers", json=sample_payload(title="第三条资产", question="第三条问题")).json()
 
         first_page = client.get("/api/assets/answers?limit=1").json()["assets"]
         before_second = client.get(f"/api/assets/answers?limit=10&before={second['created_at']}").json()["assets"]

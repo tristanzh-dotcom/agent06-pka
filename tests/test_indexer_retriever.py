@@ -64,6 +64,71 @@ def test_indexer_writes_chunks_and_keyword_search_finds_chinese_terms(tmp_path):
     assert not (tmp_path / "vector" / "test_collection.json").exists()
 
 
+def test_indexer_removes_fts_rows_when_vector_upsert_fails(tmp_path):
+    indexer = HybridIndexer(
+        fts_db_path=str(tmp_path / "pka.db"),
+        vector_dir=str(tmp_path / "vector"),
+        collection_name="vector_failure_cleanup",
+        embedding_client=FakeEmbeddingClient(),
+    )
+
+    class FailingVectorCollection:
+        def upsert(self, **kwargs):
+            raise RuntimeError("vector store unavailable")
+
+        def delete(self, **kwargs):
+            return None
+
+    indexer.collection = FailingVectorCollection()
+
+    with pytest.raises(RuntimeError, match="vector store unavailable"):
+        indexer.upsert([make_chunk("generated.md#0", "稳定边界的历史结论", 0)])
+
+    with indexer._connect() as connection:
+        rows = connection.execute("SELECT chunk_id FROM chunks_fts WHERE chunk_id = ?", ("generated.md#0",)).fetchall()
+    assert rows == []
+
+
+def test_indexer_quarantines_vector_ids_when_partial_write_cleanup_fails(tmp_path):
+    indexer = HybridIndexer(
+        fts_db_path=str(tmp_path / "pka.db"),
+        vector_dir=str(tmp_path / "vector"),
+        collection_name="vector_partial_write",
+        embedding_client=FakeEmbeddingClient(),
+    )
+
+    class PartialWriteVectorCollection:
+        def __init__(self):
+            self.ids = []
+
+        def upsert(self, **kwargs):
+            self.ids.extend(kwargs["ids"])
+            raise RuntimeError("vector write interrupted")
+
+        def delete(self, **kwargs):
+            raise RuntimeError("vector cleanup interrupted")
+
+        def query(self, **kwargs):
+            return {
+                "ids": [self.ids],
+                "documents": [["稳定边界的历史结论"]],
+                "metadatas": [[{"source_name": "generated.md", "source_type": "generated_asset", "chunk_index": 0, "created_at": "2026-07-13", "raw_file_path": ""}]],
+                "distances": [[0.0]],
+            }
+
+        def count(self):
+            return len(self.ids)
+
+    indexer.collection = PartialWriteVectorCollection()
+
+    with pytest.raises(RuntimeError, match="vector write interrupted") as error:
+        indexer.upsert([make_chunk("generated.md#0", "稳定边界的历史结论", 0)])
+
+    assert getattr(error.value, "fts_status") == "removed"
+    assert getattr(error.value, "vector_status") == "quarantined"
+    assert indexer.search_vector("稳定边界", top_k=1) == []
+
+
 def test_fts_search_escapes_hud_ar_hud_query_syntax(tmp_path):
     indexer = HybridIndexer(
         fts_db_path=str(tmp_path / "pka.db"),

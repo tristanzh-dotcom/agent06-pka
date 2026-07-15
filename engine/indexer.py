@@ -11,6 +11,13 @@ import urllib.request
 from engine.models import Chunk
 
 
+class IndexWriteError(RuntimeError):
+    def __init__(self, message: str, *, fts_status: str, vector_status: str):
+        super().__init__(message)
+        self.fts_status = fts_status
+        self.vector_status = vector_status
+
+
 class OllamaEmbeddingClient:
     def __init__(
         self,
@@ -93,7 +100,36 @@ class HybridIndexer:
                     source_name UNINDEXED,
                     source_type UNINDEXED,
                     chunk_index UNINDEXED,
-                    created_at UNINDEXED
+                    created_at UNINDEXED,
+                    metadata_json UNINDEXED
+                )
+                """
+            )
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(chunks_fts)")}
+            if "metadata_json" not in columns:
+                connection.execute("ALTER TABLE chunks_fts RENAME TO chunks_fts_legacy")
+                connection.execute(
+                    """
+                    CREATE VIRTUAL TABLE chunks_fts USING fts5(
+                        chunk_id UNINDEXED, text UNINDEXED, tokens,
+                        source_name UNINDEXED, source_type UNINDEXED,
+                        chunk_index UNINDEXED, created_at UNINDEXED, metadata_json UNINDEXED
+                    )
+                    """
+                )
+                connection.execute(
+                    """
+                    INSERT INTO chunks_fts(chunk_id, text, tokens, source_name, source_type, chunk_index, created_at, metadata_json)
+                    SELECT chunk_id, text, tokens, source_name, source_type, chunk_index, created_at, '{}' FROM chunks_fts_legacy
+                    """
+                )
+                connection.execute("DROP TABLE chunks_fts_legacy")
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS index_quarantine (
+                    chunk_id TEXT PRIMARY KEY,
+                    reason TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
                 """
             )
@@ -109,8 +145,8 @@ class HybridIndexer:
                 connection.execute("DELETE FROM chunks_fts WHERE chunk_id = ?", (chunk.id,))
                 connection.execute(
                     """
-                    INSERT INTO chunks_fts(chunk_id, text, tokens, source_name, source_type, chunk_index, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO chunks_fts(chunk_id, text, tokens, source_name, source_type, chunk_index, created_at, metadata_json)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         chunk.id,
@@ -120,23 +156,40 @@ class HybridIndexer:
                         chunk.source_type,
                         chunk.chunk_index,
                         chunk.created_at,
+                        json.dumps(chunk.metadata, ensure_ascii=False, sort_keys=True),
                     ),
                 )
-        self.collection.upsert(
-            ids=[chunk.id for chunk in chunks],
-            embeddings=vectors,
-            metadatas=[
-                {
-                    "source_name": chunk.source_name,
-                    "source_type": chunk.source_type,
-                    "chunk_index": chunk.chunk_index,
-                    "created_at": chunk.created_at,
-                    "raw_file_path": raw_file_paths[index] if raw_file_paths else "",
-                }
-                for index, chunk in enumerate(chunks)
-            ],
-            documents=[chunk.text for chunk in chunks],
-        )
+        chunk_ids = [chunk.id for chunk in chunks]
+        try:
+            self.collection.upsert(
+                ids=chunk_ids,
+                embeddings=vectors,
+                metadatas=[
+                    {
+                        "source_name": chunk.source_name,
+                        "source_type": chunk.source_type,
+                        "chunk_index": chunk.chunk_index,
+                        "created_at": chunk.created_at,
+                        "raw_file_path": raw_file_paths[index] if raw_file_paths else "",
+                        **_vector_metadata(chunk.metadata),
+                    }
+                    for index, chunk in enumerate(chunks)
+                ],
+                documents=[chunk.text for chunk in chunks],
+            )
+        except Exception as exc:
+            with self._connect() as connection:
+                connection.executemany("DELETE FROM chunks_fts WHERE chunk_id = ?", [(chunk_id,) for chunk_id in chunk_ids])
+            try:
+                self.collection.delete(ids=chunk_ids)
+            except Exception:
+                self._quarantine(chunk_ids, reason="vector_cleanup_failed")
+                raise IndexWriteError(
+                    str(exc),
+                    fts_status="removed",
+                    vector_status="quarantined",
+                ) from exc
+            raise IndexWriteError(str(exc), fts_status="removed", vector_status="removed") from exc
         return len(chunks)
 
     def clear_all(self) -> None:
@@ -146,6 +199,7 @@ class HybridIndexer:
             self.collection.delete(ids=ids)
         with self._connect() as connection:
             connection.execute("DELETE FROM chunks_fts")
+            connection.execute("DELETE FROM index_quarantine")
 
     def search_fts(self, query: str, top_k: int = 10) -> List[Dict[str, Any]]:
         tokens = _safe_fts_query(_tokenize(query))
@@ -154,7 +208,7 @@ class HybridIndexer:
         with self._connect() as connection:
             rows = connection.execute(
                 """
-                SELECT chunk_id, text, source_name, source_type, chunk_index, bm25(chunks_fts) AS rank
+                SELECT chunk_id, text, source_name, source_type, chunk_index, metadata_json, bm25(chunks_fts) AS rank
                 FROM chunks_fts
                 WHERE tokens MATCH ?
                 ORDER BY rank
@@ -170,8 +224,9 @@ class HybridIndexer:
                 "source_name": row[2],
                 "source_type": row[3],
                 "chunk_index": int(row[4]),
-                "score": float(row[5]),
+                "score": float(row[6]),
                 "raw_file_path": path_map.get(row[0], ""),
+                "metadata": _load_metadata(row[5]),
             }
             for row in rows
         ]
@@ -200,6 +255,7 @@ class HybridIndexer:
         documents = results.get("documents", [[]])[0]
         metadatas = results.get("metadatas", [[]])[0]
         distances = results.get("distances", [[]])[0]
+        quarantined = self._quarantined_chunk_ids(ids)
         return [
             {
                 "chunk_id": chunk_id,
@@ -209,8 +265,10 @@ class HybridIndexer:
                 "chunk_index": int(metadata["chunk_index"]),
                 "score": _distance_to_score(distance),
                 "raw_file_path": metadata.get("raw_file_path", ""),
+                "metadata": _chunk_metadata_from_vector(metadata),
             }
             for chunk_id, document, metadata, distance in zip(ids, documents, metadatas, distances)
+            if chunk_id not in quarantined
         ]
 
     def _query_collection(self, *, query_vector: List[float], n_results: int) -> Dict[str, Any]:
@@ -239,6 +297,8 @@ class HybridIndexer:
         return result_box[0]
 
     def get_chunk(self, chunk_id: str) -> Optional[Dict[str, Any]]:
+        if chunk_id in self._quarantined_chunk_ids([chunk_id]):
+            return None
         result = self.collection.get(
             ids=[chunk_id],
             include=["documents", "metadatas", "embeddings"],
@@ -255,6 +315,7 @@ class HybridIndexer:
             "chunk_index": metadata["chunk_index"],
             "created_at": metadata["created_at"],
             "raw_file_path": metadata.get("raw_file_path", ""),
+            "metadata": _chunk_metadata_from_vector(metadata),
         }
 
     def count_chunks(self) -> int:
@@ -272,6 +333,56 @@ class HybridIndexer:
             chunk_id: (metadata or {}).get("raw_file_path", "")
             for chunk_id, metadata in zip(result.get("ids", []), result.get("metadatas", []))
         }
+
+    def _quarantine(self, chunk_ids: List[str], *, reason: str) -> None:
+        with self._connect() as connection:
+            connection.executemany(
+                "INSERT OR REPLACE INTO index_quarantine(chunk_id, reason) VALUES (?, ?)",
+                [(chunk_id, reason) for chunk_id in chunk_ids],
+            )
+
+    def _quarantined_chunk_ids(self, chunk_ids: List[str]) -> set:
+        if not chunk_ids:
+            return set()
+        placeholders = ",".join("?" for _ in chunk_ids)
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"SELECT chunk_id FROM index_quarantine WHERE chunk_id IN ({placeholders})",
+                chunk_ids,
+            ).fetchall()
+        return {row[0] for row in rows}
+
+
+def _vector_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
+    """Keep generated provenance queryable while fitting Chroma scalar metadata."""
+    result = {}
+    for key, value in (metadata or {}).items():
+        if isinstance(value, (str, int, float, bool)):
+            result[key] = value
+        elif value is not None:
+            result[key] = json.dumps(value, ensure_ascii=False, sort_keys=True)
+    return result
+
+
+def _chunk_metadata_from_vector(metadata: Dict[str, Any]) -> Dict[str, Any]:
+    reserved = {"source_name", "source_type", "chunk_index", "created_at", "raw_file_path"}
+    result = {key: value for key, value in (metadata or {}).items() if key not in reserved}
+    for key in ("derived_from_chunk_ids", "derived_from_sources"):
+        value = result.get(key)
+        if isinstance(value, str):
+            try:
+                result[key] = json.loads(value)
+            except json.JSONDecodeError:
+                pass
+    return result
+
+
+def _load_metadata(value: Any) -> Dict[str, Any]:
+    try:
+        decoded = json.loads(value or "{}")
+    except (TypeError, json.JSONDecodeError):
+        return {}
+    return decoded if isinstance(decoded, dict) else {}
 
 
 def _tokenize(text: str) -> str:

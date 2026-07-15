@@ -44,11 +44,14 @@ def build_deepseek_analysis_prompt(
 ) -> str:
     references = []
     for index, chunk in enumerate(chunks, start=1):
+        context_label = "generated secondary context" if chunk.source_type == "generated_asset" else "primary source context"
         references.append(
             f"--- chunk_{index}\n"
             f"source: {chunk.source_name}#{chunk.chunk_index}\n"
+            f"context: {context_label}\n"
             f"text: {chunk.text}"
         )
+    generated_instruction = _generated_knowledge_instruction(chunks)
     org_chart_instruction = _org_chart_grounding_instruction(chunks)
     if include_chinese_advice:
         return f"""你是一个个人知识库中文问答助手。用户给出了一个问题，以及从其个人资料库中检索到的相关材料。
@@ -62,6 +65,7 @@ def build_deepseek_analysis_prompt(
 5. 如果资料不足，明确说明当前知识库缺少哪些信息
 {NO_ANSWER_CONSTRAINT}
 {org_chart_instruction}
+{generated_instruction}
 
 [参考内容]
 {chr(10).join(references)}
@@ -91,6 +95,7 @@ English Report mode:
 3. 梳理材料之间的逻辑关系（因果、时间线、对比等）
 {NO_ANSWER_CONSTRAINT}
 {org_chart_instruction}
+{generated_instruction}
 
 输出 JSON 格式：
 {{
@@ -123,10 +128,25 @@ def _org_chart_grounding_instruction(chunks: List[RetrievedChunk]) -> str:
 """.strip()
 
 
+def _generated_knowledge_instruction(chunks: List[RetrievedChunk]) -> str:
+    if not any(chunk.source_type == "generated_asset" for chunk in chunks):
+        return ""
+    return """
+Generated knowledge chunks are previous model-generated syntheses that the user saved to the knowledge base.
+Treat them as secondary context, not primary evidence. Prefer primary source chunks for factual claims and do not promote generated wording into an unsupported fact.
+""".strip()
+
+
 def build_english_report_prompt(question: str, analysis: str, chunks: List[RetrievedChunk]) -> str:
     references = []
     for index, chunk in enumerate(chunks, start=1):
-        references.append(f"--- chunk_{index} ({chunk.source_name}#{chunk.chunk_index})\n{chunk.text}")
+        context_label = "generated secondary context" if chunk.source_type == "generated_asset" else "primary source context"
+        references.append(
+            f"--- chunk_{index} ({chunk.source_name}#{chunk.chunk_index})\n"
+            f"context: {context_label}\n"
+            f"{chunk.text}"
+        )
+    generated_instruction = _generated_knowledge_instruction(chunks)
     return f"""You are writing an English report based on a personal knowledge base.
 
 DeepSeek analysis:
@@ -134,6 +154,8 @@ DeepSeek analysis:
 
 Original references:
 {chr(10).join(references)}
+
+{generated_instruction}
 
 User question:
 {question}
@@ -219,6 +241,24 @@ async def generate_answer(
         return
 
     normalized_language = language if language in {"zh", "en"} else "zh"
+    if _is_generated_only_retrieval(chunks):
+        message = (
+            "仅检索到历史生成摘要，缺少可用于事实结论的原始资料。"
+            if normalized_language == "zh"
+            else "Only historical generated summaries were found; primary source material is missing for factual conclusions."
+        )
+        yield _sse({"type": "token", "content": message})
+        yield _sse(
+            _sources_event(
+                chunks,
+                debug_payload=debug_payload,
+                evidence_payload=evidence_payload,
+                source_status="generated_only",
+            )
+        )
+        yield _sse({"type": "done"})
+        return
+
     if not _is_deepseek_available(deepseek_endpoint, deepseek_client):
         yield _sse({"type": "token", "content": "DeepSeek 模型未配置。"})
         yield _sse(_sources_event(chunks, debug_payload=debug_payload, evidence_payload=evidence_payload))
@@ -320,8 +360,11 @@ def _sources_event(
     answer: str = "",
     debug_payload: Optional[dict] = None,
     evidence_payload: Optional[dict] = None,
+    source_status: Optional[str] = None,
 ) -> dict:
-    if _is_no_answer(answer):
+    if source_status == "generated_only":
+        event = {"type": "sources", "source_status": "generated_only", "sources": []}
+    elif _is_no_answer(answer):
         event = {"type": "sources", "source_status": "no_answer", "sources": []}
     else:
         event = {"type": "sources", "source_status": "grounded", "sources": _sources(chunks)}
@@ -330,6 +373,11 @@ def _sources_event(
     if evidence_payload is not None:
         event["evidence"] = evidence_payload
     return event
+
+
+def _is_generated_only_retrieval(chunks: Iterable[RetrievedChunk]) -> bool:
+    retrieved = list(chunks)
+    return bool(retrieved) and all(chunk.source_type == "generated_asset" for chunk in retrieved)
 
 
 def _is_no_answer(answer: str) -> bool:

@@ -18,6 +18,7 @@ const askState = {
   answerMode: "answer",
   modelRoute: "",
   createdAt: "",
+  answerCompleted: false,
   savedAssetId: "",
   messages: [],
 };
@@ -41,6 +42,7 @@ function resetAskStateForKnowledgeUpdate() {
   askState.answerMode = "answer";
   askState.modelRoute = "";
   askState.createdAt = "";
+  askState.answerCompleted = false;
   askState.savedAssetId = "";
   askState.messages = [];
 }
@@ -73,6 +75,7 @@ function collectEmbeddedState() {
       answerMode: askState.answerMode,
       modelRoute: askState.modelRoute,
       createdAt: askState.createdAt,
+      answerCompleted: askState.answerCompleted,
       savedAssetId: askState.savedAssetId,
       messages: askState.messages,
     },
@@ -775,6 +778,7 @@ function restoreAskConversation(state) {
   askState.answerMode = typeof state.answerMode === "string" ? state.answerMode : "answer";
   askState.modelRoute = typeof state.modelRoute === "string" ? state.modelRoute : "";
   askState.createdAt = typeof state.createdAt === "string" ? state.createdAt : "";
+  askState.answerCompleted = state.answerCompleted === true;
   askState.savedAssetId = typeof state.savedAssetId === "string" ? state.savedAssetId : "";
   askState.messages = messages
     .filter((message) => message && typeof message.text === "string")
@@ -858,6 +862,54 @@ function buildAnswerResultSnapshot() {
   };
 }
 
+function updateAnswerOperationState() {
+  const answerCompleted = askState.answerCompleted === true;
+  const pkaEligible = answerCompleted && !["no_answer", "generated_only"].includes(askState.sourceStatus);
+  const localButton = document.getElementById("save-local-asset");
+  const obsidianButton = document.getElementById("publish-obsidian");
+  const pkaButton = document.getElementById("add-pka-retrieval");
+  if (localButton) localButton.disabled = !answerCompleted;
+  if (obsidianButton) obsidianButton.disabled = !answerCompleted;
+  if (pkaButton) pkaButton.disabled = !pkaEligible;
+}
+
+function formatAnswerOperationFeedback(operation, result) {
+  if (operation === "local") return "本地资料已保存";
+  if (operation === "obsidian") {
+    if (result.publication_status === "pending_obsidian") return "本地已保存，Obsidian 待发布";
+    if (result.publication_status === "published") return "已发布到 Obsidian";
+  }
+  if (operation === "pka") {
+    if (result.index_status === "quarantined") return "PKA 索引已隔离，未发布到 Agent10";
+    if (result.index_status === "indexed" && result.publication_status === "pending_agent10") return "PKA 已索引，待 Agent10 发布";
+    if (result.index_status === "indexed" && result.publication_status === "published") return "已加入 PKA 问答检索";
+  }
+  return "操作完成";
+}
+
+async function runAnswerOperation(operation, request) {
+  try {
+    const result = await request();
+    askState.savedAssetId = result.asset_id || result.local_asset?.asset_id || askState.savedAssetId;
+    setFeedback("answer-operation-feedback", formatAnswerOperationFeedback(operation, result));
+    publishEmbeddedSnapshot();
+  } catch (error) {
+    setFeedback("answer-operation-feedback", formatErrorFeedback("操作", error));
+  }
+}
+
+async function saveAnswerAssetLocal() {
+  await runAnswerOperation("local", () => postJSON("api/answer-assets/save-local", buildAnswerResultSnapshot()));
+}
+
+async function publishAnswerAssetToObsidian() {
+  await runAnswerOperation("obsidian", () => postJSON("api/answer-assets/publish-obsidian", buildAnswerResultSnapshot()));
+}
+
+async function addAnswerAssetToPkaRetrieval() {
+  await runAnswerOperation("pka", () => postJSON("api/answer-assets/add-pka-retrieval", buildAnswerResultSnapshot()));
+}
+
 function setupAsk() {
   const form = document.getElementById("query-form");
   const chips = document.querySelectorAll(".empty-chip");
@@ -868,6 +920,10 @@ function setupAsk() {
     });
   });
   document.getElementById("export-word")?.addEventListener("click", () => exportAnswer("word"));
+  document.getElementById("save-local-asset")?.addEventListener("click", saveAnswerAssetLocal);
+  document.getElementById("publish-obsidian")?.addEventListener("click", publishAnswerAssetToObsidian);
+  document.getElementById("add-pka-retrieval")?.addEventListener("click", addAnswerAssetToPkaRetrieval);
+  updateAnswerOperationState();
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const input = document.getElementById("question-input");
@@ -884,6 +940,9 @@ function setupAsk() {
     askState.answerMode = "answer";
     askState.modelRoute = language === "en" ? "dual" : "deepseek";
     askState.createdAt = "";
+    askState.answerCompleted = false;
+    setFeedback("answer-operation-feedback", "");
+    updateAnswerOperationState();
     input.value = "";
     const exportBar = document.getElementById("export-bar");
     if (exportBar) exportBar.style.display = "none";
@@ -962,8 +1021,10 @@ function setupAsk() {
               delete answer.dataset.pending;
             }
             if (!askState.createdAt) askState.createdAt = new Date().toISOString();
+            askState.answerCompleted = true;
             const exportBar = document.getElementById("export-bar");
             if (exportBar) exportBar.style.display = "flex";
+            updateAnswerOperationState();
             publishEmbeddedSnapshot();
           }
         }

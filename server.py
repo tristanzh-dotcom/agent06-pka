@@ -34,6 +34,7 @@ from engine.answer_assets import (
 from engine.evidence import build_evidence_report
 from engine.exporter import export_to_ppt, export_to_word
 from engine.generator import generate_answer
+from engine.generated_knowledge import promote_answer_asset
 from engine.indexer import HybridIndexer, OllamaEmbeddingClient
 from engine.input_fidelity import expand_adjacent_chunks
 from engine.models import Chunk, ParseQuality, ParseResult
@@ -924,6 +925,95 @@ async def add_generated_knowledge_endpoint(request: AddGeneratedKnowledgeRequest
             "storage_status": "agent10_published",
             "indexed": False,
             "local_asset": local_asset,
+            "agent10": agent10_result,
+        },
+    )
+
+
+@app.post("/api/answer-assets/add-pka-retrieval")
+async def add_answer_asset_to_pka_retrieval_endpoint(request: AddGeneratedKnowledgeRequest):
+    payload = request.model_dump() if hasattr(request, "model_dump") else request.dict()
+    if not payload["question"].strip():
+        raise HTTPException(status_code=400, detail="question is required")
+    if not payload["answer"].strip():
+        raise HTTPException(status_code=400, detail="answer is required")
+    if payload.get("source_status") == "no_answer":
+        raise HTTPException(status_code=409, detail="no_answer results cannot be added to knowledge yet")
+    try:
+        local_asset = save_answer_asset(runtime.config["data_dir"], payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    try:
+        promotion = promote_answer_asset(runtime.config["data_dir"], local_asset["asset_id"], runtime.indexer)
+    except Exception as exc:
+        vector_status = getattr(exc, "vector_status", "unknown")
+        fts_status = getattr(exc, "fts_status", "unknown")
+        quarantined = vector_status == "quarantined"
+        update_answer_asset_manifest(
+            runtime.config["data_dir"],
+            local_asset["asset_id"],
+            {"rag_status": "index_quarantined" if quarantined else "index_failed"},
+        )
+        return JSONResponse(
+            status_code=202,
+            content={
+                "status": "partial",
+                "local_status": "saved",
+                "index_status": "quarantined" if quarantined else "failed",
+                "fts_status": fts_status,
+                "vector_status": vector_status,
+                "publication_status": "not_attempted",
+                "local_asset": local_asset,
+                "index_error": str(exc),
+            },
+        )
+    update_answer_asset_manifest(
+        runtime.config["data_dir"],
+        local_asset["asset_id"],
+        {"rag_status": "indexed", "generated_knowledge": promotion},
+    )
+    local_asset_dir = str((Path(runtime.config["data_dir"]) / local_asset["asset_path"]).resolve())
+    base_response = {
+        "local_status": "saved",
+        "index_status": "indexed",
+        "local_asset": local_asset,
+        "promotion": promotion,
+    }
+    if not _agent10_control_token():
+        update_answer_asset_manifest(runtime.config["data_dir"], local_asset["asset_id"], {"publication_status": "pending_agent10"})
+        return JSONResponse(
+            status_code=202,
+            content={
+                **base_response,
+                "status": "partial",
+                "publication_status": "pending_agent10",
+                "agent10": {"error": "Agent10 producer API is not configured."},
+            },
+        )
+    try:
+        agent10_result = _publish_agent10_agent06_asset(local_asset_dir)
+    except Exception as exc:
+        update_answer_asset_manifest(runtime.config["data_dir"], local_asset["asset_id"], {"publication_status": "pending_agent10"})
+        return JSONResponse(
+            status_code=202,
+            content={
+                **base_response,
+                "status": "partial",
+                "publication_status": "pending_agent10",
+                "agent10": {"error": str(exc)},
+            },
+        )
+    update_answer_asset_manifest(
+        runtime.config["data_dir"],
+        local_asset["asset_id"],
+        {"publication_status": "published", "agent10_asset": agent10_result},
+    )
+    return JSONResponse(
+        status_code=201,
+        content={
+            **base_response,
+            "status": "ok",
+            "publication_status": "published",
             "agent10": agent10_result,
         },
     )

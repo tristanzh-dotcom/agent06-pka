@@ -2,6 +2,9 @@ from pathlib import Path
 
 from engine.answer_assets import save_answer_asset
 from engine.generated_knowledge import promote_answer_asset
+from engine.generator import build_deepseek_analysis_prompt
+from engine.indexer import HybridIndexer
+from engine.models import RetrievedChunk
 
 
 class FakeIndexer:
@@ -11,6 +14,14 @@ class FakeIndexer:
     def upsert(self, chunks, raw_file_paths=None):
         self.calls.append((chunks, raw_file_paths))
         return len(chunks)
+
+
+class FakeEmbeddingClient:
+    def embed(self, texts):
+        return [[1.0, 0.0] for _ in texts]
+
+    def embed_query(self, query):
+        return [1.0, 0.0]
 
 
 def _payload(**overrides):
@@ -55,3 +66,44 @@ def test_promotion_reuses_existing_generated_source_without_reindexing(tmp_path)
     assert first["chunk_ids"] == second["chunk_ids"]
     assert second["outcome"] == "idempotent_reuse"
     assert len(indexer.calls) == 1
+
+
+def test_promotion_preserves_generated_metadata_in_fts_and_vector_results(tmp_path):
+    asset = save_answer_asset(str(tmp_path), _payload())
+    indexer = HybridIndexer(
+        fts_db_path=str(tmp_path / "pka.db"),
+        vector_dir=str(tmp_path / "vector"),
+        collection_name="generated_metadata",
+        embedding_client=FakeEmbeddingClient(),
+    )
+
+    promote_answer_asset(str(tmp_path), asset["asset_id"], indexer)
+
+    fts_result = indexer.search_fts("稳定边界", top_k=1)[0]
+    vector_result = indexer.search_vector("稳定边界", top_k=1)[0]
+    assert fts_result["metadata"]["generated"] is True
+    assert fts_result["metadata"]["not_primary_source"] is True
+    assert vector_result["metadata"]["generated"] is True
+    assert vector_result["metadata"]["derived_from_chunk_ids"] == ["architecture.md#2"]
+
+
+def test_generated_chunks_are_labeled_as_secondary_context_in_prompt():
+    prompt = build_deepseek_analysis_prompt(
+        "我之前的技术选型结论是什么？",
+        [
+            RetrievedChunk(
+                chunk_id="generated.md#0",
+                text="先稳定边界，再逐步扩展。",
+                source_name="generated.md",
+                source_type="generated_asset",
+                chunk_index=0,
+                score=0.9,
+                rank_fts5=1,
+                rank_vector=1,
+            )
+        ],
+    )
+
+    assert "Generated knowledge chunks" in prompt
+    assert "secondary context" in prompt
+    assert "not primary evidence" in prompt

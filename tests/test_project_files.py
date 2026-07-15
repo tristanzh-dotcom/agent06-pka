@@ -640,8 +640,10 @@ def test_ask_page_publishes_explicit_destination_controls_without_legacy_side_ef
     assert "function buildAnswerResultSnapshot" in app_js
     assert 'document.getElementById("export-word")?.addEventListener("click", () => exportAnswer("word"))' in app_js
     assert 'source_status: askState.sourceStatus || "grounded"' in app_js
-    assert "saveAnswerAsset" not in app_js
-    assert "addAnswerResultToKnowledge" not in app_js
+    assert "function saveAnswerAssetLocal" in app_js
+    assert "function publishAnswerAssetToObsidian" in app_js
+    assert "function addAnswerAssetToPkaRetrieval" in app_js
+    assert "function updateAnswerOperationState" in app_js
     assert 'api/knowledge/add-generated' not in app_js
     assert 'exportAnswer("ppt")' not in app_js
     assert ".answer-destination" in style_css

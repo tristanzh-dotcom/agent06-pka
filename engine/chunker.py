@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 import re
-from typing import Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from engine.models import Chunk
 
@@ -15,6 +15,7 @@ def chunk_text(
     source_type: str,
     max_chunk_size: int = 1024,
     chunk_overlap: int = 128,
+    metadata: Optional[Dict[str, Any]] = None,
 ) -> List[Chunk]:
     if not text or not text.strip():
         return []
@@ -42,6 +43,7 @@ def chunk_text(
             chunk_index=index,
             created_at=created_at,
             embedding_text=embedding_text,
+            metadata=dict(metadata or {}),
         )
         for index, (chunk, embedding_text) in enumerate(chunk_records)
         if chunk.strip()

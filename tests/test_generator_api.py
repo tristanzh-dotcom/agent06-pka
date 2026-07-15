@@ -119,6 +119,19 @@ def sample_chunk():
     )
 
 
+def sample_generated_chunk():
+    return RetrievedChunk(
+        chunk_id="generated/answer.md#0",
+        text="这是此前由模型生成并保存的组织架构总结。",
+        source_name="generated/answer.md",
+        source_type="generated_asset",
+        chunk_index=0,
+        score=0.9,
+        rank_fts5=1,
+        rank_vector=1,
+    )
+
+
 def sample_file_chunk():
     return RetrievedChunk(
         chunk_id="report.pdf#0",
@@ -441,6 +454,95 @@ async def test_generate_answer_returns_empty_knowledge_message_without_llm():
 
     assert events[0] == {"type": "token", "content": "暂无相关内容。"}
     assert events[-1] == {"type": "done"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("language", "expected_message"),
+    [
+        ("zh", "仅检索到历史生成摘要，缺少可用于事实结论的原始资料。"),
+        ("en", "Only historical generated summaries were found; primary source material is missing for factual conclusions."),
+    ],
+)
+async def test_generate_answer_rejects_generated_only_retrieval_without_model_calls(language, expected_message):
+    deepseek_client = FakeDeepSeekClient()
+    llm_client = FakeLLMClient()
+    events = []
+
+    async for event in generate_answer(
+        question="组织架构应该怎么调整？",
+        chunks=[sample_generated_chunk()],
+        language=language,
+        deepseek_endpoint="https://deepseek.example",
+        deepseek_api_key="deepseek-secret",
+        deepseek_model="deepseek-v4-pro",
+        generation_endpoint="https://example.test",
+        generation_api_key="secret",
+        generation_model="codex-base",
+        deepseek_client=deepseek_client,
+        llm_client=llm_client,
+    ):
+        events.append(json.loads(event.removeprefix("data: ").strip()))
+
+    token_text = "".join(event.get("content", "") for event in events if event["type"] == "token")
+    sources_event = next(event for event in events if event["type"] == "sources")
+    assert token_text == expected_message
+    assert sources_event["source_status"] == "generated_only"
+    assert sources_event["source_status"] != "grounded"
+    assert sources_event["sources"] == []
+    assert deepseek_client.prompts == []
+    assert llm_client.prompts == []
+
+
+@pytest.mark.asyncio
+async def test_generate_answer_allows_mixed_primary_and_generated_retrieval():
+    deepseek_client = FakeDeepSeekClient()
+    events = []
+
+    async for event in generate_answer(
+        question="组织架构应该怎么调整？",
+        chunks=[sample_chunk(), sample_generated_chunk()],
+        language="zh",
+        deepseek_endpoint="https://deepseek.example",
+        deepseek_api_key="deepseek-secret",
+        deepseek_model="deepseek-v4-pro",
+        deepseek_client=deepseek_client,
+    ):
+        events.append(json.loads(event.removeprefix("data: ").strip()))
+
+    sources_event = next(event for event in events if event["type"] == "sources")
+    assert len(deepseek_client.prompts) == 1
+    assert "generated secondary context" in deepseek_client.prompts[0]
+    assert sources_event["source_status"] == "grounded"
+    assert {source["source_type"] for source in sources_event["sources"]} == {"txt", "generated_asset"}
+
+
+@pytest.mark.asyncio
+async def test_remote_english_report_labels_generated_chunks_as_secondary_context():
+    deepseek_client = FakeDeepSeekClient()
+    llm_client = FakeLLMClient()
+    events = []
+
+    async for event in generate_answer(
+        question="Write an English report about the organisation.",
+        chunks=[sample_chunk(), sample_generated_chunk()],
+        language="en",
+        deepseek_endpoint="https://deepseek.example",
+        deepseek_api_key="deepseek-secret",
+        deepseek_model="deepseek-v4-pro",
+        generation_endpoint="https://example.test",
+        generation_api_key="secret",
+        generation_model="codex-base",
+        deepseek_client=deepseek_client,
+        llm_client=llm_client,
+    ):
+        events.append(json.loads(event.removeprefix("data: ").strip()))
+
+    sources_event = next(event for event in events if event["type"] == "sources")
+    assert len(llm_client.prompts) == 1
+    assert "generated secondary context" in llm_client.prompts[0]
+    assert "not primary evidence" in llm_client.prompts[0]
+    assert sources_event["source_status"] == "grounded"
 
 
 @pytest.mark.asyncio
