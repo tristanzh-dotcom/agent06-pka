@@ -16,6 +16,9 @@ Prevent context-dependent follow-ups and unrelated queries from producing fabric
 5. Users can start a new conversation. Only the active conversation is visible in the workbench; previous conversations remain browser-local history and are not added to retrieval automatically.
 6. A follow-up uses only the immediately preceding user question as a deterministic retrieval anchor. Previous answer text and full history are not sent to the model.
 7. Generated answer assets remain secondary retrieval context. They cannot by themselves establish grounded evidence and are ranked after primary chunks unless the user explicitly asks for a prior summary or judgement.
+8. An answer must not assign a source character's identity, responsibility or
+   experience to the user unless the user explicitly states that they are that
+   person. Advice uses neutral source-grounded labels such as `该负责人`.
 
 ## P0: Grounded retrieval gate
 

@@ -63,6 +63,7 @@ def build_deepseek_analysis_prompt(
 3. 给出具体、可执行的中文个人建议
 4. 在回答末尾列出来源，格式为“来源：文件名#段落号”
 5. 如果资料不足，明确说明当前知识库缺少哪些信息
+6. 不要把资料中的人物身份、职责或经历归因于用户本人；除非用户明确说明自己就是该人物，否则使用“该负责人”“资料中的人物”等中性称呼
 {NO_ANSWER_CONSTRAINT}
 {org_chart_instruction}
 {generated_instruction}

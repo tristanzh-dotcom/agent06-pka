@@ -26,6 +26,7 @@ class AcceptanceCase:
     question: str
     expected_status: str
     required_answer_terms: tuple[str, ...] = ()
+    forbidden_answer_terms: tuple[str, ...] = ()
     previous_question: Optional[str] = None
 
 
@@ -51,6 +52,7 @@ def acceptance_cases() -> tuple[AcceptanceCase, ...]:
             previous_question=initial_question,
             expected_status="grounded",
             required_answer_terms=("2026年9月10日",),
+            forbidden_answer_terms=("你是项目负责人", "既然你是"),
         ),
         AcceptanceCase(
             key="context_free_follow_up",
@@ -128,6 +130,9 @@ def evaluate_case(case: AcceptanceCase, events: Iterable[dict]) -> dict:
     for term in case.required_answer_terms:
         if _compact(term) not in compact_answer:
             failures.append(f"answer omitted required fact: {term}")
+    for term in case.forbidden_answer_terms:
+        if _compact(term) in compact_answer:
+            failures.append(f"unsupported inference appeared in answer: {term}")
     return {
         "key": case.key,
         "question": case.question,

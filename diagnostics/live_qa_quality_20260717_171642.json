@@ -1,0 +1,53 @@
+{
+  "status": "passed",
+  "provider": "DeepSeek",
+  "model": "deepseek-v4-pro",
+  "data_boundary": "synthetic text only; no user documents or live knowledge-base chunks",
+  "executed_at": "2026-07-17T17:16:42.847979+08:00",
+  "cases": [
+    {
+      "key": "grounded_initial",
+      "question": "合成测试项目 Alpha 的发布日期和负责人是谁？",
+      "previous_question": null,
+      "expected_status": "grounded",
+      "source_status": "grounded",
+      "source_count": 1,
+      "answer": "合成测试项目 Alpha 的正式发布日期是 2026 年 9 月 18 日，负责人为林岳。\n\n依据：参考内容明确指出“合成测试项目 Alpha 的正式发布日期为 2026 年 9 月 18 日。项目负责人是林岳。”\n\n来源：qa-live-synthetic.txt#0",
+      "failures": [],
+      "passed": true
+    },
+    {
+      "key": "grounded_follow_up",
+      "question": "那负责人需要在什么时候完成发布检查清单？",
+      "previous_question": "合成测试项目 Alpha 的发布日期和负责人是谁？",
+      "expected_status": "grounded",
+      "source_status": "grounded",
+      "source_count": 1,
+      "answer": "合成测试项目 Alpha 的正式发布日期是 2026 年 9 月 18 日，负责人是林岳。\n\n根据资料，林岳需要在 2026 年 9 月 10 日前完成发布检查清单。建议该负责人尽早梳理清单内容，确保在截止日期前逐项核对，避免延误整体发布进度。\n\n来源：qa-live-synthetic.txt#0",
+      "failures": [],
+      "passed": true
+    },
+    {
+      "key": "context_free_follow_up",
+      "question": "那这个项目呢？",
+      "previous_question": null,
+      "expected_status": "clarification_required",
+      "source_status": "clarification_required",
+      "source_count": 0,
+      "answer": "这个问题需要上一轮主题才能继续。请明确说明要基于哪条资料或重新完整描述问题。",
+      "failures": [],
+      "passed": true
+    },
+    {
+      "key": "out_of_corpus",
+      "question": "合成测试项目 Beta 的预算是多少？",
+      "previous_question": null,
+      "expected_status": "no_answer",
+      "source_status": "no_answer",
+      "source_count": 0,
+      "answer": "当前知识库缺少相关信息，无法回答该问题。建议补充相关资料后重新提问。",
+      "failures": [],
+      "passed": true
+    }
+  ]
+}
