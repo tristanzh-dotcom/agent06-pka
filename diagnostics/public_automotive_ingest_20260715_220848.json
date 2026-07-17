@@ -1,0 +1,61 @@
+{
+  "base_url": "http://127.0.0.1:52306",
+  "failures": [],
+  "finished_at": "2026-07-16T06:08:48+08:00",
+  "manifest": [
+    {
+      "allow_quality_accept": false,
+      "anchor_query": "CAN bus vehicle monitor",
+      "enabled": true,
+      "exclusion_reason": "",
+      "expected_mime_types": [
+        "text/plain",
+        "text/markdown"
+      ],
+      "filename": "nuscenes_can_bus_README.md",
+      "key": "nuscenes_can_bus_markdown",
+      "url": "https://raw.githubusercontent.com/nutonomy/nuscenes-devkit/refs/heads/master/python-sdk/nuscenes/can_bus/README.md"
+    }
+  ],
+  "runtime_root": "/var/folders/by/ryk2x0p133n0q7syh20tp2l40000gn/T/pka-public-automotive-ingest-v4gju_4c",
+  "samples": [
+    {
+      "bytes": 8602,
+      "chunks": 11,
+      "coverage": {
+        "counts": {
+          "characters": 8602,
+          "lines": 144
+        },
+        "format": "md",
+        "status": "complete",
+        "warnings": []
+      },
+      "delete_reupload": {
+        "deleted": true,
+        "reuploaded": true
+      },
+      "duplicate": {
+        "blocked": true,
+        "status": "duplicate"
+      },
+      "key": "nuscenes_can_bus_markdown",
+      "mime_type": "text/plain",
+      "quality": {},
+      "recall": {
+        "fts": true,
+        "vector": true
+      },
+      "retrieved_at": "2026-07-16T05:53:45+08:00",
+      "sha256": "5dc8055180339dc68b6e7b7f9b479b762e4313ccf4ff94429103f40464b369d3",
+      "status": "passed",
+      "upload": {
+        "source_id": "source_11a5af1215cb4018b0ec97f5e345067a",
+        "status": "ok"
+      },
+      "url": "https://raw.githubusercontent.com/nutonomy/nuscenes-devkit/refs/heads/master/python-sdk/nuscenes/can_bus/README.md"
+    }
+  ],
+  "started_at": "2026-07-16T05:53:44+08:00",
+  "status": "passed"
+}

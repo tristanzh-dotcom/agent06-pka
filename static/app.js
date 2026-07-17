@@ -9,6 +9,9 @@ async function postJSON(url, payload) {
 }
 
 const askState = {
+  conversationId: "",
+  resetToken: "",
+  sessions: [],
   question: "",
   language: "zh",
   answer: "",
@@ -23,6 +26,10 @@ const askState = {
   messages: [],
 };
 
+const MAX_CONVERSATION_MESSAGES = 20;
+const MAX_CONVERSATION_SESSIONS = 30;
+let askRequestInFlight = false;
+
 let selectedFiles = [];
 let fileUploadResults = [];
 let expandedQualityFiles = new Set();
@@ -33,7 +40,16 @@ const ORG_CHART_SLOT_INDEX = 5;
 const MAX_UPLOAD_FEEDBACK = "最多上传 6 个文件，请先移除一个文件。";
 const OCR_TASK_POLL_INTERVAL_MS = 1500;
 
-function resetAskStateForKnowledgeUpdate() {
+function createConversationId() {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+  return `conversation-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function ensureActiveConversation() {
+  if (!askState.conversationId) askState.conversationId = createConversationId();
+}
+
+function resetActiveConversationFields() {
   askState.question = "";
   askState.answer = "";
   askState.sources = [];
@@ -47,17 +63,70 @@ function resetAskStateForKnowledgeUpdate() {
   askState.messages = [];
 }
 
+function activeConversationSnapshot() {
+  ensureActiveConversation();
+  return {
+    id: askState.conversationId,
+    resetToken: askState.resetToken,
+    question: askState.question,
+    language: askState.language,
+    answer: askState.answer,
+    sources: askState.sources,
+    sourceStatus: askState.sourceStatus,
+    evidence: askState.evidence,
+    answerMode: askState.answerMode,
+    modelRoute: askState.modelRoute,
+    createdAt: askState.createdAt,
+    answerCompleted: askState.answerCompleted,
+    savedAssetId: askState.savedAssetId,
+    messages: askState.messages.slice(-MAX_CONVERSATION_MESSAGES),
+  };
+}
+
+function syncActiveConversation() {
+  const snapshot = activeConversationSnapshot();
+  const existingIndex = askState.sessions.findIndex((session) => session?.id === snapshot.id);
+  if (existingIndex >= 0) askState.sessions[existingIndex] = snapshot;
+  else askState.sessions.push(snapshot);
+  askState.sessions = askState.sessions.slice(-MAX_CONVERSATION_SESSIONS);
+}
+
+function resetAskStateForKnowledgeUpdate() {
+  askState.sessions = [];
+  askState.conversationId = createConversationId();
+  askState.resetToken = createConversationId();
+  resetActiveConversationFields();
+  syncActiveConversation();
+}
+
+function startNewConversation() {
+  if (askRequestInFlight) return;
+  syncActiveConversation();
+  askState.conversationId = createConversationId();
+  askState.resetToken = createConversationId();
+  resetActiveConversationFields();
+  syncActiveConversation();
+  const box = document.getElementById("conversation");
+  if (box) box.innerHTML = "";
+  const exportBar = document.getElementById("export-bar");
+  if (exportBar) exportBar.style.display = "none";
+  updateAnswerOperationState();
+  publishEmbeddedSnapshot();
+}
+
 function currentEmbeddedRoute() {
   return `${window.location.pathname}${window.location.search}${window.location.hash}`;
 }
 
 function notifyKnowledgeUpdated(action) {
   resetAskStateForKnowledgeUpdate();
+  publishEmbeddedSnapshot();
   if (window.parent === window) return;
   window.parent.postMessage({ type: "agent06:knowledge-updated", action }, window.location.origin);
 }
 
 function collectEmbeddedState() {
+  syncActiveConversation();
   return {
     route: currentEmbeddedRoute(),
     textInput: document.getElementById("text-input")?.value || "",
@@ -66,6 +135,9 @@ function collectEmbeddedState() {
     questionInput: document.getElementById("question-input")?.value || "",
     language: document.querySelector('input[name="language"]:checked')?.value || "",
     ask: {
+      conversationId: askState.conversationId,
+      resetToken: askState.resetToken,
+      sessions: askState.sessions,
       question: askState.question,
       language: askState.language,
       answer: askState.answer,
@@ -153,11 +225,20 @@ function setFeedback(id, value) {
 
 function formatIngestFeedback(result, actionLabel) {
   if (!result) return `${actionLabel}失败。`;
+  if (["duplicate", "duplicate_pending"].includes(result.status)) {
+    return result.message || `${actionLabel}检测到完全相同的内容，未重复录入。`;
+  }
   if (result.status === "accepted") {
     return `${actionLabel}已提交 · ${qualityStatusMessage(result) || "后台 OCR 排队中"}`;
   }
   if (result.status === "skipped") {
     return `${actionLabel}未入库 · ${qualityStatusMessage(result) || "需 OCR 未入库"}`;
+  }
+  if (result.status === "review_required") {
+    return result.message || `${actionLabel}需要确认质量后再入库。`;
+  }
+  if (result.status === "version_conflict") {
+    return result.message || `${actionLabel}检测到同名资料的不同版本，请选择处理方式。`;
   }
   if (result.status !== "ok") return `${actionLabel}失败。`;
   const parts = [`${actionLabel}完成`];
@@ -197,11 +278,16 @@ function qualityStatusMessage(result) {
   if (action === "ocr_timeout_skipped") return "OCR 超时未入库 · 未进入主知识库，避免污染检索";
   if (result?.status === "accepted" || result?.status === "queued") return "后台 OCR 排队中 · 未进入主知识库";
   if (result?.status === "processing") return "后台 OCR 处理中 · 未进入主知识库";
+  if (result?.status === "duplicate_pending") return "检测到完全相同的资料正在处理 · 未创建重复任务";
+  if (result?.status === "duplicate") return "检测到完全相同的资料 · 未重复录入";
   if (result?.status === "failed") return "后台 OCR 失败 · 未进入主知识库";
   return "";
 }
 
 function qualityBadge(result) {
+  if (["duplicate", "duplicate_pending"].includes(result?.status)) {
+    return { className: "quality-blocked", text: "重复未录入" };
+  }
   if (result?.quality?.action === "too_large_skipped") {
     return { className: "quality-blocked", text: "文件过大，未入库" };
   }
@@ -339,7 +425,127 @@ function uploadSlotStatus(result) {
   if (result.status === "processing") return "processing";
   if (result.status === "completed") return "complete";
   if (result.status === "skipped") return "skipped";
+  if (result.status === "duplicate" || result.status === "duplicate_pending") return "skipped";
+  if (result.status === "review_required" || result.status === "version_conflict") return "skipped";
   return "complete";
+}
+
+async function uploadFileWithPolicies(slotIndex, policies = {}) {
+  const file = selectedFiles[slotIndex];
+  if (!file) return;
+  const form = new FormData();
+  form.append("file", file);
+  form.append("org_chart_mode", slotIndex === ORG_CHART_SLOT_INDEX ? "enabled" : "disabled");
+  if (policies.quality_policy) form.append("quality_policy", policies.quality_policy);
+  if (policies.version_policy) form.append("version_policy", policies.version_policy);
+  setFeedback("file-feedback", `正在处理 ${file.name}…`);
+  try {
+    const response = await fetch("api/ingest/file", { method: "POST", body: form });
+    if (!response.ok) throw new Error(await response.text());
+    const result = await response.json();
+    fileUploadResults[slotIndex] = { filename: file.name, ...result };
+    renderUploadSlots();
+    setFeedback("file-feedback", formatIngestFeedback(result, "上传"));
+    if (result.status === "ok") {
+      notifyKnowledgeUpdated("ingest:file:decision");
+      await loadIngestSources();
+    }
+    startUploadTaskPolling([fileUploadResults[slotIndex]]);
+    publishEmbeddedSnapshot();
+  } catch (error) {
+    setFeedback("file-feedback", formatErrorFeedback("上传", error));
+  }
+}
+
+async function deleteIngestSource(sourceId, successMessage = "资料已删除。") {
+  const response = await fetch(`api/ingest/sources/${encodeURIComponent(sourceId)}`, { method: "DELETE" });
+  if (!response.ok) throw new Error(await response.text());
+  await loadIngestSources();
+  setFeedback("file-feedback", successMessage);
+  notifyKnowledgeUpdated("ingest:source:delete");
+}
+
+function appendUploadDecisionActions(row, result, slotIndex) {
+  if (!result) return;
+  const actions = document.createElement("div");
+  actions.className = "upload-decision-actions";
+  const addAction = (label, handler, primary = false) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = label;
+    if (primary) button.className = "is-primary";
+    button.addEventListener("click", handler);
+    actions.appendChild(button);
+  };
+  if (result.status === "review_required") {
+    addAction("仍然入库", () => uploadFileWithPolicies(slotIndex, { quality_policy: "accept" }), true);
+    addAction("取消", () => {
+      fileUploadResults[slotIndex] = null;
+      renderUploadSlots();
+    });
+  } else if (result.status === "version_conflict") {
+    addAction("替换旧版本", () => uploadFileWithPolicies(slotIndex, { version_policy: "replace" }), true);
+    addAction("同时保留", () => uploadFileWithPolicies(slotIndex, { version_policy: "keep" }));
+    addAction("取消", () => {
+      fileUploadResults[slotIndex] = null;
+      renderUploadSlots();
+    });
+  } else if (["ok", "completed"].includes(result.status) && result.source_id) {
+    addAction("撤销本次录入", async () => {
+      try {
+        await deleteIngestSource(result.source_id, `已撤销 ${result.filename || selectedFiles[slotIndex]?.name || "本次录入"}。`);
+        fileUploadResults[slotIndex] = null;
+        renderUploadSlots();
+      } catch (error) {
+        setFeedback("file-feedback", formatErrorFeedback("撤销", error));
+      }
+    });
+  }
+  if (actions.childElementCount) row.appendChild(actions);
+}
+
+async function loadIngestSources() {
+  const list = document.getElementById("ingest-source-list");
+  if (!list) return;
+  try {
+    const response = await fetch("api/ingest/sources");
+    if (!response.ok) throw new Error(await response.text());
+    const result = await response.json();
+    list.textContent = "";
+    if (!result.sources?.length) {
+      list.textContent = "暂无已录入资料。";
+      return;
+    }
+    for (const source of result.sources) {
+      const row = document.createElement("div");
+      row.className = "source-row";
+      const info = document.createElement("div");
+      const name = document.createElement("div");
+      name.className = "source-row-name";
+      name.textContent = source.original_name || source.source_name;
+      name.title = name.textContent;
+      const meta = document.createElement("div");
+      meta.className = "source-row-meta";
+      meta.textContent = `${source.chunk_count || 0} 个片段 · ${source.created_at || "时间未知"}`;
+      info.append(name, meta);
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.textContent = "删除资料";
+      remove.addEventListener("click", async () => {
+        remove.disabled = true;
+        try {
+          await deleteIngestSource(source.source_id, `已删除 ${name.textContent}。`);
+        } catch (error) {
+          remove.disabled = false;
+          setFeedback("file-feedback", formatErrorFeedback("删除", error));
+        }
+      });
+      row.append(info, remove);
+      list.appendChild(row);
+    }
+  } catch (error) {
+    list.textContent = `资料列表读取失败：${humanizeErrorMessage(error)}`;
+  }
 }
 
 function selectedFileEntries() {
@@ -434,6 +640,9 @@ function summarizeBatchFeedback(result) {
   const parts = [
     result.status === "partial" ? "部分上传完成" : result.status === "accepted" ? "上传已提交" : "上传完成",
     `${result.succeeded || 0} 个成功`,
+    `${result.duplicates || 0} 个重复`,
+    `${result.review_required || 0} 个待质量确认`,
+    `${result.version_conflicts || 0} 个版本待处理`,
     `${result.accepted || 0} 个后台 OCR`,
     `${result.skipped || 0} 个未入库`,
     `${result.failed || 0} 个失败`,
@@ -448,7 +657,16 @@ function summarizeBatchFeedback(result) {
   const accepted = result.files
     .filter((item) => ["accepted", "queued", "processing"].includes(item.status))
     .map((item) => `${item.filename}：${qualityStatusMessage(item) || "后台 OCR 排队中"}`);
-  const detail = accepted.concat(skipped, failed);
+  const duplicates = result.files
+    .filter((item) => item.status === "duplicate" || item.status === "duplicate_pending")
+    .map((item) => `${item.filename}：${item.message || qualityStatusMessage(item) || "完全相同，未重复录入"}`);
+  const reviews = result.files
+    .filter((item) => item.status === "review_required")
+    .map((item) => `${item.filename}：质量或提取完整性需要确认`);
+  const conflicts = result.files
+    .filter((item) => item.status === "version_conflict")
+    .map((item) => `${item.filename}：已有同名不同内容的资料`);
+  const detail = duplicates.concat(reviews, conflicts, accepted, skipped, failed);
   return detail.length ? `${parts.join(" · ")}\n${detail.join("\n")}` : parts.join(" · ");
 }
 
@@ -456,14 +674,20 @@ function summarizeCurrentUploadFeedback() {
   const files = (fileUploadResults || []).filter(Boolean);
   const succeeded = files.filter((item) => ["ok", "completed"].includes(item.status)).length;
   const accepted = files.filter((item) => ["accepted", "queued", "processing"].includes(item.status)).length;
+  const duplicates = files.filter((item) => item.status === "duplicate" || item.status === "duplicate_pending").length;
   const skipped = files.filter((item) => item.status === "skipped").length;
+  const reviewRequired = files.filter((item) => item.status === "review_required").length;
+  const versionConflicts = files.filter((item) => item.status === "version_conflict").length;
   const failed = files.filter((item) => ["error", "failed"].includes(item.status)).length;
   const totalChunks = files.reduce((sum, item) => sum + (Number(item.chunks) || Number(item.result?.chunks_inserted) || 0), 0);
   return summarizeBatchFeedback({
-    status: failed ? "partial" : accepted ? "accepted" : "ok",
+    status: failed || reviewRequired || versionConflicts ? "partial" : accepted ? "accepted" : "ok",
     succeeded,
+    duplicates,
     accepted,
     skipped,
+    review_required: reviewRequired,
+    version_conflicts: versionConflicts,
     failed,
     total_chunks: totalChunks,
     files,
@@ -498,6 +722,9 @@ function mergeUploadTaskResult(current, task) {
     status: task.status,
     progress: Number(task.progress) || 0,
     result,
+    source_id: result.source_id || current?.source_id || "",
+    coverage: result.coverage || current?.coverage || {},
+    raw_file_path: result.raw_file_path || current?.raw_file_path || "",
     chunks,
     quality,
   };
@@ -521,6 +748,10 @@ async function pollUploadTask(taskId) {
       return;
     }
     if (task.status === "failed") {
+      publishEmbeddedSnapshot();
+      return;
+    }
+    if (task.status === "review_required") {
       publishEmbeddedSnapshot();
       return;
     }
@@ -618,13 +849,16 @@ function renderUploadSlots() {
           : status === "processing"
             ? "OCR 处理中"
             : status === "skipped"
-              ? "未入库"
+              ? ["duplicate", "duplicate_pending"].includes(result?.status)
+                ? "重复未录入"
+                : "未入库"
               : status === "complete" && result
                 ? `${result.chunks || 0} 个片段`
                 : formatBytes(file.size);
     meta.title = meta.textContent;
     row.append(head, name, meta);
     renderQualityBadge(row, result, result?.raw_file_path || file.name);
+    appendUploadDecisionActions(row, result, index);
     list.appendChild(row);
   }
 }
@@ -636,6 +870,12 @@ function setupIngest() {
   const fileForm = document.getElementById("file-form");
   const fileInput = document.getElementById("file-input");
   const clearSelectedFiles = document.getElementById("clear-selected-files");
+  const refreshIngestSources = document.getElementById("refresh-ingest-sources");
+  refreshIngestSources?.addEventListener("click", (event) => {
+    event.preventDefault();
+    loadIngestSources();
+  });
+  loadIngestSources();
   textForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const textInput = document.getElementById("text-input");
@@ -707,6 +947,7 @@ function setupIngest() {
       setFeedback("file-feedback", summarizeBatchFeedback(result));
       renderUploadSlots();
       if ((result.succeeded || 0) > 0 || (result.total_chunks || 0) > 0) notifyKnowledgeUpdated("ingest:file");
+      if ((result.succeeded || 0) > 0 || (result.total_chunks || 0) > 0) loadIngestSources();
       startUploadTaskPolling(fileUploadResults.filter(Boolean));
       publishEmbeddedSnapshot();
     } catch (error) {
@@ -724,8 +965,16 @@ function appendMessage(text, role, options = {}) {
   if (!options.skipState) {
     const message = { role, text, sources: [] };
     askState.messages.push(message);
+    if (askState.messages.length > MAX_CONVERSATION_MESSAGES) {
+      askState.messages.shift();
+      box.querySelector(".ask-message")?.remove();
+    }
+    box.querySelectorAll(".ask-message").forEach((messageNode, index) => {
+      messageNode.dataset.messageIndex = String(index);
+    });
     node.dataset.messageIndex = String(askState.messages.length - 1);
   }
+  box.scrollTop = box.scrollHeight;
   return node;
 }
 
@@ -765,35 +1014,56 @@ function appendSourceNotice(answer, text) {
   answer.appendChild(sources);
 }
 
-function restoreAskConversation(state) {
-  const box = document.getElementById("conversation");
-  if (!box || !state || typeof state !== "object") return;
-  const messages = Array.isArray(state.messages) ? state.messages : [];
-  askState.question = typeof state.question === "string" ? state.question : "";
-  askState.language = typeof state.language === "string" ? state.language : askState.language;
-  askState.answer = typeof state.answer === "string" ? state.answer : "";
-  askState.sources = Array.isArray(state.sources) ? state.sources : [];
-  askState.sourceStatus = typeof state.sourceStatus === "string" ? state.sourceStatus : "";
-  askState.evidence = state.evidence && typeof state.evidence === "object" ? state.evidence : {};
-  askState.answerMode = typeof state.answerMode === "string" ? state.answerMode : "answer";
-  askState.modelRoute = typeof state.modelRoute === "string" ? state.modelRoute : "";
-  askState.createdAt = typeof state.createdAt === "string" ? state.createdAt : "";
-  askState.answerCompleted = state.answerCompleted === true;
-  askState.savedAssetId = typeof state.savedAssetId === "string" ? state.savedAssetId : "";
-  askState.messages = messages
+function normalizeAskMessages(messages) {
+  return (Array.isArray(messages) ? messages : [])
     .filter((message) => message && typeof message.text === "string")
     .map((message) => ({
       role: message.role === "user" ? "user" : "assistant",
       text: message.text,
       sources: Array.isArray(message.sources) ? message.sources : [],
       sourceStatus: typeof message.sourceStatus === "string" ? message.sourceStatus : "",
-    }));
-  if (!askState.messages.length) return;
+    }))
+    .slice(-MAX_CONVERSATION_MESSAGES);
+}
+
+function applyConversation(session) {
+  askState.conversationId = typeof session.id === "string" && session.id ? session.id : createConversationId();
+  askState.resetToken = typeof session.resetToken === "string" ? session.resetToken : "";
+  askState.question = typeof session.question === "string" ? session.question : "";
+  askState.language = typeof session.language === "string" ? session.language : askState.language;
+  askState.answer = typeof session.answer === "string" ? session.answer : "";
+  askState.sources = Array.isArray(session.sources) ? session.sources : [];
+  askState.sourceStatus = typeof session.sourceStatus === "string" ? session.sourceStatus : "";
+  askState.evidence = session.evidence && typeof session.evidence === "object" ? session.evidence : {};
+  askState.answerMode = typeof session.answerMode === "string" ? session.answerMode : "answer";
+  askState.modelRoute = typeof session.modelRoute === "string" ? session.modelRoute : "";
+  askState.createdAt = typeof session.createdAt === "string" ? session.createdAt : "";
+  askState.answerCompleted = session.answerCompleted === true;
+  askState.savedAssetId = typeof session.savedAssetId === "string" ? session.savedAssetId : "";
+  askState.messages = normalizeAskMessages(session.messages);
+}
+
+function restoreAskConversation(state) {
+  const box = document.getElementById("conversation");
+  if (!box || !state || typeof state !== "object") return;
+  const sessionId = typeof state.conversationId === "string" ? state.conversationId : "";
+  const sessions = (Array.isArray(state.sessions) ? state.sessions : [])
+    .filter((session) => session && typeof session === "object")
+    .slice(-MAX_CONVERSATION_SESSIONS);
+  const legacySession = { ...state, id: sessionId || createConversationId() };
+  const activeSession = sessions.find((session) => session.id === sessionId) || legacySession;
+  askState.sessions = sessions.length ? sessions : [legacySession];
+  applyConversation(activeSession);
+  syncActiveConversation();
   box.innerHTML = "";
+  if (!askState.messages.length) {
+    updateAnswerOperationState();
+    return;
+  }
   askState.messages.forEach((message, index) => {
     const node = appendMessage(message.text, message.role, { skipState: true });
     node.dataset.messageIndex = String(index);
-    if (message.role === "assistant" && message.sourceStatus === "no_answer") {
+    if (message.role === "assistant" && ["no_answer", "clarification_required"].includes(message.sourceStatus)) {
       appendSourceNotice(node, "知识库缺失，未使用参考来源");
     } else if (message.role === "assistant" && message.sources.length) {
       appendSources(node, normalizeSourceList(message.sources));
@@ -802,6 +1072,7 @@ function restoreAskConversation(state) {
   const exportBar = document.getElementById("export-bar");
   if (exportBar) exportBar.style.display = askState.question && askState.answer ? "flex" : "none";
   updateAnswerOperationState();
+  box.scrollTop = box.scrollHeight;
 }
 
 function normalizeSourceList(sources) {
@@ -864,7 +1135,7 @@ function buildAnswerResultSnapshot() {
 
 function updateAnswerOperationState() {
   const answerCompleted = askState.answerCompleted === true;
-  const pkaEligible = answerCompleted && !["no_answer", "generated_only"].includes(askState.sourceStatus);
+  const pkaEligible = answerCompleted && !["no_answer", "clarification_required", "generated_only"].includes(askState.sourceStatus);
   const localButton = document.getElementById("save-local-asset");
   const obsidianButton = document.getElementById("publish-obsidian");
   const pkaButton = document.getElementById("add-pka-retrieval");
@@ -912,6 +1183,8 @@ async function addAnswerAssetToPkaRetrieval() {
 
 function setupAsk() {
   const form = document.getElementById("query-form");
+  const sendButton = form?.querySelector('button[type="submit"]');
+  const newConversationButton = document.getElementById("new-conversation");
   const chips = document.querySelectorAll(".empty-chip");
   chips.forEach((chip) => {
     chip.addEventListener("click", () => {
@@ -923,13 +1196,21 @@ function setupAsk() {
   document.getElementById("save-local-asset")?.addEventListener("click", saveAnswerAssetLocal);
   document.getElementById("publish-obsidian")?.addEventListener("click", publishAnswerAssetToObsidian);
   document.getElementById("add-pka-retrieval")?.addEventListener("click", addAnswerAssetToPkaRetrieval);
+  document.getElementById("new-conversation")?.addEventListener("click", startNewConversation);
+  ensureActiveConversation();
+  syncActiveConversation();
   updateAnswerOperationState();
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (askRequestInFlight) return;
     const input = document.getElementById("question-input");
     const question = input.value.trim();
     const language = document.querySelector('input[name="language"]:checked')?.value || "zh";
     if (!question) return;
+    const previousQuestion = [...askState.messages].reverse().find((message) => message.role === "user")?.text || "";
+    askRequestInFlight = true;
+    if (sendButton) sendButton.disabled = true;
+    if (newConversationButton) newConversationButton.disabled = true;
     appendMessage(question, "user");
     askState.question = question;
     askState.language = language;
@@ -956,7 +1237,12 @@ function setupAsk() {
       const response = await fetch("api/query", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, language }),
+        body: JSON.stringify({
+          question,
+          language,
+          conversation_id: askState.conversationId,
+          previous_question: previousQuestion,
+        }),
       });
       if (!response.ok) throw new Error(await response.text());
       const reader = response.body.getReader();
@@ -981,6 +1267,7 @@ function setupAsk() {
             answer.textContent += payload.content;
             askState.answer += payload.content;
             askState.messages[messageIndex].text = askState.answer;
+            document.getElementById("conversation").scrollTop = document.getElementById("conversation").scrollHeight;
             publishEmbeddedSnapshot();
           }
           if (payload.type === "error") {
@@ -995,13 +1282,16 @@ function setupAsk() {
           if (payload.type === "sources") {
             const sourceStatus = payload.source_status || "grounded";
             askState.sourceStatus = sourceStatus;
-            askState.sources = sourceStatus === "no_answer" ? [] : payload.sources;
+            askState.sources = ["no_answer", "clarification_required"].includes(sourceStatus) ? [] : payload.sources;
             askState.evidence = payload.evidence && typeof payload.evidence === "object" ? payload.evidence : {};
             askState.answerMode = askState.evidence?.answer_mode?.mode || askState.answerMode || "answer";
             askState.messages[messageIndex].sources = askState.sources;
             askState.messages[messageIndex].sourceStatus = sourceStatus;
-            if (payload.source_status === "no_answer") {
-              appendSourceNotice(answer, "知识库缺失，未使用参考来源");
+            if (["no_answer", "clarification_required"].includes(sourceStatus)) {
+              appendSourceNotice(
+                answer,
+                sourceStatus === "clarification_required" ? "需要补充上一轮主题，未使用参考来源" : "知识库缺失，未使用参考来源",
+              );
               publishEmbeddedSnapshot();
               continue;
             }
@@ -1034,6 +1324,10 @@ function setupAsk() {
       answer.textContent = formatErrorFeedback("问答", error);
       askState.messages[messageIndex].text = answer.textContent;
       publishEmbeddedSnapshot();
+    } finally {
+      askRequestInFlight = false;
+      if (sendButton) sendButton.disabled = false;
+      if (newConversationButton) newConversationButton.disabled = false;
     }
   });
 }

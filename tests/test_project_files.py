@@ -29,6 +29,86 @@ def test_required_project_files_exist():
         assert (root / relative_path).exists(), relative_path
 
 
+def test_ask_ui_uses_bounded_active_conversations_and_safe_follow_up_context():
+    root = Path(__file__).resolve().parents[1]
+    ask_html = (root / "static/ask.html").read_text(encoding="utf-8")
+    app_js = (root / "static/app.js").read_text(encoding="utf-8")
+
+    assert 'id="new-conversation"' in ask_html
+    assert "const MAX_CONVERSATION_MESSAGES = 20;" in app_js
+    assert "const MAX_CONVERSATION_SESSIONS = 30;" in app_js
+    assert "function startNewConversation()" in app_js
+    assert "conversation_id: askState.conversationId" in app_js
+    assert "resetToken: askState.resetToken" in app_js
+    assert "previous_question: previousQuestion" in app_js
+    assert "sendButton.disabled = true;" in app_js
+    assert "sendButton.disabled = false;" in app_js
+    assert "box.scrollTop = box.scrollHeight;" in app_js
+
+
+def test_ask_controls_use_theme_semantic_variables_without_fixed_colors():
+    root = Path(__file__).resolve().parents[1]
+    css = (root / "static/style.css").read_text(encoding="utf-8")
+
+    for variable in [
+        "--ask-operation-fg",
+        "--ask-destination-fg",
+        "--ask-source-link-fg",
+        "--ask-source-org-chart-fg",
+        "--ask-source-pdf-fg",
+        "--ask-source-text-fg",
+    ]:
+        assert variable in css
+
+    start = css.index(".exportbar button[type=\"button\"]")
+    end = css.index(".ask-input-bar")
+    covered = css[start:end]
+    for fixed_color in ["#155f66", "#79b8bf", "#f3fbfc", "#50479d", "#246492", "#2f704b", "rgba("]:
+        assert fixed_color not in covered
+
+
+def test_upload_feedback_reports_duplicates_without_counting_them_as_success():
+    root = Path(__file__).resolve().parents[1]
+    app_js = (root / "static/app.js").read_text(encoding="utf-8")
+
+    assert "`${result.duplicates || 0} 个重复`" in app_js
+    assert 'item.status === "duplicate"' in app_js
+    assert 'item.status === "duplicate_pending"' in app_js
+
+
+def test_ingest_page_exposes_quality_version_and_source_lifecycle_actions():
+    root = Path(__file__).resolve().parents[1]
+    index_html = (root / "static/index.html").read_text(encoding="utf-8")
+    app_js = (root / "static/app.js").read_text(encoding="utf-8")
+
+    assert 'id="ingest-source-list"' in index_html
+    assert 'id="refresh-ingest-sources"' in index_html
+    assert 'api/ingest/sources' in app_js
+    assert 'quality_policy' in app_js
+    assert 'version_policy' in app_js
+    for label in ["仍然入库", "替换旧版本", "同时保留", "取消", "撤销本次录入", "删除资料"]:
+        assert label in app_js
+
+
+def test_ingest_status_colors_follow_theme_semantic_variables():
+    root = Path(__file__).resolve().parents[1]
+    css = (root / "static/style.css").read_text(encoding="utf-8")
+
+    for variable in [
+        "--status-success-fg",
+        "--status-info-fg",
+        "--status-warning-fg",
+        "--status-danger-fg",
+        "--status-special-fg",
+    ]:
+        assert variable in css
+    start = css.index(".upload-slot.is-org-chart-slot")
+    end = css.index(".ask-workbench")
+    covered = css[start:end]
+    for fixed_color in ["#2f704b", "#246492", "#9a5a17", "#9d3429", "#50479d", "rgba("]:
+        assert fixed_color not in covered
+
+
 def test_gitignore_protects_local_data_and_secrets():
     root = Path(__file__).resolve().parents[1]
     gitignore = (root / ".gitignore").read_text(encoding="utf-8")
@@ -538,7 +618,8 @@ def test_ask_page_exposes_language_switch_and_query_payload_uses_it():
     assert "中文建议" in ask_html
     assert "English Report" in ask_html
     assert 'input[name="language"]:checked' in app_js
-    assert "JSON.stringify({ question, language })" in app_js
+    assert "conversation_id: askState.conversationId" in app_js
+    assert "previous_question: previousQuestion" in app_js
 
 
 def test_ask_page_p0_layout_contract_keeps_input_in_first_viewport():
@@ -617,7 +698,7 @@ def test_ask_export_buttons_use_neutral_publishing_theme_style():
         style_css.index(".exportbar button[type=\"button\"]") : style_css.index(".ask-conversation")
     ]
     assert "background: var(--panel);" in export_button_rule
-    assert "color: var(--accent);" in export_button_rule
+    assert "color: var(--ask-operation-fg);" in export_button_rule
     assert "border: 1px solid var(--line);" in export_button_rule
     assert "background: var(--accent-2);" not in export_button_rule
 
@@ -800,7 +881,7 @@ def test_ask_page_marks_no_answer_sources_as_unused():
     style_css = (root / "static/style.css").read_text(encoding="utf-8")
 
     assert "appendSourceNotice" in app_js
-    assert 'payload.source_status === "no_answer"' in app_js
+    assert '["no_answer", "clarification_required"].includes(sourceStatus)' in app_js
     assert "知识库缺失，未使用参考来源" in app_js
     assert "sourceStatus" in app_js
     assert "ask-source-notice" in app_js

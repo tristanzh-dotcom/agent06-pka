@@ -1,5 +1,6 @@
 import asyncio
 from collections import Counter
+import hashlib
 import json
 import os
 import threading
@@ -36,12 +37,15 @@ from engine.exporter import export_to_ppt, export_to_word
 from engine.generator import generate_answer
 from engine.generated_knowledge import promote_answer_asset
 from engine.indexer import HybridIndexer, OllamaEmbeddingClient
+from engine.ingest_registry import ContentRegistry, ContentReservation, sha256_text
+from engine.source_registry import SourceRegistry
 from engine.input_fidelity import expand_adjacent_chunks
 from engine.models import Chunk, ParseQuality, ParseResult
 from engine.ocr import build_ocr_provider_chain
 from engine.parser import ocr_org_chart_pre_chunks, parse_file, parse_text
 from engine.ppt_maker_adapter import export_to_quality_ppt
 from engine.query_rewriter import expand_query
+from engine.query_context import filter_supported_chunks, resolve_query
 from engine.reranker import RerankerClient
 from engine.retriever import HybridRetriever
 from engine.topic_aggregator import build_topic_dossier
@@ -75,6 +79,11 @@ class OcrTaskStore:
         raw_file_path: str,
         content_type: str = "",
         page_count: int = 0,
+        content_hash: str = "",
+        source_id: str = "",
+        original_name: str = "",
+        replace_source_id: str = "",
+        quality_policy: str = "review",
     ) -> str:
         task_id = f"ocr_task_{uuid4().hex[:12]}"
         payload = {
@@ -83,6 +92,11 @@ class OcrTaskStore:
             "file_name": file_name,
             "raw_file_path": raw_file_path,
             "content_type": content_type,
+            "content_hash": content_hash,
+            "source_id": source_id,
+            "original_name": original_name or file_name,
+            "replace_source_id": replace_source_id,
+            "quality_policy": quality_policy,
             "page_count": page_count,
             "progress": 0,
             "result": {
@@ -134,6 +148,8 @@ class QueryRequest(BaseModel):
     language: str = "zh"
     debug: bool = False
     trace: bool = False
+    conversation_id: str = ""
+    previous_question: str = ""
 
 
 class ExportRequest(BaseModel):
@@ -218,31 +234,61 @@ async def ingest_text(request: TextIngestRequest):
     if not request.text.strip():
         raise HTTPException(status_code=400, detail="text is required")
     source_name = "manual_" + datetime.now().strftime("%Y%m%d_%H%M%S")
-    parsed = parse_text(request.text, source_name=source_name)
-    parsed = replace(
-        parsed,
-        metadata={
-            **parsed.metadata,
-            "mime_type": "text/plain",
-            "source_origin": "manual_text",
-            "raw_file_path": "",
-            "char_count": len(request.text),
-        },
-        quality=_manual_text_quality(request.text),
+    source_id = f"source_{uuid4().hex}"
+    content_hash = sha256_text(request.text)
+    reservation = _content_registry().reserve(
+        content_hash=content_hash,
+        source_name=source_name,
+        raw_file_path="",
+        content_kind="manual_text",
     )
+    if reservation.status != "reserved":
+        return _duplicate_ingest_result(reservation)
     try:
-        return await _ingest_parsed_result(parsed, content_type="text/plain", raw_file_path="")
+        parsed = parse_text(request.text, source_name=source_name)
+        parsed = replace(
+            parsed,
+            metadata={
+                **parsed.metadata,
+                "mime_type": "text/plain",
+                "source_origin": "manual_text",
+                "raw_file_path": "",
+                "char_count": len(request.text),
+            },
+            quality=_manual_text_quality(request.text),
+        )
+        return await _ingest_parsed_result(
+            parsed,
+            content_type="text/plain",
+            raw_file_path="",
+            content_hash=content_hash,
+            source_id=source_id,
+            original_name=source_name,
+        )
     except HTTPException:
+        _content_registry().mark_failed(content_hash, "manual text ingest rejected")
         raise
     except Exception as exc:
+        _content_registry().mark_failed(content_hash, str(exc))
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/api/ingest/file")
-async def ingest_file(file: UploadFile = File(...), org_chart_mode: str = Form("disabled")):
+async def ingest_file(
+    file: UploadFile = File(...),
+    org_chart_mode: str = Form("disabled"),
+    quality_policy: str = Form("review"),
+    version_policy: str = Form("review"),
+):
     ocr = _build_ocr_client()
     try:
-        result = await _ingest_upload_file(file, ocr, extract_org_charts=_is_org_chart_mode_enabled(org_chart_mode))
+        result = await _ingest_upload_file(
+            file,
+            ocr,
+            extract_org_charts=_is_org_chart_mode_enabled(org_chart_mode),
+            quality_policy=quality_policy,
+            version_policy=version_policy,
+        )
     except HTTPException:
         raise
     except Exception as exc:
@@ -268,6 +314,13 @@ async def ingest_file(file: UploadFile = File(...), org_chart_mode: str = Form("
         "chunk_ids": result["chunk_ids"],
         "raw_file_path": result.get("raw_file_path", ""),
         "quality": result.get("quality"),
+        "duplicate_of": result.get("duplicate_of"),
+        "message": result.get("message", ""),
+        "source_id": result.get("source_id", ""),
+        "coverage": result.get("coverage", {}),
+        "existing_source": result.get("existing_source"),
+        "replacement_cleanup": result.get("replacement_cleanup", ""),
+        "replacement_cleanup_error": result.get("replacement_cleanup_error", ""),
     }
 
 
@@ -287,6 +340,9 @@ async def ingest_files(files: list[UploadFile] = File(...), org_chart_modes: Opt
     results = []
     succeeded = 0
     accepted = 0
+    duplicates = 0
+    review_required = 0
+    version_conflicts = 0
     skipped = 0
     failed = 0
     total_chunks = 0
@@ -305,6 +361,12 @@ async def ingest_files(files: list[UploadFile] = File(...), org_chart_modes: Opt
                     ocr_executor.submit(run_ocr_task_once, result["task_id"], ocr)
             elif result.get("status") == "skipped":
                 skipped += 1
+            elif result.get("status") in {"duplicate", "duplicate_pending"}:
+                duplicates += 1
+            elif result.get("status") == "review_required":
+                review_required += 1
+            elif result.get("status") == "version_conflict":
+                version_conflicts += 1
             else:
                 succeeded += 1
                 total_chunks += result["chunks"]
@@ -330,10 +392,13 @@ async def ingest_files(files: list[UploadFile] = File(...), org_chart_modes: Opt
     if total_chunks > 0:
         runtime.last_updated = datetime.now().isoformat()
     response_payload = {
-        "status": "ok" if failed == 0 and skipped == 0 else "partial",
+        "status": "ok" if failed == 0 and skipped == 0 and review_required == 0 and version_conflicts == 0 else "partial",
         "total_files": len(files),
         "succeeded": succeeded,
         "accepted": accepted,
+        "duplicates": duplicates,
+        "review_required": review_required,
+        "version_conflicts": version_conflicts,
         "skipped": skipped,
         "failed": failed,
         "total_chunks": total_chunks,
@@ -382,6 +447,9 @@ def recover_queued_ocr_tasks(executor=None) -> dict:
             executor.submit(run_ocr_task_once, task_id)
             summary["requeued"] += 1
         else:
+            content_hash = str(task.get("content_hash") or "")
+            if content_hash:
+                _content_registry().mark_failed(content_hash, "raw file is missing")
             store.update_task(
                 task_id,
                 {
@@ -398,23 +466,77 @@ def recover_queued_ocr_tasks(executor=None) -> dict:
     return summary
 
 
-async def _ingest_upload_file(file: UploadFile, ocr, extract_org_charts: bool = False):
+async def _ingest_upload_file(
+    file: UploadFile,
+    ocr,
+    extract_org_charts: bool = False,
+    quality_policy: str = "review",
+    version_policy: str = "review",
+):
     raw_dir = Path(runtime.config["data_dir"]) / "raw" / datetime.now().strftime("%Y-%m-%d")
     raw_dir.mkdir(parents=True, exist_ok=True)
     output_path = raw_dir / Path(file.filename or "upload").name
     output_path = _dedupe_upload_path(output_path)
-    with output_path.open("wb") as output:
-        while True:
-            chunk = await file.read(1024 * 1024)
-            if not chunk:
-                break
-            output.write(chunk)
-    parsed = await parse_file(
-        str(output_path),
-        mime_type=file.content_type,
-        ocr_client=ocr,
-        extract_org_charts=extract_org_charts,
+    original_name = Path(file.filename or "upload").name
+    source_id = f"source_{uuid4().hex}"
+    staging_path, content_hash = await _stage_upload_and_hash(file)
+    registry = _content_registry()
+    _backfill_indexed_raw_content_identities(registry)
+    _backfill_source_registry()
+    existing_source = _source_registry().find_active_by_original_name(original_name)
+    previous_reservation = registry.lookup(content_hash)
+    if (
+        previous_reservation is not None
+        and previous_reservation.status == "review_required"
+        and str(quality_policy).lower() == "accept"
+        and previous_reservation.raw_file_path
+    ):
+        data_dir = Path(runtime.config["data_dir"]).resolve()
+        reviewed_path = (data_dir / previous_reservation.raw_file_path).resolve()
+        if data_dir in reviewed_path.parents:
+            output_path = reviewed_path
+    reservation = registry.reserve(
+        content_hash=content_hash,
+        source_name=output_path.name,
+        raw_file_path=str(output_path.relative_to(Path(runtime.config["data_dir"]))),
+        content_kind="file",
+        allow_review_retry=str(quality_policy).lower() == "accept",
+        allow_version_retry=str(version_policy).lower() in {"replace", "keep"},
     )
+    if reservation.status != "reserved":
+        staging_path.unlink(missing_ok=True)
+        if reservation.status == "version_conflict" and existing_source is not None:
+            return _version_conflict_result(existing_source)
+        if reservation.status == "review_required":
+            return {
+                "status": "review_required",
+                "chunks": 0,
+                "source_name": reservation.source_name,
+                "chunk_ids": [],
+                "raw_file_path": reservation.raw_file_path,
+                "quality": None,
+                "coverage": {},
+                "source_id": "",
+                "message": "该资料此前的解析质量或完整性需要确认，请选择是否仍然入库。",
+            }
+        return _duplicate_ingest_result(reservation)
+    if existing_source is not None and str(version_policy).lower() not in {"replace", "keep"}:
+        staging_path.unlink(missing_ok=True)
+        registry.mark_version_conflict(content_hash, "same original filename has different content")
+        return _version_conflict_result(existing_source)
+
+    try:
+        staging_path.replace(output_path)
+        parsed = await parse_file(
+            str(output_path),
+            mime_type=file.content_type,
+            ocr_client=ocr,
+            extract_org_charts=extract_org_charts,
+        )
+    except Exception as exc:
+        staging_path.unlink(missing_ok=True)
+        registry.mark_failed(content_hash, str(exc))
+        raise
     raw_file_path = str(output_path.relative_to(Path(runtime.config["data_dir"])))
     quality = parsed.quality
     if quality is not None and quality.status == "needs_ocr":
@@ -423,7 +545,13 @@ async def _ingest_upload_file(file: UploadFile, ocr, extract_org_charts: bool = 
             raw_file_path=raw_file_path,
             content_type=file.content_type or "",
             page_count=int(parsed.metadata.get("page_count", 0) or 0),
+            content_hash=content_hash,
+            source_id=source_id,
+            original_name=original_name,
+            replace_source_id=existing_source.source_id if existing_source and str(version_policy).lower() == "replace" else "",
+            quality_policy=str(quality_policy).lower(),
         )
+        registry.mark_pending(content_hash, task_id=task_id)
         return {
             "status": "accepted",
             "task_id": task_id,
@@ -433,15 +561,49 @@ async def _ingest_upload_file(file: UploadFile, ocr, extract_org_charts: bool = 
             "chunk_ids": [],
             "raw_file_path": raw_file_path,
             "quality": _quality_payload(replace(quality, action="needs_ocr_queued")),
+            "source_id": source_id,
+            "coverage": parsed.metadata.get("coverage", {}),
         }
-    return await _ingest_parsed_result(
-        parsed,
-        content_type=file.content_type,
-        raw_file_path=raw_file_path,
-        provider=locals().get("ocr_provider", ""),
-        attempts=locals().get("ocr_attempts", []),
-        ocr_result=locals().get("ocr_result_meta"),
-    )
+    if _requires_quality_review(parsed) and str(quality_policy).lower() != "accept":
+        quality_payload = _quality_payload(quality)
+        coverage = dict(parsed.metadata.get("coverage") or {})
+        output_path.unlink(missing_ok=True)
+        registry.mark_review_required(content_hash, "quality or extraction coverage requires review")
+        return {
+            "status": "review_required",
+            "chunks": 0,
+            "source_name": parsed.source_name,
+            "chunk_ids": [],
+            "raw_file_path": "",
+            "quality": quality_payload,
+            "coverage": coverage,
+            "source_id": source_id,
+            "message": "解析结果质量较低或内容不完整，请确认是否仍然入库。",
+        }
+    try:
+        result = await _ingest_parsed_result(
+            parsed,
+            content_type=file.content_type,
+            raw_file_path=raw_file_path,
+            provider=locals().get("ocr_provider", ""),
+            attempts=locals().get("ocr_attempts", []),
+            ocr_result=locals().get("ocr_result_meta"),
+            content_hash=content_hash,
+            source_id=source_id,
+            original_name=original_name,
+        )
+    except Exception as exc:
+        registry.mark_failed(content_hash, str(exc))
+        raise
+    if existing_source is not None and str(version_policy).lower() == "replace":
+        try:
+            _delete_source_record(existing_source)
+        except Exception as exc:
+            _source_registry().mark_delete_failed(existing_source.source_id, str(exc))
+            result["replacement_cleanup"] = "failed"
+            result["replacement_cleanup_error"] = str(exc)
+            result["message"] = "新版本已入库，但旧版本清理失败；两者暂时同时保留。"
+    return result
 
 
 def run_ocr_task_once(task_id: str, ocr_chain=None) -> None:
@@ -482,10 +644,39 @@ def run_ocr_task_once(task_id: str, ocr_chain=None) -> None:
                 "org_chart_pages": [record.metadata["page"] for record in pre_chunks],
                 "org_chart_chunks": len(pre_chunks),
                 "org_chart_mode": "ocr_layout_fallback" if pre_chunks else "",
+                "coverage": {
+                    "format": "pdf_ocr",
+                    "status": "partial" if ocr_result.partial else "complete",
+                    "warnings": ["OCR page limit reached"] if ocr_result.partial else [],
+                    "counts": {
+                        "pages": ocr_result.source_page_count,
+                        "processed_pages": ocr_result.pages_processed,
+                    },
+                },
             },
             quality=quality,
             pre_chunks=pre_chunks,
         )
+        if _requires_quality_review(parsed) and str(task.get("quality_policy") or "review").lower() != "accept":
+            content_hash = str(task.get("content_hash") or "")
+            if content_hash:
+                _content_registry().mark_review_required(content_hash, "OCR quality or coverage requires review")
+            store.update_task(
+                task_id,
+                {
+                    "status": "review_required",
+                    "progress": 100,
+                    "result": {
+                        "chunks_inserted": 0,
+                        "quality_action": "ocr_review_required",
+                        "quality": _quality_payload(quality, provider=ocr_result.provider, attempts=ocr_result.attempts, ocr_result=ocr_result),
+                        "coverage": parsed.metadata["coverage"],
+                        "source_id": task.get("source_id", ""),
+                        "error": None,
+                    },
+                },
+            )
+            return
         ingest_result = _run_coroutine_sync(
             _ingest_parsed_result(
                 parsed,
@@ -494,8 +685,21 @@ def run_ocr_task_once(task_id: str, ocr_chain=None) -> None:
                 provider=ocr_result.provider,
                 attempts=ocr_result.attempts,
                 ocr_result=ocr_result,
+                content_hash=str(task.get("content_hash") or ""),
+                source_id=str(task.get("source_id") or ""),
+                original_name=str(task.get("original_name") or task.get("file_name") or ""),
             )
         )
+        replace_source_id = str(task.get("replace_source_id") or "")
+        if replace_source_id:
+            replaced = _source_registry().get(replace_source_id)
+            if replaced is not None:
+                try:
+                    _delete_source_record(replaced)
+                except Exception as exc:
+                    _source_registry().mark_delete_failed(replaced.source_id, str(exc))
+                    ingest_result["replacement_cleanup"] = "failed"
+                    ingest_result["replacement_cleanup_error"] = str(exc)
         store.update_task(
             task_id,
             {
@@ -504,12 +708,21 @@ def run_ocr_task_once(task_id: str, ocr_chain=None) -> None:
                 "result": {
                     "chunks_inserted": ingest_result["chunks"],
                     "quality_action": "ocr",
+                    "quality": ingest_result.get("quality"),
+                    "coverage": ingest_result.get("coverage", {}),
+                    "source_id": ingest_result.get("source_id", ""),
+                    "raw_file_path": ingest_result.get("raw_file_path", ""),
+                    "replacement_cleanup": ingest_result.get("replacement_cleanup", "ok"),
+                    "replacement_cleanup_error": ingest_result.get("replacement_cleanup_error", ""),
                     "error": None,
                     **_ocr_task_org_chart_result(ingest_result),
                 },
             },
         )
     except Exception as exc:
+        content_hash = str(task.get("content_hash") or "")
+        if content_hash:
+            _content_registry().mark_failed(content_hash, str(exc))
         store.update_task(
             task_id,
             {
@@ -540,23 +753,61 @@ async def _ingest_parsed_result(
     provider: str = "",
     attempts=None,
     ocr_result=None,
+    content_hash: str = "",
+    source_id: str = "",
+    original_name: str = "",
 ):
-    chunks = _chunk(parsed.text, parsed.source_name, parsed.source_type)
-    pre_chunks = getattr(parsed, "pre_chunks", [])
-    chunks.extend(_pre_chunk_records(pre_chunks))
-    if not chunks:
-        raise ValueError("no indexable content")
-    with ingest_lock:
-        _enforce_sync_chunk_limit(len(chunks), parsed.source_name)
-        count = runtime.indexer.upsert(chunks, raw_file_paths=[raw_file_path] * len(chunks))
-        runtime.last_updated = datetime.now().isoformat()
-    org_chart_pages = [record.metadata.get("page") for record in pre_chunks if getattr(record, "metadata", None)]
     quality_payload = _quality_payload(
         parsed.quality,
         provider=provider,
         attempts=attempts or [],
         ocr_result=ocr_result,
     )
+    coverage = dict((getattr(parsed, "metadata", {}) or {}).get("coverage") or {})
+    chunk_metadata = {
+        **dict(getattr(parsed, "metadata", {}) or {}),
+        "source_id": source_id,
+        "original_name": original_name or parsed.source_name,
+        "quality": quality_payload or {},
+        "coverage": coverage,
+    }
+    chunks = [
+        replace(
+            chunk,
+            id=f"{source_id}#{chunk.chunk_index}" if source_id else chunk.id,
+            metadata={**dict(chunk.metadata or {}), **chunk_metadata},
+        )
+        for chunk in _chunk(parsed.text, parsed.source_name, parsed.source_type)
+    ]
+    pre_chunks = getattr(parsed, "pre_chunks", [])
+    chunks.extend(
+        _pre_chunk_records(
+            pre_chunks,
+            source_id=source_id,
+            shared_metadata=chunk_metadata,
+        )
+    )
+    if not chunks:
+        raise ValueError("no indexable content")
+    with ingest_lock:
+        _enforce_sync_chunk_limit(len(chunks), parsed.source_name)
+        count = runtime.indexer.upsert(chunks, raw_file_paths=[raw_file_path] * len(chunks))
+        runtime.last_updated = datetime.now().isoformat()
+    if content_hash:
+        _content_registry().mark_indexed(content_hash, chunk_count=count)
+    if source_id:
+        _source_registry().create_indexed(
+            source_id=source_id,
+            content_hash=content_hash,
+            content_kind="file" if raw_file_path else "manual_text",
+            original_name=original_name or parsed.source_name,
+            source_name=parsed.source_name,
+            raw_file_path=raw_file_path,
+            chunk_count=count,
+            quality=quality_payload,
+            coverage=coverage,
+        )
+    org_chart_pages = [record.metadata.get("page") for record in pre_chunks if getattr(record, "metadata", None)]
     if quality_payload is not None and pre_chunks:
         quality_payload["org_chart_chunks"] = len(pre_chunks)
         quality_payload["org_chart_pages"] = org_chart_pages
@@ -571,6 +822,8 @@ async def _ingest_parsed_result(
         "org_chart_chunks": len(pre_chunks),
         "chunk_ids": [chunk.id for chunk in chunks],
         "quality": quality_payload,
+        "coverage": coverage,
+        "source_id": source_id,
     }
 
 
@@ -601,6 +854,14 @@ def _quality_payload(quality, provider="", attempts=None, ocr_result=None):
         payload["ocr_page_limit_reached"] = ocr_result.page_limit_reached
         payload["ocr_partial"] = ocr_result.partial
     return payload
+
+
+def _requires_quality_review(parsed) -> bool:
+    quality = getattr(parsed, "quality", None)
+    if quality is not None and quality.status == "low":
+        return True
+    coverage = dict((getattr(parsed, "metadata", {}) or {}).get("coverage") or {})
+    return coverage.get("status") == "partial"
 
 
 def _manual_text_quality(text: str) -> ParseQuality:
@@ -706,16 +967,244 @@ def _dedupe_upload_path(path: Path) -> Path:
     return path.with_name(f"{stem}-{datetime.now().strftime('%H%M%S%f')}{suffix}")
 
 
+def _content_registry() -> ContentRegistry:
+    return ContentRegistry(Path(runtime.config["data_dir"]) / "runtime" / "content_registry.sqlite")
+
+
+def _source_registry() -> SourceRegistry:
+    return SourceRegistry(Path(runtime.config["data_dir"]) / "runtime" / "source_registry.sqlite")
+
+
+def _source_record_payload(record) -> dict:
+    return {
+        "source_id": record.source_id,
+        "content_hash": record.content_hash,
+        "content_kind": record.content_kind,
+        "original_name": record.original_name,
+        "source_name": record.source_name,
+        "raw_file_path": record.raw_file_path,
+        "status": record.status,
+        "chunk_count": record.chunk_count,
+        "quality": record.quality,
+        "coverage": record.coverage,
+        "created_at": record.created_at,
+        "updated_at": record.updated_at,
+        "error": record.error,
+    }
+
+
+def _decode_metadata_object(value) -> dict:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            decoded = json.loads(value)
+        except json.JSONDecodeError:
+            return {}
+        return decoded if isinstance(decoded, dict) else {}
+    return {}
+
+
+def _backfill_source_registry() -> None:
+    registry = _source_registry()
+    try:
+        result = runtime.indexer.collection.get(include=["metadatas"])
+    except Exception:
+        return
+    grouped = {}
+    for metadata in result.get("metadatas", []):
+        metadata = metadata or {}
+        source_name = str(metadata.get("source_name") or "")
+        raw_file_path = str(metadata.get("raw_file_path") or "")
+        if not source_name:
+            continue
+        source_id = str(metadata.get("source_id") or "")
+        if not source_id:
+            legacy_key = hashlib.sha256(f"{source_name}\n{raw_file_path}".encode("utf-8")).hexdigest()[:24]
+            source_id = f"legacy_{legacy_key}"
+        entry = grouped.setdefault(
+            source_id,
+            {
+                "source_id": source_id,
+                "source_name": source_name,
+                "original_name": str(metadata.get("original_name") or source_name),
+                "raw_file_path": raw_file_path,
+                "quality": _decode_metadata_object(metadata.get("quality")),
+                "coverage": _decode_metadata_object(metadata.get("coverage")),
+                "chunk_count": 0,
+            },
+        )
+        entry["chunk_count"] += 1
+    data_dir = Path(runtime.config["data_dir"]).resolve()
+    for entry in grouped.values():
+        if registry.get(entry["source_id"]) is not None:
+            continue
+        content_hash = ""
+        raw_file_path = entry["raw_file_path"]
+        if raw_file_path:
+            candidate = (data_dir / raw_file_path).resolve()
+            if candidate.is_file() and data_dir in candidate.parents:
+                content_hash = hashlib.sha256(candidate.read_bytes()).hexdigest()
+        registry.create_indexed(
+            source_id=entry["source_id"],
+            content_hash=content_hash,
+            content_kind="file" if raw_file_path else "manual_text",
+            original_name=entry["original_name"],
+            source_name=entry["source_name"],
+            raw_file_path=raw_file_path,
+            chunk_count=entry["chunk_count"],
+            quality=entry["quality"],
+            coverage=entry["coverage"],
+        )
+
+
+def _backfill_indexed_raw_content_identities(registry: ContentRegistry) -> None:
+    if not registry.needs_index_backfill():
+        return
+    try:
+        result = runtime.indexer.collection.get(include=["metadatas"])
+    except Exception:
+        return
+    records = {}
+    for metadata in result.get("metadatas", []):
+        metadata = metadata or {}
+        raw_file_path = str(metadata.get("raw_file_path") or "")
+        source_name = str(metadata.get("source_name") or "")
+        if raw_file_path and source_name:
+            records.setdefault(raw_file_path, {"source_name": source_name, "chunk_count": 0})["chunk_count"] += 1
+    data_dir = Path(runtime.config["data_dir"]).resolve()
+    for raw_file_path, record in records.items():
+        candidate = (data_dir / raw_file_path).resolve()
+        if not candidate.is_file() or data_dir not in candidate.parents:
+            continue
+        digest = hashlib.sha256()
+        with candidate.open("rb") as source:
+            for block in iter(lambda: source.read(1024 * 1024), b""):
+                digest.update(block)
+        registry.register_indexed_existing(
+            content_hash=digest.hexdigest(),
+            source_name=record["source_name"],
+            raw_file_path=raw_file_path,
+            content_kind="file",
+            chunk_count=record["chunk_count"],
+        )
+    registry.mark_index_backfill_complete()
+
+
+async def _stage_upload_and_hash(file: UploadFile) -> tuple[Path, str]:
+    staging_dir = Path(runtime.config["data_dir"]) / "runtime" / "staging"
+    staging_dir.mkdir(parents=True, exist_ok=True)
+    staging_path = staging_dir / f"upload_{uuid4().hex}.tmp"
+    digest = hashlib.sha256()
+    with staging_path.open("wb") as output:
+        while True:
+            chunk = await file.read(1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+            output.write(chunk)
+    return staging_path, digest.hexdigest()
+
+
+def _duplicate_ingest_result(reservation: ContentReservation) -> dict:
+    pending = reservation.status == "duplicate_pending"
+    return {
+        "status": reservation.status,
+        "chunks": 0,
+        "source_name": reservation.source_name,
+        "chunk_ids": [],
+        "raw_file_path": reservation.raw_file_path,
+        "task_id": reservation.task_id,
+        "duplicate_of": {
+            "source_name": reservation.source_name,
+            "raw_file_path": reservation.raw_file_path,
+            "task_id": reservation.task_id,
+            "chunk_count": reservation.chunk_count,
+        },
+        "message": "检测到完全相同的资料正在处理，未创建重复任务。" if pending else "检测到完全相同的资料，未重复录入。",
+    }
+
+
+def _version_conflict_result(existing_source) -> dict:
+    return {
+        "status": "version_conflict",
+        "chunks": 0,
+        "source_name": existing_source.source_name,
+        "chunk_ids": [],
+        "raw_file_path": "",
+        "quality": None,
+        "coverage": {},
+        "source_id": "",
+        "existing_source": _source_record_payload(existing_source),
+        "message": "检测到同名资料已有不同版本，请选择替换旧版本或同时保留。",
+    }
+
+
+@app.get("/api/ingest/sources")
+async def list_ingest_sources():
+    _backfill_source_registry()
+    return {
+        "status": "ok",
+        "sources": [_source_record_payload(record) for record in _source_registry().list_sources()],
+    }
+
+
+@app.delete("/api/ingest/sources/{source_id}")
+async def delete_ingest_source(source_id: str):
+    registry = _source_registry()
+    record = registry.get(source_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="source not found")
+    try:
+        deleted_chunks = _delete_source_record(record)
+    except Exception as exc:
+        registry.mark_delete_failed(source_id, str(exc))
+        raise HTTPException(status_code=500, detail=f"source deletion failed: {exc}") from exc
+    return {
+        "status": "ok",
+        "deleted_source_id": source_id,
+        "deleted_chunks": deleted_chunks,
+    }
+
+
+def _delete_source_record(record) -> int:
+    registry = _source_registry()
+    with ingest_lock:
+        deleted_chunks = runtime.indexer.delete_source(record.source_id, source_name=record.source_name)
+        if record.raw_file_path:
+            data_dir = Path(runtime.config["data_dir"]).resolve()
+            raw_path = (data_dir / record.raw_file_path).resolve()
+            if data_dir not in raw_path.parents:
+                raise ValueError("source raw path escapes data_dir")
+            raw_path.unlink(missing_ok=True)
+        _content_registry().delete(record.content_hash)
+        registry.delete(record.source_id)
+        runtime.last_updated = datetime.now().isoformat()
+    return deleted_chunks
+
+
 @app.post("/api/ingest/clear")
 async def clear_knowledge():
     with ingest_lock:
         runtime.indexer.clear_all()
+        _content_registry().clear()
+        _source_registry().clear()
         runtime.last_updated = datetime.now().isoformat()
     return {"status": "ok", "message": "知识库已清空"}
 
 
 @app.post("/api/query")
 async def query(request: QueryRequest):
+    resolution = resolve_query(request.question, request.previous_question)
+    if resolution.status == "clarification_required":
+        return StreamingResponse(
+            _terminal_query_events(
+                "这个问题需要上一轮主题才能继续。请明确说明要基于哪条资料或重新完整描述问题。",
+                "clarification_required",
+            ),
+            media_type="text/event-stream",
+        )
+
     reranker_config = runtime.config.get("reranker", {})
     reranker = None
     if reranker_config.get("enabled"):
@@ -737,10 +1226,16 @@ async def query(request: QueryRequest):
     chunks, debug_payload, evidence_payload = _retrieve_quality_context(
         retriever=retriever,
         request=request,
+        retrieval_question=resolution.resolved_question,
         top_k=runtime.config["retrieval"]["final_top_k"],
     )
+    if not chunks:
+        return StreamingResponse(
+            _terminal_query_events("当前知识库缺少相关信息，无法回答该问题。建议补充相关资料后重新提问。", "no_answer"),
+            media_type="text/event-stream",
+        )
     generator = generate_answer(
-        question=request.question,
+        question=resolution.resolved_question,
         chunks=chunks,
         language=request.language,
         deepseek_endpoint=runtime.config["deepseek"]["endpoint"],
@@ -755,8 +1250,14 @@ async def query(request: QueryRequest):
     return StreamingResponse(generator, media_type="text/event-stream")
 
 
-def _retrieve_quality_context(*, retriever, request: QueryRequest, top_k: int):
-    expansion = expand_query(request.question)
+async def _terminal_query_events(content: str, source_status: str):
+    yield f"data: {json.dumps({'type': 'token', 'content': content}, ensure_ascii=False)}\n\n"
+    yield f"data: {json.dumps({'type': 'sources', 'sources': [], 'source_status': source_status}, ensure_ascii=False)}\n\n"
+    yield 'data: {"type":"done"}\n\n'
+
+
+def _retrieve_quality_context(*, retriever, request: QueryRequest, retrieval_question: str, top_k: int):
+    expansion = expand_query(retrieval_question)
     variant_results = []
     variant_chunk_ids = {}
     debug_payload = None
@@ -767,9 +1268,10 @@ def _retrieve_quality_context(*, retriever, request: QueryRequest, top_k: int):
             chunks = retriever.hybrid_search(variant.query, top_k)
         variant_results.append((variant, chunks))
         variant_chunk_ids[variant.query] = [chunk.chunk_id for chunk in chunks]
-    dossier = build_topic_dossier(question=request.question, variant_results=variant_results)
-    chunks, fidelity_report = expand_adjacent_chunks(dossier.chunks, runtime.indexer)
-    answer_mode = infer_answer_mode(request.question, request.language)
+    dossier = build_topic_dossier(question=retrieval_question, variant_results=variant_results)
+    supported_chunks = filter_supported_chunks(retrieval_question, dossier.chunks)
+    chunks, fidelity_report = expand_adjacent_chunks(supported_chunks, runtime.indexer)
+    answer_mode = infer_answer_mode(retrieval_question, request.language)
     evidence_payload = None
     if request.trace or request.debug:
         evidence_payload = build_evidence_report(
@@ -1338,17 +1840,19 @@ def _embedding_check() -> Dict[str, str]:
     }
 
 
-def _chunk(text: str, source_name: str, source_type: str):
+def _chunk(text: str, source_name: str, source_type: str, *, metadata=None, source_id: str = ""):
     return chunk_text(
         text,
         source_name,
         source_type,
         max_chunk_size=runtime.config["chunking"]["max_chunk_size"],
         chunk_overlap=runtime.config["chunking"]["chunk_overlap"],
+        metadata=metadata,
+        source_id=source_id,
     )
 
 
-def _pre_chunk_records(records):
+def _pre_chunk_records(records, *, source_id: str = "", shared_metadata=None):
     created_at = datetime.now().astimezone().isoformat()
     chunks = []
     for index, record in enumerate(records):
@@ -1357,13 +1861,14 @@ def _pre_chunk_records(records):
         text = record.text
         chunks.append(
             Chunk(
-                id=f"{record.source_name}#org_chart_{index}",
+                id=f"{source_id or record.source_name}#org_chart_{index}",
                 text=text,
                 source_name=record.source_name,
                 source_type=record.source_type,
                 chunk_index=index,
                 created_at=created_at,
                 embedding_text=text,
+                metadata={**dict(shared_metadata or {}), **dict(getattr(record, "metadata", {}) or {})},
             )
         )
     return chunks

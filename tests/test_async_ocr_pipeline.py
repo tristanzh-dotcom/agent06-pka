@@ -72,6 +72,24 @@ def ocr_quality():
     )
 
 
+def low_ocr_quality():
+    quality = ocr_quality()
+    return ParseQuality(
+        status="low",
+        action="ocr",
+        valid_ratio=quality.valid_ratio,
+        short_line_ratio=quality.short_line_ratio,
+        watermark_ratio=quality.watermark_ratio,
+        unique_line_ratio=quality.unique_line_ratio,
+        non_empty_pages=quality.non_empty_pages,
+        page_count=quality.page_count,
+        non_empty_page_ratio=quality.non_empty_page_ratio,
+        effective_chars_per_page=quality.effective_chars_per_page,
+        cleaned_chars_ratio=quality.cleaned_chars_ratio,
+        reasons=["OCR 结果需人工确认"],
+    )
+
+
 def test_ingest_file_returns_202_and_queued_status_for_scan_pdf(monkeypatch, tmp_path):
     original = install_temp_runtime(tmp_path, "test_async_ocr_accepts_scan")
 
@@ -100,6 +118,79 @@ def test_ingest_file_returns_202_and_queued_status_for_scan_pdf(monkeypatch, tmp
         assert payload["task_id"].startswith("ocr_task_")
         assert payload["file_name"] == "GEO_Scan_Report.pdf"
         assert server.runtime.indexer.count_chunks() == 0
+    finally:
+        restore_runtime(original)
+
+
+def test_duplicate_scan_upload_reuses_pending_task_without_second_parse(monkeypatch, tmp_path):
+    original = install_temp_runtime(tmp_path, "test_async_ocr_duplicate_pending")
+    parse_calls = []
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
+        parse_calls.append(Path(file_path).name)
+        return ParseResult(
+            text="",
+            source_name=Path(file_path).name,
+            source_type="pdf",
+            metadata={"page_count": 10, "non_empty_pages": 0},
+            quality=needs_ocr_quality(),
+        )
+
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    monkeypatch.setattr(server, "_build_ocr_client", lambda: None)
+    client = TestClient(app)
+
+    try:
+        first = client.post(
+            "/api/ingest/file",
+            files={"file": ("GEO_Scan_Report.pdf", b"%PDF identical scan", "application/pdf")},
+        )
+        second = client.post(
+            "/api/ingest/file",
+            files={"file": ("GEO_Scan_Report.pdf", b"%PDF identical scan", "application/pdf")},
+        )
+
+        assert first.status_code == 202
+        assert second.status_code == 200
+        assert second.json()["status"] == "duplicate_pending"
+        assert second.json()["duplicate_of"]["task_id"] == first.json()["task_id"]
+        assert parse_calls == ["GEO_Scan_Report.pdf"]
+    finally:
+        restore_runtime(original)
+
+
+def test_missing_raw_ocr_task_releases_content_for_retry(tmp_path):
+    original = install_temp_runtime(tmp_path, "test_async_ocr_missing_raw_retry")
+    content_hash = "a" * 64
+
+    class RecordingExecutor:
+        def submit(self, *_args, **_kwargs):
+            raise AssertionError("missing raw file must not be requeued")
+
+    try:
+        registry = server._content_registry()
+        registry.reserve(
+            content_hash=content_hash,
+            source_name="missing.pdf",
+            raw_file_path="raw/2026-07-15/missing.pdf",
+            content_kind="file",
+        )
+        task_id = server._ocr_task_store().create_task(
+            file_name="missing.pdf",
+            raw_file_path="raw/2026-07-15/missing.pdf",
+            content_type="application/pdf",
+            page_count=1,
+            content_hash=content_hash,
+        )
+        registry.mark_pending(content_hash, task_id=task_id)
+
+        assert server.recover_queued_ocr_tasks(RecordingExecutor()) == {"requeued": 0, "failed": 1}
+        assert registry.reserve(
+            content_hash=content_hash,
+            source_name="retry.pdf",
+            raw_file_path="raw/2026-07-15/retry.pdf",
+            content_kind="file",
+        ).status == "reserved"
     finally:
         restore_runtime(original)
 
@@ -336,6 +427,63 @@ def test_async_ocr_worker_keeps_plain_ocr_text_when_not_org_chart(monkeypatch, t
         stored = server.runtime.indexer.search_fts("onboarding", 5)[0]
         assert stored["source_type"] == "pdf"
         assert "offer negotiation" in stored["text"]
+    finally:
+        restore_runtime(original)
+
+
+def test_async_low_quality_ocr_waits_for_explicit_acceptance(monkeypatch, tmp_path):
+    original = install_temp_runtime(tmp_path, "test_async_ocr_quality_review")
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
+        return ParseResult(
+            text="",
+            source_name=Path(file_path).name,
+            source_type="pdf",
+            metadata={"page_count": 1, "non_empty_pages": 0},
+            quality=needs_ocr_quality(),
+        )
+
+    class LowOCRChain:
+        async def extract_pdf_until_usable(self, pdf_path, *, page_count, max_pages):
+            return type(
+                "OCRResult",
+                (),
+                {
+                    "text": "low confidence scanned content",
+                    "quality": low_ocr_quality(),
+                    "provider": "paddle",
+                    "attempts": [],
+                    "source_page_count": 1,
+                    "pages_processed": 1,
+                    "page_limit_reached": False,
+                    "partial": False,
+                },
+            )()
+
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    monkeypatch.setattr(server, "_build_ocr_client", lambda: None)
+    client = TestClient(app)
+    try:
+        first = client.post(
+            "/api/ingest/file",
+            files={"file": ("low_scan.pdf", b"%PDF low scan", "application/pdf")},
+        ).json()
+        server.run_ocr_task_once(first["task_id"], LowOCRChain())
+        reviewed = client.get(f"/api/tasks/{first['task_id']}").json()
+        assert reviewed["status"] == "review_required"
+        assert reviewed["result"]["chunks_inserted"] == 0
+        assert server.runtime.indexer.count_chunks() == 0
+
+        accepted = client.post(
+            "/api/ingest/file",
+            files={"file": ("low_scan.pdf", b"%PDF low scan", "application/pdf")},
+            data={"quality_policy": "accept"},
+        ).json()
+        server.run_ocr_task_once(accepted["task_id"], LowOCRChain())
+        completed = client.get(f"/api/tasks/{accepted['task_id']}").json()
+        assert completed["status"] == "completed"
+        assert completed["result"]["chunks_inserted"] == 1
+        assert completed["result"]["source_id"]
     finally:
         restore_runtime(original)
 

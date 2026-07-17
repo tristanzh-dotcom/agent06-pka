@@ -35,9 +35,16 @@
           <button type="submit">上传并解析</button>
         </form>
         <pre id="file-feedback" class="feedback ingest-feedback upload-feedback"></pre>
+        <details class="ingest-source-manager">
+          <summary>
+            <span>已录入资料</span>
+            <button type="button" id="refresh-ingest-sources" class="secondary-action">刷新</button>
+          </summary>
+          <div id="ingest-source-list" class="ingest-source-list" aria-live="polite">正在读取…</div>
+        </details>
       </article>
     </section>
   </main>
-  <script src="static/app.js?v=20260619-ask-state"></script>
+  <script src="static/app.js?v=20260715-ingest-lifecycle"></script>
 </body>
 </html>

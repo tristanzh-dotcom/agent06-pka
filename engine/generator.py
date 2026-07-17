@@ -277,8 +277,6 @@ async def generate_answer(
                 include_chinese_advice=True,
             )
             answer = _format_chinese_answer(analysis, chunks)
-            if _is_no_answer(answer) and _has_direct_query_evidence(question, chunks):
-                answer = _generate_grounded_chinese_fallback(question, chunks)
             yield _sse({"type": "token", "content": answer})
         except Exception as exc:
             yield _sse({"type": "error", "content": f"DeepSeek 调用失败: {exc}"})
@@ -578,53 +576,6 @@ def _compact_text(text: str, limit: int) -> str:
     if len(compact) > limit:
         return compact[:limit].rstrip() + "..."
     return compact
-
-
-DIRECT_EVIDENCE_STOPWORDS = {
-    "目前",
-    "我的",
-    "什么",
-    "哪些",
-    "是否",
-    "怎么",
-    "如何",
-    "这个",
-    "那个",
-    "当前",
-    "一下",
-    "相关",
-}
-
-
-def _has_direct_query_evidence(question: str, chunks: List[RetrievedChunk]) -> bool:
-    terms = _meaningful_query_terms(question)
-    if len(terms) < 2:
-        return False
-    required_hits = min(2, len(terms))
-    for chunk in chunks[:5]:
-        text = chunk.text.lower()
-        hits = sum(1 for term in terms if term.lower() in text)
-        if hits >= required_hits:
-            return True
-    return False
-
-
-def _meaningful_query_terms(question: str) -> List[str]:
-    try:
-        import jieba
-
-        raw_terms = [term.strip() for term in jieba.cut(question) if term.strip()]
-    except Exception:
-        raw_terms = re.findall(r"[A-Za-z0-9]+|[\u4e00-\u9fff]{2,}", question)
-
-    terms = []
-    for term in raw_terms:
-        normalized = term.strip(" ?？!！,，.。:：;；、").lower()
-        if not normalized or normalized in DIRECT_EVIDENCE_STOPWORDS:
-            continue
-        if len(normalized) >= 2 and normalized not in terms:
-            terms.append(normalized)
-    return terms
 
 
 def _parse_json_object(text: str) -> Optional[dict]:

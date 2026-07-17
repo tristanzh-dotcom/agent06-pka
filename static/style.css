@@ -15,6 +15,33 @@
   --message-bg: #fff;
   --message-user-bg: #e9f3f1;
   --button-text: #fff;
+  --ask-operation-fg: var(--accent);
+  --ask-operation-bg: var(--panel);
+  --ask-operation-border: var(--line);
+  --ask-operation-hover-bg: var(--message-user-bg);
+  --ask-destination-fg: color-mix(in srgb, var(--accent) 82%, var(--ink));
+  --ask-destination-bg: color-mix(in srgb, var(--accent) 7%, var(--panel));
+  --ask-destination-border: color-mix(in srgb, var(--accent) 42%, var(--line));
+  --ask-source-link-fg: var(--accent);
+  --ask-source-badge-bg: color-mix(in srgb, var(--accent) 9%, var(--panel));
+  --ask-source-org-chart-fg: color-mix(in srgb, var(--accent) 70%, var(--ink));
+  --ask-source-pdf-fg: color-mix(in srgb, var(--accent) 82%, var(--ink));
+  --ask-source-text-fg: color-mix(in srgb, var(--accent) 58%, var(--ink));
+  --status-success-fg: color-mix(in srgb, var(--accent) 72%, var(--ink));
+  --status-success-bg: color-mix(in srgb, var(--accent) 12%, var(--panel));
+  --status-success-border: color-mix(in srgb, var(--accent) 42%, var(--line));
+  --status-info-fg: color-mix(in srgb, var(--accent) 82%, var(--ink));
+  --status-info-bg: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  --status-info-border: color-mix(in srgb, var(--accent) 36%, var(--line));
+  --status-warning-fg: color-mix(in srgb, var(--accent-2) 52%, var(--ink));
+  --status-warning-bg: color-mix(in srgb, var(--accent-2) 10%, var(--panel));
+  --status-warning-border: color-mix(in srgb, var(--accent-2) 38%, var(--line));
+  --status-danger-fg: color-mix(in srgb, var(--accent-2) 78%, var(--ink));
+  --status-danger-bg: color-mix(in srgb, var(--accent-2) 12%, var(--panel));
+  --status-danger-border: color-mix(in srgb, var(--accent-2) 45%, var(--line));
+  --status-special-fg: color-mix(in srgb, var(--accent) 58%, var(--ink));
+  --status-special-bg: color-mix(in srgb, var(--accent) 8%, var(--panel));
+  --status-special-border: color-mix(in srgb, var(--accent) 32%, var(--line));
   --body-background:
     linear-gradient(90deg, rgba(31, 111, 104, 0.04) 1px, transparent 1px),
     linear-gradient(rgba(31, 111, 104, 0.035) 1px, transparent 1px),
@@ -240,8 +267,8 @@ button.upload-slot {
 }
 
 .upload-slot.is-org-chart-slot {
-  border-color: rgba(43, 116, 175, 0.48);
-  background: rgba(43, 116, 175, 0.08);
+  border-color: var(--status-special-border);
+  background: var(--status-special-bg);
 }
 
 .upload-slot.is-filled {
@@ -255,23 +282,23 @@ button.upload-slot {
 }
 
 .upload-slot.is-queued {
-  border-color: rgba(43, 116, 175, 0.38);
-  background: rgba(43, 116, 175, 0.08);
+  border-color: var(--status-info-border);
+  background: var(--status-info-bg);
 }
 
 .upload-slot.is-processing {
-  border-color: rgba(210, 120, 38, 0.42);
-  background: rgba(210, 120, 38, 0.10);
+  border-color: var(--status-warning-border);
+  background: var(--status-warning-bg);
 }
 
 .upload-slot.is-skipped {
   border-color: var(--accent-2);
-  background: rgba(178, 59, 46, 0.08);
+  background: var(--status-warning-bg);
 }
 
 .upload-slot.is-error {
   border-color: var(--accent-2);
-  background: rgba(178, 59, 46, 0.08);
+  background: var(--status-danger-bg);
 }
 
 .upload-slot-plus {
@@ -319,18 +346,18 @@ button.upload-slot {
 
 button.quality-full,
 .quality-full {
-  border-color: rgba(59, 132, 91, 0.42);
-  background: rgba(59, 132, 91, 0.12);
-  color: #2f704b;
+  border-color: var(--status-success-border);
+  background: var(--status-success-bg);
+  color: var(--status-success-fg);
 }
 
 button.quality-ocr,
 button.quality-ocr-partial,
 .quality-ocr,
 .quality-ocr-partial {
-  border-color: rgba(43, 116, 175, 0.38);
-  background: rgba(43, 116, 175, 0.12);
-  color: #246492;
+  border-color: var(--status-info-border);
+  background: var(--status-info-bg);
+  color: var(--status-info-fg);
 }
 
 .quality-ocr-partial {
@@ -341,28 +368,28 @@ button.quality-full-low,
 button.quality-low,
 .quality-full-low,
 .quality-low {
-  border-color: rgba(210, 120, 38, 0.42);
-  background: rgba(210, 120, 38, 0.13);
-  color: #9a5a17;
+  border-color: var(--status-warning-border);
+  background: var(--status-warning-bg);
+  color: var(--status-warning-fg);
 }
 
 button.quality-blocked,
 .quality-blocked {
-  border-color: rgba(178, 59, 46, 0.42);
-  background: rgba(178, 59, 46, 0.12);
-  color: #9d3429;
+  border-color: var(--status-danger-border);
+  background: var(--status-danger-bg);
+  color: var(--status-danger-fg);
 }
 
 .quality-org-chart {
-  border-color: rgba(91, 82, 180, 0.40);
-  background: rgba(91, 82, 180, 0.12);
-  color: #50479d;
+  border-color: var(--status-special-border);
+  background: var(--status-special-bg);
+  color: var(--status-special-fg);
 }
 
 button.quality-failed,
 .quality-failed {
-  border-color: rgba(109, 106, 100, 0.38);
-  background: rgba(109, 106, 100, 0.12);
+  border-color: var(--line);
+  background: var(--conversation-bg);
   color: var(--muted);
 }
 
@@ -430,6 +457,85 @@ button.quality-failed,
   color: var(--accent);
   padding: 0 8px;
   font-size: 12px;
+}
+
+.upload-decision-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.upload-decision-actions button,
+.source-row button {
+  min-height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.upload-decision-actions button.is-primary {
+  border-color: var(--status-info-border);
+  color: var(--status-info-fg);
+  background: var(--status-info-bg);
+}
+
+.ingest-source-manager {
+  min-height: 34px;
+  color: var(--ink);
+}
+
+.ingest-source-manager summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.ingest-source-manager summary::marker {
+  color: var(--muted);
+}
+
+.ingest-source-manager summary button {
+  min-height: 28px;
+}
+
+.ingest-source-list {
+  display: grid;
+  gap: 6px;
+  max-height: 180px;
+  overflow: auto;
+  margin-top: 8px;
+  color: var(--ink);
+}
+
+.source-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 8px;
+  align-items: center;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--conversation-bg);
+  color: var(--ink);
+}
+
+.source-row-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.source-row-meta {
+  color: var(--muted);
+  font-size: 10px;
 }
 
 .upload-file-row {
@@ -542,6 +648,18 @@ button:disabled,
   font-weight: 700;
 }
 
+.new-conversation {
+  min-height: 36px;
+  margin-left: auto;
+  margin-right: 8px;
+  padding: 0 12px;
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow: none;
+  font-size: 14px;
+}
+
 .exportbar {
   display: flex;
   align-items: center;
@@ -552,16 +670,16 @@ button:disabled,
 .exportbar button[type="button"] {
   min-height: 36px;
   padding: 0 12px;
-  background: var(--panel);
-  color: var(--accent);
-  border: 1px solid var(--line);
+  background: var(--ask-operation-bg);
+  color: var(--ask-operation-fg);
+  border: 1px solid var(--ask-operation-border);
   box-shadow: none;
   font-size: 14px;
 }
 
 .exportbar button[type="button"]:hover {
-  border-color: var(--accent);
-  background: var(--message-user-bg);
+  border-color: var(--ask-operation-fg);
+  background: var(--ask-operation-hover-bg);
   color: var(--ink);
 }
 
@@ -575,16 +693,16 @@ button:disabled,
 .exportbar .answer-destination {
   min-width: 0;
   min-height: 36px;
-  color: #155f66;
-  border-color: #79b8bf;
-  background: #f3fbfc;
+  color: var(--ask-destination-fg);
+  border-color: var(--ask-destination-border);
+  background: var(--ask-destination-bg);
 }
 
 .exportbar .answer-destination:disabled {
   opacity: 1;
-  color: #155f66;
-  border-color: #79b8bf;
-  background: #f3fbfc;
+  color: var(--ask-destination-fg);
+  border-color: var(--ask-destination-border);
+  background: var(--ask-destination-bg);
 }
 
 @media (max-width: 720px) {
@@ -910,29 +1028,29 @@ button:disabled,
 }
 
 .source-type-org-chart {
-  border-color: rgba(91, 82, 180, 0.38);
-  background: rgba(91, 82, 180, 0.11);
-  color: #50479d;
+  border-color: var(--ask-source-org-chart-fg);
+  background: var(--ask-source-badge-bg);
+  color: var(--ask-source-org-chart-fg);
 }
 
 .source-type-pdf {
-  border-color: rgba(43, 116, 175, 0.34);
-  background: rgba(43, 116, 175, 0.10);
-  color: #246492;
+  border-color: var(--ask-source-pdf-fg);
+  background: var(--ask-source-badge-bg);
+  color: var(--ask-source-pdf-fg);
 }
 
 .source-type-text {
-  border-color: rgba(59, 132, 91, 0.34);
-  background: rgba(59, 132, 91, 0.10);
-  color: #2f704b;
+  border-color: var(--ask-source-text-fg);
+  background: var(--ask-source-badge-bg);
+  color: var(--ask-source-text-fg);
 }
 
 .source-type-generic {
-  background: var(--soft);
+  background: var(--ask-source-badge-bg);
 }
 
 .ask-source-chip a {
-  color: var(--accent);
+  color: var(--ask-source-link-fg);
   text-decoration: none;
   overflow: hidden;
   text-overflow: ellipsis;

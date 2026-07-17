@@ -1,0 +1,194 @@
+{
+  "base_url": "http://127.0.0.1:52441",
+  "failures": [
+    "nhtsa_automotive_pdf: 'NoneType' object is not subscriptable",
+    "nuscenes_can_bus_markdown: 'NoneType' object is not subscriptable",
+    "openpilot_vehicle_models_txt: 'NoneType' object is not subscriptable"
+  ],
+  "finished_at": "2026-07-16T06:09:31+08:00",
+  "manifest": [
+    {
+      "allow_quality_accept": false,
+      "anchor_query": "vehicle registrations production",
+      "enabled": true,
+      "exclusion_reason": "",
+      "expected_mime_types": [
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      ],
+      "filename": "smmt_vehicle_registrations.xlsx",
+      "key": "ons_vehicle_registrations_xlsx",
+      "url": "https://www.ons.gov.uk/file?uri=%2Feconomy%2Feconomicoutputandproductivity%2Foutput%2Fdatasets%2Fuknewvehicleregistrationsandproduction%2F2026%2Fsmmtvehicleregandproddataset090726.xlsx"
+    },
+    {
+      "allow_quality_accept": true,
+      "anchor_query": "vehicle service bulletin",
+      "enabled": true,
+      "exclusion_reason": "",
+      "expected_mime_types": [
+        "application/pdf"
+      ],
+      "filename": "MC-10249194-0001.pdf",
+      "key": "nhtsa_automotive_pdf",
+      "url": "https://static.nhtsa.gov/odi/tsbs/2024/MC-10249194-0001.pdf"
+    },
+    {
+      "allow_quality_accept": false,
+      "anchor_query": "CAN bus vehicle monitor",
+      "enabled": true,
+      "exclusion_reason": "",
+      "expected_mime_types": [
+        "text/plain",
+        "text/markdown"
+      ],
+      "filename": "nuscenes_can_bus_README.md",
+      "key": "nuscenes_can_bus_markdown",
+      "url": "https://raw.githubusercontent.com/nutonomy/nuscenes-devkit/refs/heads/master/python-sdk/nuscenes/can_bus/README.md"
+    },
+    {
+      "allow_quality_accept": false,
+      "anchor_query": "Toyota car model",
+      "enabled": true,
+      "exclusion_reason": "",
+      "expected_mime_types": [
+        "text/plain"
+      ],
+      "filename": "test_models_segs.txt",
+      "key": "openpilot_vehicle_models_txt",
+      "url": "https://raw.githubusercontent.com/commaai/openpilot/master/openpilot/selfdrive/car/tests/test_models_segs.txt"
+    }
+  ],
+  "runtime_root": "/var/folders/by/ryk2x0p133n0q7syh20tp2l40000gn/T/pka-public-automotive-ingest-waal4f9m",
+  "samples": [
+    {
+      "bytes": 97398,
+      "chunks": 101,
+      "coverage": {
+        "counts": {
+          "formulas": 0,
+          "rows": 304,
+          "sheets": 6
+        },
+        "format": "xlsx",
+        "status": "complete",
+        "warnings": []
+      },
+      "delete_reupload": {
+        "deleted": true,
+        "reuploaded": true
+      },
+      "duplicate": {
+        "blocked": true,
+        "status": "duplicate"
+      },
+      "key": "ons_vehicle_registrations_xlsx",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "quality": {},
+      "recall": {
+        "fts": true,
+        "vector": true
+      },
+      "retrieved_at": "2026-07-16T06:09:03+08:00",
+      "sha256": "3ecc8bc12c115e15e836814fceb9b3e85ba628931dcaa266122a85c51b7c2c47",
+      "status": "passed",
+      "upload": {
+        "source_id": "source_8f2364d2409b4dfab7268262132f4f7a",
+        "status": "ok"
+      },
+      "url": "https://www.ons.gov.uk/file?uri=%2Feconomy%2Feconomicoutputandproductivity%2Foutput%2Fdatasets%2Fuknewvehicleregistrationsandproduction%2F2026%2Fsmmtvehicleregandproddataset090726.xlsx"
+    },
+    {
+      "bytes": 518820,
+      "chunks": 4,
+      "coverage": {
+        "counts": {
+          "non_empty_pages": 2,
+          "org_chart_pages": 0,
+          "pages": 2
+        },
+        "format": "pdf",
+        "status": "complete",
+        "warnings": []
+      },
+      "error": "'NoneType' object is not subscriptable",
+      "key": "nhtsa_automotive_pdf",
+      "mime_type": "application/pdf",
+      "quality": {
+        "action": "cleaned",
+        "cleaned_chars_ratio": 0.984,
+        "effective_chars_per_page": 1267.0,
+        "non_empty_page_ratio": 1.0,
+        "non_empty_pages": 2,
+        "page_count": 2,
+        "reasons": [],
+        "short_line_ratio": 0.462,
+        "status": "high",
+        "unique_line_ratio": 9.7,
+        "valid_ratio": 0.984,
+        "watermark_ratio": 0.077
+      },
+      "retrieved_at": "2026-07-16T06:09:27+08:00",
+      "sha256": "ceb19d7b2d990223506451ce9243ba8c0e14ac6ece85075fcf564155bfe41815",
+      "status": "failed",
+      "traceback": "Traceback (most recent call last):\n  File \"/Users/tristanzh/agent/agent06-pka/scripts/verify_public_automotive_ingest.py\", line 257, in run_live_verification\n    item[\"recall\"] = _recall(data_dir, sample, source_id)\n  File \"/Users/tristanzh/agent/agent06-pka/scripts/verify_public_automotive_ingest.py\", line 224, in _recall\n    vector_hits = indexer.search_vector(sample.anchor_query)\n  File \"/Users/tristanzh/agent/agent06-pka/engine/indexer.py\", line 274, in search_vector\n    return [\n  File \"/Users/tristanzh/agent/agent06-pka/engine/indexer.py\", line 278, in <listcomp>\n    \"source_name\": metadata[\"source_name\"],\nTypeError: 'NoneType' object is not subscriptable\n",
+      "upload": {
+        "source_id": "source_3ecff21f266542159a9938bf4aad9ca2",
+        "status": "ok"
+      },
+      "url": "https://static.nhtsa.gov/odi/tsbs/2024/MC-10249194-0001.pdf"
+    },
+    {
+      "bytes": 8602,
+      "chunks": 11,
+      "coverage": {
+        "counts": {
+          "characters": 8602,
+          "lines": 144
+        },
+        "format": "md",
+        "status": "complete",
+        "warnings": []
+      },
+      "error": "'NoneType' object is not subscriptable",
+      "key": "nuscenes_can_bus_markdown",
+      "mime_type": "text/plain",
+      "quality": {},
+      "retrieved_at": "2026-07-16T06:09:29+08:00",
+      "sha256": "5dc8055180339dc68b6e7b7f9b479b762e4313ccf4ff94429103f40464b369d3",
+      "status": "failed",
+      "traceback": "Traceback (most recent call last):\n  File \"/Users/tristanzh/agent/agent06-pka/scripts/verify_public_automotive_ingest.py\", line 257, in run_live_verification\n    item[\"recall\"] = _recall(data_dir, sample, source_id)\n  File \"/Users/tristanzh/agent/agent06-pka/scripts/verify_public_automotive_ingest.py\", line 224, in _recall\n    vector_hits = indexer.search_vector(sample.anchor_query)\n  File \"/Users/tristanzh/agent/agent06-pka/engine/indexer.py\", line 274, in search_vector\n    return [\n  File \"/Users/tristanzh/agent/agent06-pka/engine/indexer.py\", line 278, in <listcomp>\n    \"source_name\": metadata[\"source_name\"],\nTypeError: 'NoneType' object is not subscriptable\n",
+      "upload": {
+        "source_id": "source_c00761b388b949e0877077ed42ab5849",
+        "status": "ok"
+      },
+      "url": "https://raw.githubusercontent.com/nutonomy/nuscenes-devkit/refs/heads/master/python-sdk/nuscenes/can_bus/README.md"
+    },
+    {
+      "bytes": 131,
+      "chunks": 1,
+      "coverage": {
+        "counts": {
+          "characters": 131,
+          "lines": 3
+        },
+        "format": "txt",
+        "status": "complete",
+        "warnings": []
+      },
+      "error": "'NoneType' object is not subscriptable",
+      "key": "openpilot_vehicle_models_txt",
+      "mime_type": "text/plain",
+      "quality": {},
+      "retrieved_at": "2026-07-16T06:09:31+08:00",
+      "sha256": "676b95e380b6f1d0d70bce3b7dbecd6bfb84c20bd789af4edc4d9e6ca0407d8e",
+      "status": "failed",
+      "traceback": "Traceback (most recent call last):\n  File \"/Users/tristanzh/agent/agent06-pka/scripts/verify_public_automotive_ingest.py\", line 257, in run_live_verification\n    item[\"recall\"] = _recall(data_dir, sample, source_id)\n  File \"/Users/tristanzh/agent/agent06-pka/scripts/verify_public_automotive_ingest.py\", line 224, in _recall\n    vector_hits = indexer.search_vector(sample.anchor_query)\n  File \"/Users/tristanzh/agent/agent06-pka/engine/indexer.py\", line 274, in search_vector\n    return [\n  File \"/Users/tristanzh/agent/agent06-pka/engine/indexer.py\", line 278, in <listcomp>\n    \"source_name\": metadata[\"source_name\"],\nTypeError: 'NoneType' object is not subscriptable\n",
+      "upload": {
+        "source_id": "source_e767d84c2a264982856857dc3b2d61d6",
+        "status": "ok"
+      },
+      "url": "https://raw.githubusercontent.com/commaai/openpilot/master/openpilot/selfdrive/car/tests/test_models_segs.txt"
+    }
+  ],
+  "started_at": "2026-07-16T06:09:01+08:00",
+  "status": "failed"
+}

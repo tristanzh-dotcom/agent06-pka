@@ -1,0 +1,169 @@
+{
+  "base_url": "http://127.0.0.1:50386",
+  "failures": [
+    "unece_r154_docx: HTTP Error 403: Forbidden",
+    "unece_eve_pptx: HTTP Error 403: Forbidden",
+    "ons_vehicle_registrations_xlsx: Client error '413 Request Entity Too Large' for url 'http://127.0.0.1:50386/api/ingest/file'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/413",
+    "nhtsa_tire_safety_pdf: HTTP Error 403: Forbidden",
+    "nhtsa_blind_spot_png: HTTP Error 403: Forbidden",
+    "nuscenes_can_bus_markdown: No module named 'engine'"
+  ],
+  "finished_at": "2026-07-16T00:47:56+08:00",
+  "manifest": [
+    {
+      "allow_quality_accept": false,
+      "anchor_query": "vehicle regulation R154",
+      "enabled": true,
+      "exclusion_reason": "",
+      "expected_mime_types": [
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      ],
+      "filename": "Base_Document_for_R154_04_200625.docx",
+      "key": "unece_r154_docx",
+      "url": "https://wiki.unece.org/download/attachments/265978083/Base%20Document%20for%20R154_04_200625.docx?api=v2"
+    },
+    {
+      "allow_quality_accept": false,
+      "anchor_query": "electric vehicle battery",
+      "enabled": true,
+      "exclusion_reason": "",
+      "expected_mime_types": [
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+      ],
+      "filename": "GRPE-92-49r1e.pptx",
+      "key": "unece_eve_pptx",
+      "url": "https://unece.org/sites/default/files/2025-03/GRPE-92-49r1e.pptx"
+    },
+    {
+      "allow_quality_accept": false,
+      "anchor_query": "vehicle registrations production",
+      "enabled": true,
+      "exclusion_reason": "",
+      "expected_mime_types": [
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      ],
+      "filename": "smmt_vehicle_registrations.xlsx",
+      "key": "ons_vehicle_registrations_xlsx",
+      "url": "https://www.ons.gov.uk/file?uri=%2Feconomy%2Feconomicoutputandproductivity%2Foutput%2Fdatasets%2Fuknewvehicleregistrationsandproduction%2F2026%2Fsmmtvehicleregandproddataset090726.xlsx"
+    },
+    {
+      "allow_quality_accept": true,
+      "anchor_query": "tire TPMS",
+      "enabled": true,
+      "exclusion_reason": "",
+      "expected_mime_types": [
+        "application/pdf"
+      ],
+      "filename": "Tires_InTheGarage_Infographic.pdf",
+      "key": "nhtsa_tire_safety_pdf",
+      "url": "https://www.nhtsa.gov/sites/nhtsa.gov/files/2021-11/Tires_InTheGarage_Infographic_102621_v1_-eng-tag.pdf"
+    },
+    {
+      "allow_quality_accept": true,
+      "anchor_query": "blind spot detection",
+      "enabled": true,
+      "exclusion_reason": "",
+      "expected_mime_types": [
+        "image/png"
+      ],
+      "filename": "lane_changing-blindspotdetection.png",
+      "key": "nhtsa_blind_spot_png",
+      "url": "https://www.nhtsa.gov/sites/nhtsa.gov/files/styles/large/public/lane_changing-blindspotdetection.png?itok=ZA5351jD"
+    },
+    {
+      "allow_quality_accept": false,
+      "anchor_query": "CAN bus vehicle monitor",
+      "enabled": true,
+      "exclusion_reason": "",
+      "expected_mime_types": [
+        "text/plain",
+        "text/markdown"
+      ],
+      "filename": "nuscenes_can_bus_README.md",
+      "key": "nuscenes_can_bus_markdown",
+      "url": "https://raw.githubusercontent.com/nutonomy/nuscenes-devkit/refs/heads/master/python-sdk/nuscenes/can_bus/README.md"
+    },
+    {
+      "allow_quality_accept": false,
+      "anchor_query": "automotive",
+      "enabled": false,
+      "exclusion_reason": "No stable direct public automotive TXT artifact was approved in the design; record the exclusion instead of substituting a non-manifest source.",
+      "expected_mime_types": [
+        "text/plain"
+      ],
+      "filename": "public_automotive.txt",
+      "key": "public_automotive_txt_exclusion",
+      "url": ""
+    }
+  ],
+  "runtime_root": "removed (isolated /tmp runtime)",
+  "samples": [
+    {
+      "error": "HTTP Error 403: Forbidden",
+      "key": "unece_r154_docx",
+      "status": "failed",
+      "url": "https://wiki.unece.org/download/attachments/265978083/Base%20Document%20for%20R154_04_200625.docx?api=v2"
+    },
+    {
+      "error": "HTTP Error 403: Forbidden",
+      "key": "unece_eve_pptx",
+      "status": "failed",
+      "url": "https://unece.org/sites/default/files/2025-03/GRPE-92-49r1e.pptx"
+    },
+    {
+      "bytes": 97398,
+      "error": "Client error '413 Request Entity Too Large' for url 'http://127.0.0.1:50386/api/ingest/file'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/413",
+      "key": "ons_vehicle_registrations_xlsx",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "retrieved_at": "2026-07-16T00:47:50+08:00",
+      "sha256": "3ecc8bc12c115e15e836814fceb9b3e85ba628931dcaa266122a85c51b7c2c47",
+      "status": "failed",
+      "url": "https://www.ons.gov.uk/file?uri=%2Feconomy%2Feconomicoutputandproductivity%2Foutput%2Fdatasets%2Fuknewvehicleregistrationsandproduction%2F2026%2Fsmmtvehicleregandproddataset090726.xlsx"
+    },
+    {
+      "error": "HTTP Error 403: Forbidden",
+      "key": "nhtsa_tire_safety_pdf",
+      "status": "failed",
+      "url": "https://www.nhtsa.gov/sites/nhtsa.gov/files/2021-11/Tires_InTheGarage_Infographic_102621_v1_-eng-tag.pdf"
+    },
+    {
+      "error": "HTTP Error 403: Forbidden",
+      "key": "nhtsa_blind_spot_png",
+      "status": "failed",
+      "url": "https://www.nhtsa.gov/sites/nhtsa.gov/files/styles/large/public/lane_changing-blindspotdetection.png?itok=ZA5351jD"
+    },
+    {
+      "bytes": 8602,
+      "chunks": 11,
+      "coverage": {
+        "counts": {
+          "characters": 8602,
+          "lines": 144
+        },
+        "format": "md",
+        "status": "complete",
+        "warnings": []
+      },
+      "error": "No module named 'engine'",
+      "key": "nuscenes_can_bus_markdown",
+      "mime_type": "text/plain",
+      "quality": {},
+      "retrieved_at": "2026-07-16T00:47:53+08:00",
+      "sha256": "5dc8055180339dc68b6e7b7f9b479b762e4313ccf4ff94429103f40464b369d3",
+      "status": "failed",
+      "upload": {
+        "source_id": "source_9d67bcbc3868488093cbd0692e4b839d",
+        "status": "ok"
+      },
+      "url": "https://raw.githubusercontent.com/nutonomy/nuscenes-devkit/refs/heads/master/python-sdk/nuscenes/can_bus/README.md"
+    },
+    {
+      "exclusion_reason": "No stable direct public automotive TXT artifact was approved in the design; record the exclusion instead of substituting a non-manifest source.",
+      "key": "public_automotive_txt_exclusion",
+      "status": "excluded",
+      "url": ""
+    }
+  ],
+  "started_at": "2026-07-16T00:47:46+08:00",
+  "status": "failed"
+}

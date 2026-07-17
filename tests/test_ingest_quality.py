@@ -129,6 +129,45 @@ async def test_unified_ingest_parsed_result_indexes_normal_and_pre_chunks(monkey
     assert raw_paths == ["raw/2026-06-16/mixed.pdf", "raw/2026-06-16/mixed.pdf"]
 
 
+async def test_ingest_persists_source_identity_quality_and_coverage_in_chunks(monkeypatch, tmp_path):
+    indexer = RecordingIndexer()
+    monkeypatch.setattr(server.runtime, "indexer", indexer)
+    monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
+    quality = _high_quality()
+    coverage = {
+        "format": "docx",
+        "status": "complete",
+        "warnings": [],
+        "counts": {"paragraphs": 1, "tables": 1, "table_rows": 2},
+    }
+    parsed = ParseResult(
+        text="项目负责人负责交付。",
+        source_name="report.docx",
+        source_type="docx",
+        metadata={"coverage": coverage},
+        quality=quality,
+    )
+
+    result = await server._ingest_parsed_result(
+        parsed,
+        raw_file_path="raw/2026-07-15/report.docx",
+        content_hash="c" * 64,
+        source_id="source-fixed",
+        original_name="report.docx",
+    )
+
+    chunks, _ = indexer.upsert_calls[0]
+    assert result["source_id"] == "source-fixed"
+    assert chunks[0].id == "source-fixed#0"
+    assert chunks[0].metadata["source_id"] == "source-fixed"
+    assert chunks[0].metadata["original_name"] == "report.docx"
+    assert chunks[0].metadata["quality"]["status"] == "high"
+    assert chunks[0].metadata["coverage"] == coverage
+    stored = server._source_registry().get("source-fixed")
+    assert stored.source_name == "report.docx"
+    assert stored.chunk_count == 1
+
+
 @pytest.mark.asyncio
 async def test_unified_ingest_parsed_result_rejects_empty_parsed_content(monkeypatch, tmp_path):
     indexer = RecordingIndexer()
@@ -426,7 +465,7 @@ async def test_needs_ocr_skips_before_provider_chain_failure_path(monkeypatch, t
 
 
 @pytest.mark.asyncio
-async def test_low_quality_pdf_does_not_trigger_ocr_chain(monkeypatch, tmp_path):
+async def test_low_quality_pdf_requires_review_without_indexing(monkeypatch, tmp_path):
     indexer = RecordingIndexer()
     monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
     monkeypatch.setattr(server.runtime, "indexer", indexer)
@@ -449,10 +488,71 @@ async def test_low_quality_pdf_does_not_trigger_ocr_chain(monkeypatch, tmp_path)
 
     result = await server._ingest_upload_file(upload, ocr=FailingIfCalledOCRChain())
 
-    assert result["status"] == "ok"
+    assert result["status"] == "review_required"
     assert result["quality"]["action"] == "low_indexed"
-    assert result["chunks"] > 0
-    assert indexer.count_chunks() == result["chunks"]
+    assert result["chunks"] == 0
+    assert indexer.count_chunks() == 0
+
+    repeated = await server._ingest_upload_file(
+        UploadFile(filename="low.pdf", file=BytesIO(b"%PDF low quality"), headers=None),
+        ocr=None,
+    )
+    assert repeated["status"] == "review_required"
+    assert "确认" in repeated["message"]
+
+
+@pytest.mark.asyncio
+async def test_explicit_quality_acceptance_indexes_low_quality_content(monkeypatch, tmp_path):
+    indexer = RecordingIndexer()
+    monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
+    monkeypatch.setattr(server.runtime, "indexer", indexer)
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
+        return ParseResult(
+            text="\n".join(["用户确认仍然入库的低质量正文内容。"] * 10),
+            source_name=Path(file_path).name,
+            source_type="pdf",
+            metadata={"coverage": {"format": "pdf", "status": "complete", "warnings": [], "counts": {"pages": 3}}},
+            quality=_low_quality(),
+        )
+
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    first = UploadFile(filename="low.pdf", file=BytesIO(b"%PDF reviewed low"), headers=None)
+    reviewed = await server._ingest_upload_file(first, ocr=None)
+    second = UploadFile(filename="low.pdf", file=BytesIO(b"%PDF reviewed low"), headers=None)
+
+    accepted = await server._ingest_upload_file(second, ocr=None, quality_policy="accept")
+
+    assert reviewed["status"] == "review_required"
+    assert accepted["status"] == "ok"
+    assert accepted["chunks"] > 0
+    chunks, _ = indexer.upsert_calls[0]
+    assert chunks[0].metadata["quality"]["status"] == "low"
+
+
+@pytest.mark.asyncio
+async def test_partial_structured_coverage_requires_review(monkeypatch, tmp_path):
+    indexer = RecordingIndexer()
+    monkeypatch.setitem(server.runtime.config, "data_dir", str(tmp_path))
+    monkeypatch.setattr(server.runtime, "indexer", indexer)
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
+        return ParseResult(
+            text="正文存在，但有结构未能提取。",
+            source_name=Path(file_path).name,
+            source_type="docx",
+            metadata={"coverage": {"format": "docx", "status": "partial", "warnings": ["unsupported_chart"], "counts": {}}},
+        )
+
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    upload = UploadFile(filename="partial.docx", file=BytesIO(b"partial docx"), headers=None)
+
+    result = await server._ingest_upload_file(upload, ocr=None)
+
+    assert result["status"] == "review_required"
+    assert result["chunks"] == 0
+    assert result["coverage"]["status"] == "partial"
+    assert indexer.count_chunks() == 0
 
 
 @pytest.mark.asyncio

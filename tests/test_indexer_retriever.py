@@ -159,6 +159,28 @@ def test_indexer_clear_all_removes_vector_and_fts_entries(tmp_path):
     assert indexer.search_fts("组织架构", top_k=5) == []
 
 
+def test_indexer_deletes_one_source_from_vector_and_fts_without_affecting_another(tmp_path):
+    indexer = HybridIndexer(
+        fts_db_path=str(tmp_path / "pka.db"),
+        vector_dir=str(tmp_path / "vector"),
+        collection_name="delete_one_source",
+        embedding_client=FakeEmbeddingClient(),
+    )
+    first = make_chunk("source-one#0", "组织架构调整方案", 0)
+    first = Chunk(**{**first.__dict__, "source_name": "first.txt", "metadata": {"source_id": "source-one"}})
+    second = make_chunk("source-two#0", "薪酬激励复盘", 0)
+    second = Chunk(**{**second.__dict__, "source_name": "second.txt", "metadata": {"source_id": "source-two"}})
+    indexer.upsert([first, second], raw_file_paths=["raw/first.txt", "raw/second.txt"])
+
+    deleted = indexer.delete_source("source-one", source_name="first.txt")
+
+    assert deleted == 1
+    assert indexer.get_chunk("source-one#0") is None
+    assert indexer.get_chunk("source-two#0") is not None
+    assert indexer.search_fts("组织架构", 5) == []
+    assert indexer.search_fts("薪酬", 5)
+
+
 def test_indexer_preserves_raw_file_path_in_search_and_lookup(tmp_path):
     indexer = HybridIndexer(
         fts_db_path=str(tmp_path / "pka.db"),
@@ -239,6 +261,39 @@ def test_search_vector_retries_lower_n_results_when_chroma_hnsw_limit_errors(tmp
 
     assert [result["chunk_id"] for result in results] == ["a.txt#0", "b.txt#0", "c.txt#0"]
     assert collection.requested_n_results == [10, 5, 3]
+
+
+def test_search_vector_skips_tombstoned_result_without_metadata(tmp_path):
+    indexer = HybridIndexer(
+        fts_db_path=str(tmp_path / "pka.db"),
+        vector_dir=str(tmp_path / "vector"),
+        collection_name="tombstoned_vector_result",
+        embedding_client=FakeEmbeddingClient(),
+    )
+
+    class TombstonedCollection:
+        def count(self):
+            return 2
+
+        def query(self, **kwargs):
+            return {
+                "ids": [["deleted.txt#0", "live.txt#0"]],
+                "documents": [["deleted", "组织架构调整方案"]],
+                "metadatas": [[None, {
+                    "source_name": "live.txt",
+                    "source_type": "txt",
+                    "chunk_index": 0,
+                    "created_at": "2026-07-16T00:00:00+08:00",
+                    "raw_file_path": "",
+                }]],
+                "distances": [[0.1, 0.2]],
+            }
+
+    indexer.collection = TombstonedCollection()
+
+    results = indexer.search_vector("组织架构", top_k=2)
+
+    assert [result["chunk_id"] for result in results] == ["live.txt#0"]
 
 
 @pytest.mark.asyncio

@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from engine.generator import build_deepseek_analysis_prompt, build_prompt, generate_answer, _parse_json_object
 from engine.indexer import HybridIndexer
-from engine.models import Chunk, RetrievedChunk
+from engine.models import Chunk, ParseResult, RetrievedChunk
 from server import app
 
 
@@ -193,6 +193,328 @@ def install_temp_runtime(server, tmp_path, collection_name):
 
 def restore_runtime(server, original):
     server.runtime.config, server.runtime.indexer, server.runtime.last_updated = original
+
+
+def test_duplicate_file_upload_stops_before_second_parse_and_index(monkeypatch, tmp_path):
+    import server
+
+    original = install_temp_runtime(server, tmp_path, "test_duplicate_file_upload")
+    parse_calls = []
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
+        parse_calls.append(Path(file_path).name)
+        return ParseResult(
+            text="重复文件中的知识内容。",
+            source_name=Path(file_path).name,
+            source_type="txt",
+            metadata={},
+        )
+
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    monkeypatch.setattr(server, "_build_ocr_client", lambda: None)
+    client = TestClient(app)
+
+    try:
+        first = client.post("/api/ingest/file", files={"file": ("report.txt", b"same bytes", "text/plain")})
+        second = client.post("/api/ingest/file", files={"file": ("report.txt", b"same bytes", "text/plain")})
+
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert second.json()["status"] == "duplicate"
+        assert second.json()["chunks"] == 0
+        assert parse_calls == ["report.txt"]
+        assert server.runtime.indexer.count_chunks() == first.json()["chunks"]
+        assert len(list((tmp_path / "data" / "raw").rglob("*"))) == 2
+    finally:
+        restore_runtime(server, original)
+
+
+def test_duplicate_manual_text_stops_before_new_source_is_created(tmp_path):
+    import server
+
+    original = install_temp_runtime(server, tmp_path, "test_duplicate_manual_text")
+    client = TestClient(app)
+
+    try:
+        first = client.post("/api/ingest/text", json={"text": "同一段手工录入文本"})
+        second = client.post("/api/ingest/text", json={"text": "\n同一段手工录入文本\r\n"})
+
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert second.json()["status"] == "duplicate"
+        assert second.json()["chunks"] == 0
+        assert server.runtime.indexer.count_sources() == 1
+    finally:
+        restore_runtime(server, original)
+
+
+def test_failed_manual_text_parse_can_be_retried(monkeypatch, tmp_path):
+    import server
+
+    original = install_temp_runtime(server, tmp_path, "test_retry_failed_manual_text")
+    parse_attempts = []
+
+    def failing_parse_text(text, source_name):
+        parse_attempts.append(source_name)
+        raise ValueError("temporary parser failure")
+
+    monkeypatch.setattr(server, "parse_text", failing_parse_text)
+    client = TestClient(app)
+
+    try:
+        first = client.post("/api/ingest/text", json={"text": "可以重试的手工文本"})
+        second = client.post("/api/ingest/text", json={"text": "可以重试的手工文本"})
+
+        assert first.status_code == 400
+        assert second.status_code == 400
+        assert parse_attempts and len(parse_attempts) == 2
+    finally:
+        restore_runtime(server, original)
+
+
+def test_duplicate_upload_matches_existing_indexed_raw_file_after_registry_backfill(monkeypatch, tmp_path):
+    import server
+
+    original = install_temp_runtime(server, tmp_path, "test_duplicate_existing_raw")
+    raw_path = tmp_path / "data" / "raw" / "2026-07-15" / "existing.txt"
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    raw_path.write_bytes(b"same historical bytes")
+    server.runtime.indexer.upsert(
+        [
+            Chunk(
+                id="existing.txt#0",
+                text="已有资料内容",
+                source_name="existing.txt",
+                source_type="txt",
+                chunk_index=0,
+                created_at="2026-07-15T00:00:00+08:00",
+            )
+        ],
+        raw_file_paths=["raw/2026-07-15/existing.txt"],
+    )
+    parse_calls = []
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
+        parse_calls.append(Path(file_path).name)
+        return ParseResult(text="不应执行", source_name=Path(file_path).name, source_type="txt", metadata={})
+
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    monkeypatch.setattr(server, "_build_ocr_client", lambda: None)
+    client = TestClient(app)
+
+    try:
+        response = client.post(
+            "/api/ingest/file",
+            files={"file": ("renamed.txt", b"same historical bytes", "text/plain")},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "duplicate"
+        assert response.json()["duplicate_of"]["source_name"] == "existing.txt"
+        assert parse_calls == []
+    finally:
+        restore_runtime(server, original)
+
+
+def test_bulk_upload_reports_duplicate_separately_from_success(monkeypatch, tmp_path):
+    import server
+
+    original = install_temp_runtime(server, tmp_path, "test_bulk_duplicate_upload")
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
+        return ParseResult(text="唯一资料内容", source_name=Path(file_path).name, source_type="txt", metadata={})
+
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    monkeypatch.setattr(server, "_build_ocr_client", lambda: None)
+    client = TestClient(app)
+
+    try:
+        response = client.post(
+            "/api/ingest/files",
+            files=[
+                ("files", ("first.txt", b"same batch bytes", "text/plain")),
+                ("files", ("copy.txt", b"same batch bytes", "text/plain")),
+            ],
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["succeeded"] == 1
+        assert payload["duplicates"] == 1
+        assert payload["total_chunks"] == 1
+        assert [item["status"] for item in payload["files"]] == ["ok", "duplicate"]
+    finally:
+        restore_runtime(server, original)
+
+
+def test_source_list_and_delete_remove_one_ingest_and_allow_same_file_reupload(monkeypatch, tmp_path):
+    import server
+
+    original = install_temp_runtime(server, tmp_path, "test_source_delete_and_reupload")
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
+        return ParseResult(
+            text="可删除后重新录入的独立资料内容。",
+            source_name=Path(file_path).name,
+            source_type="txt",
+            metadata={"coverage": {"format": "txt", "status": "complete", "warnings": [], "counts": {"characters": 16}}},
+        )
+
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    monkeypatch.setattr(server, "_build_ocr_client", lambda: None)
+    client = TestClient(app)
+
+    try:
+        uploaded = client.post("/api/ingest/file", files={"file": ("delete-me.txt", b"delete and retry", "text/plain")}).json()
+        source_id = uploaded["source_id"]
+        raw_path = tmp_path / "data" / uploaded["raw_file_path"]
+        assert raw_path.exists()
+
+        sources = client.get("/api/ingest/sources").json()["sources"]
+        assert [source["source_id"] for source in sources] == [source_id]
+
+        deleted = client.delete(f"/api/ingest/sources/{source_id}")
+
+        assert deleted.status_code == 200
+        assert deleted.json()["deleted_source_id"] == source_id
+        assert server.runtime.indexer.count_chunks() == 0
+        assert not raw_path.exists()
+
+        retried = client.post("/api/ingest/file", files={"file": ("delete-me.txt", b"delete and retry", "text/plain")})
+        assert retried.status_code == 200
+        assert retried.json()["status"] == "ok"
+    finally:
+        restore_runtime(server, original)
+
+
+def test_same_name_different_content_requires_version_decision_before_second_parse(monkeypatch, tmp_path):
+    import server
+
+    original = install_temp_runtime(server, tmp_path, "test_version_conflict_before_parse")
+    parse_calls = []
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
+        parse_calls.append(Path(file_path).name)
+        return ParseResult(text="版本资料正文内容。", source_name=Path(file_path).name, source_type="txt", metadata={})
+
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    monkeypatch.setattr(server, "_build_ocr_client", lambda: None)
+    client = TestClient(app)
+
+    try:
+        first = client.post("/api/ingest/file", files={"file": ("report.txt", b"version one", "text/plain")})
+        second = client.post("/api/ingest/file", files={"file": ("report.txt", b"version two", "text/plain")})
+
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert second.json()["status"] == "version_conflict"
+        assert second.json()["chunks"] == 0
+        assert second.json()["existing_source"]["source_id"] == first.json()["source_id"]
+        assert parse_calls == ["report.txt"]
+    finally:
+        restore_runtime(server, original)
+
+
+def test_version_policy_keep_retains_both_same_name_versions(monkeypatch, tmp_path):
+    import server
+
+    original = install_temp_runtime(server, tmp_path, "test_version_keep_both")
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
+        return ParseResult(text=f"{Path(file_path).name} 的版本正文。", source_name=Path(file_path).name, source_type="txt", metadata={})
+
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    monkeypatch.setattr(server, "_build_ocr_client", lambda: None)
+    client = TestClient(app)
+
+    try:
+        first = client.post("/api/ingest/file", files={"file": ("report.txt", b"keep one", "text/plain")})
+        second = client.post(
+            "/api/ingest/file",
+            files={"file": ("report.txt", b"keep two", "text/plain")},
+            data={"version_policy": "keep"},
+        )
+
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert second.json()["status"] == "ok"
+        sources = client.get("/api/ingest/sources").json()["sources"]
+        assert len(sources) == 2
+        assert {source["original_name"] for source in sources} == {"report.txt"}
+        assert server.runtime.indexer.count_chunks() == 2
+    finally:
+        restore_runtime(server, original)
+
+
+def test_version_policy_replace_preserves_old_on_failure_then_removes_it_after_success(monkeypatch, tmp_path):
+    import server
+
+    original = install_temp_runtime(server, tmp_path, "test_version_replace_after_success")
+    fail_new = {"value": False}
+
+    async def fake_parse_file(file_path, mime_type=None, ocr_client=None, extract_org_charts=False):
+        if fail_new["value"]:
+            raise ValueError("new version parse failed")
+        return ParseResult(text=f"{Path(file_path).name} 的可索引版本正文。", source_name=Path(file_path).name, source_type="txt", metadata={})
+
+    monkeypatch.setattr(server, "parse_file", fake_parse_file)
+    monkeypatch.setattr(server, "_build_ocr_client", lambda: None)
+    client = TestClient(app)
+
+    try:
+        first = client.post("/api/ingest/file", files={"file": ("report.txt", b"replace one", "text/plain")}).json()
+        fail_new["value"] = True
+        failed = client.post(
+            "/api/ingest/file",
+            files={"file": ("report.txt", b"replace two", "text/plain")},
+            data={"version_policy": "replace"},
+        )
+        assert failed.status_code == 400
+        assert server._source_registry().get(first["source_id"]) is not None
+        assert server.runtime.indexer.count_chunks() == 1
+
+        fail_new["value"] = False
+        replaced = client.post(
+            "/api/ingest/file",
+            files={"file": ("report.txt", b"replace two", "text/plain")},
+            data={"version_policy": "replace"},
+        )
+
+        assert replaced.status_code == 200
+        assert replaced.json()["status"] == "ok"
+        assert server._source_registry().get(first["source_id"]) is None
+        assert len(client.get("/api/ingest/sources").json()["sources"]) == 1
+        assert server.runtime.indexer.count_chunks() == 1
+    finally:
+        restore_runtime(server, original)
+
+
+def test_version_replace_cleanup_failure_keeps_new_version_indexed_and_reports_warning(monkeypatch, tmp_path):
+    import server
+
+    original = install_temp_runtime(server, tmp_path, "test_version_replace_cleanup_failure")
+    client = TestClient(app)
+    try:
+        first = client.post("/api/ingest/file", files={"file": ("report.txt", b"old", "text/plain")}).json()
+
+        def fail_delete(record):
+            raise RuntimeError("old source cleanup failed")
+
+        monkeypatch.setattr(server, "_delete_source_record", fail_delete)
+        response = client.post(
+            "/api/ingest/file",
+            files={"file": ("report.txt", b"new", "text/plain")},
+            data={"version_policy": "replace"},
+        )
+        body = response.json()
+        assert response.status_code == 200
+        assert body["status"] == "ok"
+        assert body["replacement_cleanup"] == "failed"
+        assert server._content_registry().lookup(body["content_hash"] if "content_hash" in body else server._source_registry().get(body["source_id"]).content_hash).status == "indexed"
+        assert server._source_registry().get(first["source_id"]) is not None
+        assert server._source_registry().get(body["source_id"]) is not None
+    finally:
+        restore_runtime(server, original)
 
 
 def test_build_prompt_includes_question_chunks_and_source_names():
@@ -414,7 +736,7 @@ async def test_generate_answer_marks_irrelevant_material_language_as_no_answer()
 
 
 @pytest.mark.asyncio
-async def test_generate_answer_falls_back_when_no_answer_conflicts_with_direct_evidence():
+async def test_generate_answer_keeps_model_no_answer_instead_of_dumping_retrieved_chunks():
     events = []
     async for event in generate_answer(
         question="目前我的JLR入职是什么状态？",
@@ -429,10 +751,10 @@ async def test_generate_answer_falls_back_when_no_answer_conflicts_with_direct_e
 
     token_text = "".join(event.get("content", "") for event in events if event["type"] == "token")
     sources_event = next(event for event in events if event["type"] == "sources")
-    assert "当前知识库缺少相关信息" not in token_text
-    assert "检索到与问题直接相关的资料" in token_text
-    assert sources_event["source_status"] == "grounded"
-    assert sources_event["sources"][0]["chunk_id"] == "manual_20260619_121722#1"
+    assert "当前知识库缺少相关信息" in token_text
+    assert "检索到与问题直接相关的资料" not in token_text
+    assert sources_event["source_status"] == "no_answer"
+    assert sources_event["sources"] == []
 
 
 @pytest.mark.asyncio
@@ -1220,6 +1542,95 @@ def test_query_endpoint_passes_language_and_dual_model_config(monkeypatch):
         server.runtime.reload(original_config)
 
 
+def test_query_endpoint_requests_clarification_for_context_free_follow_up(monkeypatch):
+    import server
+
+    captured = {"retrieval_calls": 0, "generation_calls": 0}
+
+    class FakeRetriever:
+        def hybrid_search(self, question, top_k):
+            captured["retrieval_calls"] += 1
+            return [sample_chunk()]
+
+    async def fake_generate_answer(**kwargs):
+        captured["generation_calls"] += 1
+        yield 'data: {"type":"done"}\n\n'
+
+    monkeypatch.setattr(server, "HybridRetriever", lambda **kwargs: FakeRetriever())
+    monkeypatch.setattr(server, "generate_answer", fake_generate_answer)
+    client = TestClient(app)
+
+    response = client.post("/api/query", json={"question": "那这个问题下一步我具体应该怎么做？"})
+
+    assert response.status_code == 200
+    events = parse_sse_response(response)
+    assert events[0] == {
+        "type": "token",
+        "content": "这个问题需要上一轮主题才能继续。请明确说明要基于哪条资料或重新完整描述问题。",
+    }
+    assert events[1]["type"] == "sources"
+    assert events[1]["source_status"] == "clarification_required"
+    assert events[1]["sources"] == []
+    assert captured == {"retrieval_calls": 0, "generation_calls": 0}
+
+
+def test_query_endpoint_uses_previous_question_as_follow_up_retrieval_anchor(monkeypatch):
+    import server
+
+    captured = {}
+
+    class FakeRetriever:
+        def hybrid_search(self, question, top_k):
+            captured["retriever_question"] = question
+            return [sample_chunk()]
+
+    async def fake_generate_answer(**kwargs):
+        captured["generation_question"] = kwargs["question"]
+        yield 'data: {"type":"done"}\n\n'
+
+    monkeypatch.setattr(server, "HybridRetriever", lambda **kwargs: FakeRetriever())
+    monkeypatch.setattr(server, "generate_answer", fake_generate_answer)
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/query",
+        json={
+            "question": "那这个问题下一步我具体应该怎么做？",
+            "previous_question": "请总结知识库中关于组织架构的信息。",
+        },
+    )
+
+    assert response.status_code == 200
+    assert "组织架构" in captured["retriever_question"]
+    assert "组织架构" in captured["generation_question"]
+
+
+def test_query_endpoint_returns_no_answer_without_generation_when_no_anchor_evidence(monkeypatch):
+    import server
+
+    captured = {"generation_calls": 0}
+
+    class FakeRetriever:
+        def hybrid_search(self, question, top_k):
+            return [sample_chunk()]
+
+    async def fake_generate_answer(**kwargs):
+        captured["generation_calls"] += 1
+        yield 'data: {"type":"done"}\n\n'
+
+    monkeypatch.setattr(server, "HybridRetriever", lambda **kwargs: FakeRetriever())
+    monkeypatch.setattr(server, "generate_answer", fake_generate_answer)
+    client = TestClient(app)
+
+    response = client.post("/api/query", json={"question": "南极企鹅的孵化周期是多少？"})
+
+    assert response.status_code == 200
+    events = parse_sse_response(response)
+    assert events[0]["content"].startswith("当前知识库缺少相关信息")
+    assert events[1]["source_status"] == "no_answer"
+    assert captured["generation_calls"] == 0
+
+
 def test_query_endpoint_wires_enabled_reranker_from_config(monkeypatch):
     import server
 
@@ -1512,7 +1923,7 @@ def test_query_api_does_not_accept_public_output_mode_contract(monkeypatch):
     try:
         response = client.post(
             "/api/query",
-            json={"question": "普通问题", "output_mode": "interview_story"},
+            json={"question": "组织架构普通问题", "output_mode": "interview_story"},
         )
 
         assert response.status_code == 200
@@ -1799,6 +2210,38 @@ def test_bulk_file_ingest_returns_per_file_results_and_preserves_raw_files(tmp_p
         assert all(item["chunks"] >= 1 for item in body["files"])
         assert all(item["raw_file_path"].startswith("raw/") for item in body["files"])
         assert parsed_files == [("alpha.txt", "text/plain"), ("beta.md", "text/markdown")]
+    finally:
+        restore_runtime(server, original)
+
+
+def test_bulk_file_ingest_counts_review_and_version_decisions_without_success(tmp_path, monkeypatch):
+    import server
+
+    original = install_temp_runtime(server, tmp_path, "test_bulk_decisions")
+    decisions = iter([
+        {"status": "review_required", "chunks": 0, "source_name": "low.png", "chunk_ids": []},
+        {"status": "version_conflict", "chunks": 0, "source_name": "report.txt", "chunk_ids": []},
+    ])
+
+    async def fake_ingest(*args, **kwargs):
+        return next(decisions)
+
+    monkeypatch.setattr(server, "_ingest_upload_file", fake_ingest)
+    client = TestClient(app)
+    try:
+        response = client.post(
+            "/api/ingest/files",
+            files=[
+                ("files", ("low.png", b"image", "image/png")),
+                ("files", ("report.txt", b"new", "text/plain")),
+            ],
+        )
+        body = response.json()
+        assert body["status"] == "partial"
+        assert body["succeeded"] == 0
+        assert body["review_required"] == 1
+        assert body["version_conflicts"] == 1
+        assert body["total_chunks"] == 0
     finally:
         restore_runtime(server, original)
 

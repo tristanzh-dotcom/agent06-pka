@@ -40,11 +40,15 @@ async def parse_file(
 
     try:
         if suffix in TEXT_TYPES:
+            text = path.read_text(encoding="utf-8")
             return ParseResult(
-                text=path.read_text(encoding="utf-8"),
+                text=text,
                 source_name=path.name,
                 source_type=TEXT_TYPES[suffix],
-                metadata={"mime_type": detected_mime},
+                metadata={
+                    "mime_type": detected_mime,
+                    "coverage": _coverage(TEXT_TYPES[suffix], characters=len(text), lines=len(text.splitlines())),
+                },
             )
         if suffix == ".docx":
             return _parse_docx(path)
@@ -66,7 +70,11 @@ async def parse_file(
                 text=text,
                 source_name=path.name,
                 source_type="image",
-                metadata={"ocr": True, "mime_type": detected_mime},
+                metadata={
+                    "ocr": True,
+                    "mime_type": detected_mime,
+                    "coverage": _coverage("image", images=1, extracted_characters=len(str(text))),
+                },
                 quality=assess_image_ocr_quality(text),
             )
     except ValueError:
@@ -81,14 +89,38 @@ async def parse_file(
 
 def _parse_docx(path: Path) -> ParseResult:
     import docx
+    from docx.table import Table
 
     document = docx.Document(path)
-    paragraphs = [paragraph.text for paragraph in document.paragraphs if paragraph.text.strip()]
+    sections = []
+    paragraph_count = 0
+    table_count = 0
+    table_row_count = 0
+    for block in document.iter_inner_content():
+        if isinstance(block, Table):
+            rows = [[cell.text.strip() for cell in row.cells] for row in block.rows]
+            if rows:
+                sections.append(_markdown_table(rows))
+                table_count += 1
+                table_row_count += len(rows)
+            continue
+        text = str(getattr(block, "text", "") or "").strip()
+        if text:
+            sections.append(text)
+            paragraph_count += 1
     return ParseResult(
-        text="\n".join(paragraphs),
+        text="\n".join(sections),
         source_name=path.name,
         source_type="docx",
-        metadata={"paragraph_count": len(paragraphs)},
+        metadata={
+            "paragraph_count": paragraph_count,
+            "coverage": _coverage(
+                "docx",
+                paragraphs=paragraph_count,
+                tables=table_count,
+                table_rows=table_row_count,
+            ),
+        },
     )
 
 
@@ -97,18 +129,37 @@ def _parse_pptx(path: Path) -> ParseResult:
 
     presentation = pptx.Presentation(path)
     texts = []
+    table_count = 0
+    note_count = 0
     for slide_number, slide in enumerate(presentation.slides, start=1):
         slide_texts = []
         for shape in slide.shapes:
-            if hasattr(shape, "text") and shape.text.strip():
+            if getattr(shape, "has_table", False):
+                rows = [[cell.text.strip() for cell in row.cells] for row in shape.table.rows]
+                if rows:
+                    slide_texts.append(_markdown_table(rows))
+                    table_count += 1
+            elif hasattr(shape, "text") and shape.text.strip():
                 slide_texts.append(shape.text.strip())
+        notes_text = str(getattr(slide.notes_slide.notes_text_frame, "text", "") or "").strip()
+        if notes_text:
+            slide_texts.append("### Notes\n" + notes_text)
+            note_count += 1
         if slide_texts:
             texts.append(f"## Slide {slide_number}\n" + "\n".join(slide_texts))
     return ParseResult(
         text="\n\n".join(texts),
         source_name=path.name,
         source_type="pptx",
-        metadata={"slide_count": len(presentation.slides)},
+        metadata={
+            "slide_count": len(presentation.slides),
+            "coverage": _coverage(
+                "pptx",
+                slides=len(presentation.slides),
+                tables=table_count,
+                notes=note_count,
+            ),
+        },
     )
 
 
@@ -155,6 +206,12 @@ def _parse_pdf(path: Path, extract_org_charts: bool = False) -> ParseResult:
             "org_chart_pages": [record.metadata["page"] for record in pre_chunks],
             "org_chart_chunks": len(pre_chunks),
             "org_chart_mode": "pdf_layout_fallback" if pre_chunks else "",
+            "coverage": _coverage(
+                "pdf",
+                pages=page_count,
+                non_empty_pages=len(pages),
+                org_chart_pages=len({record.metadata["page"] for record in pre_chunks}),
+            ),
         },
         quality=quality,
         pre_chunks=pre_chunks,
@@ -164,35 +221,79 @@ def _parse_pdf(path: Path, extract_org_charts: bool = False) -> ParseResult:
 def _parse_xlsx(path: Path) -> ParseResult:
     import openpyxl
 
-    workbook = openpyxl.load_workbook(path, data_only=True)
+    workbook = openpyxl.load_workbook(path, data_only=False)
+    value_workbook = openpyxl.load_workbook(path, data_only=True)
     sections = []
-    for sheet in workbook.worksheets:
-        rows = [[_cell_to_text(cell) for cell in row] for row in sheet.iter_rows(values_only=True)]
+    total_rows = 0
+    formula_count = 0
+    for sheet, value_sheet in zip(workbook.worksheets, value_workbook.worksheets):
+        rows = []
+        for formula_row, value_row in zip(sheet.iter_rows(values_only=False), value_sheet.iter_rows(values_only=False)):
+            rendered = []
+            for formula_cell, value_cell in zip(formula_row, value_row):
+                if formula_cell.data_type == "f":
+                    formula_count += 1
+                    formula = str(formula_cell.value or "")
+                    formula = formula if formula.startswith("=") else "=" + formula
+                    cached = _cell_to_text(value_cell.value)
+                    rendered.append(f"{formula}（计算值：{cached}）" if cached else formula)
+                else:
+                    rendered.append(_cell_to_text(formula_cell.value))
+            rows.append(rendered)
         rows = [row for row in rows if any(cell for cell in row)]
         if not rows:
             continue
+        total_rows += len(rows)
         width = max(len(row) for row in rows)
         normalized = [row + [""] * (width - len(row)) for row in rows]
-        header = normalized[0]
-        body = normalized[1:]
-        table = [
-            "| " + " | ".join(header) + " |",
-            "| " + " | ".join(["---"] * width) + " |",
-        ]
-        table.extend("| " + " | ".join(row) + " |" for row in body)
-        sections.append(f"## Sheet: {sheet.title}\n" + "\n".join(table))
-    return ParseResult(
-        text="\n\n".join(sections),
-        source_name=path.name,
-        source_type="xlsx",
-        metadata={"sheet_count": len(workbook.worksheets)},
-    )
+        sections.append(f"## Sheet: {sheet.title}\n" + _markdown_table(normalized))
+    try:
+        return ParseResult(
+            text="\n\n".join(sections),
+            source_name=path.name,
+            source_type="xlsx",
+            metadata={
+                "sheet_count": len(workbook.worksheets),
+                "coverage": _coverage(
+                    "xlsx",
+                    sheets=len(workbook.worksheets),
+                    rows=total_rows,
+                    formulas=formula_count,
+                ),
+            },
+        )
+    finally:
+        workbook.close()
+        value_workbook.close()
 
 
 def _cell_to_text(value: Any) -> str:
     if value is None:
         return ""
     return str(value)
+
+
+def _coverage(format_name: str, **counts: int) -> dict:
+    return {
+        "format": format_name,
+        "status": "complete",
+        "warnings": [],
+        "counts": counts,
+    }
+
+
+def _markdown_table(rows: list[list[str]]) -> str:
+    if not rows:
+        return ""
+    width = max(len(row) for row in rows)
+    normalized = [row + [""] * (width - len(row)) for row in rows]
+    escaped = [[str(cell).replace("|", "\\|").replace("\n", " ") for cell in row] for row in normalized]
+    table = [
+        "| " + " | ".join(escaped[0]) + " |",
+        "| " + " | ".join(["---"] * width) + " |",
+    ]
+    table.extend("| " + " | ".join(row) + " |" for row in escaped[1:])
+    return "\n".join(table)
 
 
 def _pdf_text_blocks(raw_blocks, page_number: int) -> list[PdfTextBlock]:

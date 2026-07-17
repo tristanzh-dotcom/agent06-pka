@@ -271,7 +271,7 @@ def test_ask_page_wires_destination_controls_after_completed_answers_only():
     assert "answerCompleted: false" in app_js
     assert "function updateAnswerOperationState" in app_js
     assert "const answerCompleted = askState.answerCompleted === true;" in app_js
-    assert 'const pkaEligible = answerCompleted && !["no_answer", "generated_only"].includes(askState.sourceStatus);' in app_js
+    assert 'const pkaEligible = answerCompleted && !["no_answer", "clarification_required", "generated_only"].includes(askState.sourceStatus);' in app_js
     assert 'postJSON("api/answer-assets/save-local", buildAnswerResultSnapshot())' in app_js
     assert 'postJSON("api/answer-assets/publish-obsidian", buildAnswerResultSnapshot())' in app_js
     assert 'postJSON("api/answer-assets/add-pka-retrieval", buildAnswerResultSnapshot())' in app_js

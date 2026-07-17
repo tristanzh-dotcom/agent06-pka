@@ -16,6 +16,7 @@ def chunk_text(
     max_chunk_size: int = 1024,
     chunk_overlap: int = 128,
     metadata: Optional[Dict[str, Any]] = None,
+    source_id: str = "",
 ) -> List[Chunk]:
     if not text or not text.strip():
         return []
@@ -36,7 +37,7 @@ def chunk_text(
     created_at = datetime.now(timezone.utc).astimezone().isoformat()
     return [
         Chunk(
-            id=f"{source_name}#{index}",
+            id=f"{source_id or source_name}#{index}",
             text=chunk,
             source_name=source_name,
             source_type=source_type,

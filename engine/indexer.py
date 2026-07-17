@@ -201,6 +201,21 @@ class HybridIndexer:
             connection.execute("DELETE FROM chunks_fts")
             connection.execute("DELETE FROM index_quarantine")
 
+    def delete_source(self, source_id: str, *, source_name: str = "") -> int:
+        where = {"source_id": source_id} if source_id else {"source_name": source_name}
+        result = self.collection.get(where=where, include=[])
+        chunk_ids = list(result.get("ids", []))
+        if not chunk_ids and source_name:
+            legacy = self.collection.get(where={"source_name": source_name}, include=[])
+            chunk_ids = list(legacy.get("ids", []))
+        if not chunk_ids:
+            return 0
+        self.collection.delete(ids=chunk_ids)
+        with self._connect() as connection:
+            connection.executemany("DELETE FROM chunks_fts WHERE chunk_id = ?", [(chunk_id,) for chunk_id in chunk_ids])
+            connection.executemany("DELETE FROM index_quarantine WHERE chunk_id = ?", [(chunk_id,) for chunk_id in chunk_ids])
+        return len(chunk_ids)
+
     def search_fts(self, query: str, top_k: int = 10) -> List[Dict[str, Any]]:
         tokens = _safe_fts_query(_tokenize(query))
         if not tokens:
@@ -268,7 +283,7 @@ class HybridIndexer:
                 "metadata": _chunk_metadata_from_vector(metadata),
             }
             for chunk_id, document, metadata, distance in zip(ids, documents, metadatas, distances)
-            if chunk_id not in quarantined
+            if chunk_id not in quarantined and isinstance(metadata, dict)
         ]
 
     def _query_collection(self, *, query_vector: List[float], n_results: int) -> Dict[str, Any]:
@@ -367,7 +382,7 @@ def _vector_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
 def _chunk_metadata_from_vector(metadata: Dict[str, Any]) -> Dict[str, Any]:
     reserved = {"source_name", "source_type", "chunk_index", "created_at", "raw_file_path"}
     result = {key: value for key, value in (metadata or {}).items() if key not in reserved}
-    for key in ("derived_from_chunk_ids", "derived_from_sources"):
+    for key in ("derived_from_chunk_ids", "derived_from_sources", "quality", "coverage"):
         value = result.get(key)
         if isinstance(value, str):
             try:

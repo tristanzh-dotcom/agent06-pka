@@ -76,6 +76,8 @@ async def test_parse_txt_and_markdown_files(tmp_path):
 
     assert parsed_txt.text == "纯文本内容"
     assert parsed_txt.source_type == "txt"
+    assert parsed_txt.metadata["coverage"]["counts"]["characters"] == 5
+    assert parsed_txt.metadata["coverage"]["status"] == "complete"
     assert "Markdown 内容" in parsed_md.text
     assert parsed_md.source_type == "md"
 
@@ -96,6 +98,31 @@ async def test_parse_docx_extracts_all_paragraphs(tmp_path):
     assert parsed.metadata["paragraph_count"] == 3
 
 
+async def test_parse_docx_extracts_table_cells_and_reports_coverage(tmp_path):
+    docx = pytest.importorskip("docx")
+    path = tmp_path / "table-report.docx"
+    document = docx.Document()
+    document.add_paragraph("人员安排")
+    table = document.add_table(rows=2, cols=2)
+    table.cell(0, 0).text = "姓名"
+    table.cell(0, 1).text = "职责"
+    table.cell(1, 0).text = "张三"
+    table.cell(1, 1).text = "项目负责人"
+    document.save(path)
+
+    parsed = await parse_file(str(path))
+
+    assert "人员安排" in parsed.text
+    assert "| 姓名 | 职责 |" in parsed.text
+    assert "| 张三 | 项目负责人 |" in parsed.text
+    assert parsed.metadata["coverage"] == {
+        "format": "docx",
+        "status": "complete",
+        "warnings": [],
+        "counts": {"paragraphs": 1, "tables": 1, "table_rows": 2},
+    }
+
+
 async def test_parse_pptx_extracts_slide_text(tmp_path):
     pptx = pytest.importorskip("pptx")
     path = tmp_path / "deck.pptx"
@@ -112,6 +139,30 @@ async def test_parse_pptx_extracts_slide_text(tmp_path):
     assert "第一页内容" in parsed.text
     assert "第二页内容" in parsed.text
     assert parsed.metadata["slide_count"] == 2
+
+
+async def test_parse_pptx_extracts_tables_and_notes_with_coverage(tmp_path):
+    pptx = pytest.importorskip("pptx")
+    from pptx.util import Inches
+
+    path = tmp_path / "table-deck.pptx"
+    deck = pptx.Presentation()
+    slide = deck.slides.add_slide(deck.slide_layouts[6])
+    table = slide.shapes.add_table(2, 2, Inches(1), Inches(1), Inches(6), Inches(2)).table
+    table.cell(0, 0).text = "岗位"
+    table.cell(0, 1).text = "人数"
+    table.cell(1, 0).text = "工程师"
+    table.cell(1, 1).text = "10"
+    slide.notes_slide.notes_text_frame.text = "备注：该页人数为规划值"
+    deck.save(path)
+
+    parsed = await parse_file(str(path))
+
+    assert "| 岗位 | 人数 |" in parsed.text
+    assert "| 工程师 | 10 |" in parsed.text
+    assert "备注：该页人数为规划值" in parsed.text
+    assert parsed.metadata["coverage"]["counts"] == {"slides": 1, "tables": 1, "notes": 1}
+    assert parsed.metadata["coverage"]["status"] == "complete"
 
 
 async def test_parse_pdf_extracts_all_pages(tmp_path):
@@ -131,6 +182,7 @@ async def test_parse_pdf_extracts_all_pages(tmp_path):
     assert "## Page" not in parsed.text
     assert parsed.metadata["page_count"] == 2
     assert parsed.metadata["non_empty_pages"] == 2
+    assert parsed.metadata["coverage"]["counts"] == {"pages": 2, "non_empty_pages": 2, "org_chart_pages": 0}
     assert parsed.quality is not None
 
 
@@ -597,6 +649,23 @@ async def test_parse_xlsx_converts_sheets_to_markdown_tables(tmp_path):
     assert "| 姓名 | 评分 |" in parsed.text
     assert "| PKA | 进行中 |" in parsed.text
     assert parsed.metadata["sheet_count"] == 2
+
+
+async def test_parse_xlsx_preserves_formula_expression_and_reports_coverage(tmp_path):
+    openpyxl = pytest.importorskip("openpyxl")
+    path = tmp_path / "formula.xlsx"
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.title = "预算"
+    sheet.append(["项目", "金额"])
+    sheet.append(["合计", "=SUM(10,20)"])
+    workbook.save(path)
+
+    parsed = await parse_file(str(path))
+
+    assert "=SUM(10,20)" in parsed.text
+    assert parsed.metadata["coverage"]["counts"] == {"sheets": 1, "rows": 2, "formulas": 1}
+    assert parsed.metadata["coverage"]["status"] == "complete"
 
 
 class FakeOCR:
