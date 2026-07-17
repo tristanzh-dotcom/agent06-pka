@@ -1,0 +1,1057 @@
+{
+  "base_url": "http://127.0.0.1:57578",
+  "failures": [],
+  "finished_at": "2026-07-17T20:48:50+08:00",
+  "manifest": [
+    {
+      "anchor_query": "Monitoring Report Template Version 2.3",
+      "filename": "texas_monitoring.docx",
+      "key": "local_texas_monitoring",
+      "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "path": "/tmp/pka-random-multiformat-qhJ2MA/samples/texas_monitoring.docx"
+    },
+    {
+      "anchor_query": "text worthy of note",
+      "filename": "candidate_comments-rich-para.docx",
+      "key": "local_candidate_comments_rich_para",
+      "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "path": "/tmp/pka-random-multiformat-qhJ2MA/samples/candidate_comments-rich-para.docx"
+    },
+    {
+      "anchor_query": "Comparison of Planet Sizes Exoplanets",
+      "filename": "nasa_planet_sizes.pptx",
+      "key": "local_nasa_planet_sizes",
+      "mime_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "path": "/tmp/pka-random-multiformat-qhJ2MA/samples/nasa_planet_sizes.pptx"
+    },
+    {
+      "anchor_query": "Comparison of Metal Phases Exoplanets Titanium",
+      "filename": "nasa_metal_phases.pptx",
+      "key": "local_nasa_metal_phases",
+      "mime_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "path": "/tmp/pka-random-multiformat-qhJ2MA/samples/nasa_metal_phases.pptx"
+    },
+    {
+      "anchor_query": "Acenaphthene toxicological review",
+      "filename": "epa_iris_database.xlsx",
+      "key": "local_epa_iris_database",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "path": "/tmp/pka-random-multiformat-qhJ2MA/samples/epa_iris_database.xlsx"
+    },
+    {
+      "anchor_query": "Acetaldehyde air toxics ambient concentration",
+      "filename": "enviroatlas_national.xlsx",
+      "key": "local_enviroatlas_national",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "path": "/tmp/pka-random-multiformat-qhJ2MA/samples/enviroatlas_national.xlsx"
+    },
+    {
+      "anchor_query": "climate adaptation decision framework",
+      "filename": "usgs_wildlife_report.pdf",
+      "key": "local_usgs_wildlife_report",
+      "mime_type": "application/pdf",
+      "path": "/tmp/pka-random-multiformat-qhJ2MA/samples/usgs_wildlife_report.pdf"
+    },
+    {
+      "anchor_query": "trace based just in time type specialization",
+      "filename": "tracemonkey_paper.pdf",
+      "key": "local_tracemonkey_paper",
+      "mime_type": "application/pdf",
+      "path": "/tmp/pka-random-multiformat-qhJ2MA/samples/tracemonkey_paper.pdf"
+    },
+    {
+      "anchor_query": "quick brown dog jumped over lazy fox",
+      "filename": "testocr.png",
+      "key": "local_testocr",
+      "mime_type": "image/png",
+      "path": "/tmp/pka-random-multiformat-qhJ2MA/samples/testocr.png"
+    },
+    {
+      "anchor_query": "East West Midwest",
+      "filename": "pptx_chart.png",
+      "key": "local_pptx_chart",
+      "mime_type": "image/png",
+      "path": "/tmp/pka-random-multiformat-qhJ2MA/samples/pptx_chart.png"
+    },
+    {
+      "anchor_query": "quick brown fox jumps lazy dog",
+      "filename": "european_ocr.jpg",
+      "key": "local_european_ocr",
+      "mime_type": "image/jpeg",
+      "path": "/tmp/pka-random-multiformat-qhJ2MA/samples/european_ocr.jpg"
+    },
+    {
+      "anchor_query": "Marcus Aurelius good morals government temper",
+      "filename": "meditations_ocr.jpg",
+      "key": "local_meditations_ocr",
+      "mime_type": "image/jpeg",
+      "path": "/tmp/pka-random-multiformat-qhJ2MA/samples/meditations_ocr.jpg"
+    },
+    {
+      "anchor_query": "browser compatibility JavaScript tools",
+      "filename": "browserslist_screenshot.webp",
+      "key": "local_browserslist_screenshot",
+      "mime_type": "image/webp",
+      "path": "/tmp/pka-random-multiformat-qhJ2MA/samples/browserslist_screenshot.webp"
+    },
+    {
+      "anchor_query": "Image Generator OpenAI",
+      "filename": "imagegen_screenshot.webp",
+      "key": "local_imagegen_screenshot",
+      "mime_type": "image/webp",
+      "path": "/tmp/pka-random-multiformat-qhJ2MA/samples/imagegen_screenshot.webp"
+    },
+    {
+      "anchor_query": "WebP Container Specification VP8",
+      "filename": "webp_container_spec.txt",
+      "key": "local_webp_container_spec",
+      "mime_type": "text/plain",
+      "path": "/tmp/pka-random-multiformat-qhJ2MA/samples/webp_container_spec.txt"
+    },
+    {
+      "anchor_query": "experimental code main distribution tree",
+      "filename": "pptx_lab_readme.txt",
+      "key": "local_pptx_lab_readme",
+      "mime_type": "text/plain",
+      "path": "/tmp/pka-random-multiformat-qhJ2MA/samples/pptx_lab_readme.txt"
+    },
+    {
+      "anchor_query": "TensorFlow machine learning",
+      "filename": "tensorflow_readme.md",
+      "key": "local_tensorflow_readme",
+      "mime_type": "text/markdown",
+      "path": "/tmp/pka-random-multiformat-qhJ2MA/samples/tensorflow_readme.md"
+    },
+    {
+      "anchor_query": "containerized applications deployment maintenance scaling",
+      "filename": "kubernetes_readme.md",
+      "key": "local_kubernetes_readme",
+      "mime_type": "text/markdown",
+      "path": "/tmp/pka-random-multiformat-qhJ2MA/samples/kubernetes_readme.md"
+    }
+  ],
+  "runtime_root": "/var/folders/by/ryk2x0p133n0q7syh20tp2l40000gn/T/pka-public-automotive-ingest-bkgs38w4",
+  "samples": [
+    {
+      "bytes": 92247,
+      "chunks": 11,
+      "coverage": {
+        "counts": {
+          "paragraphs": 38,
+          "table_rows": 82,
+          "tables": 18
+        },
+        "format": "docx",
+        "status": "complete",
+        "warnings": []
+      },
+      "delete_reupload": {
+        "deleted": true,
+        "reuploaded": true
+      },
+      "duplicate": {
+        "blocked": true,
+        "status": "duplicate"
+      },
+      "key": "local_texas_monitoring",
+      "local_path": "/tmp/pka-random-multiformat-qhJ2MA/samples/texas_monitoring.docx",
+      "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "quality": {
+        "action": "structured_direct",
+        "cleaned_chars_ratio": 1.0,
+        "effective_chars_per_page": 9656.0,
+        "non_empty_page_ratio": 1.0,
+        "non_empty_pages": 1,
+        "page_count": 1,
+        "reasons": [],
+        "short_line_ratio": 0.152,
+        "status": "high",
+        "unique_line_ratio": 10.3,
+        "valid_ratio": 0.709,
+        "watermark_ratio": 0.0
+      },
+      "recall": {
+        "query": true,
+        "returned_sources": 10,
+        "source_count": 10
+      },
+      "retrieved_at": "2026-07-17T20:38:11+08:00",
+      "sha256": "6b089d5b3916843a26243c7488a9e1081b0c8d973375170a3d4989237515feab",
+      "status": "passed",
+      "upload": {
+        "source_id": "source_82a803b9a0a244a3b5a61bb0e7833f80",
+        "status": "ok"
+      },
+      "url": ""
+    },
+    {
+      "bytes": 20023,
+      "chunks": 1,
+      "coverage": {
+        "counts": {
+          "paragraphs": 7,
+          "table_rows": 0,
+          "tables": 0
+        },
+        "format": "docx",
+        "status": "complete",
+        "warnings": []
+      },
+      "delete_reupload": {
+        "deleted": true,
+        "reuploaded": true
+      },
+      "duplicate": {
+        "blocked": true,
+        "status": "duplicate"
+      },
+      "key": "local_candidate_comments_rich_para",
+      "local_path": "/tmp/pka-random-multiformat-qhJ2MA/samples/candidate_comments-rich-para.docx",
+      "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "quality": {
+        "action": "structured_direct",
+        "cleaned_chars_ratio": 1.0,
+        "effective_chars_per_page": 123.0,
+        "non_empty_page_ratio": 1.0,
+        "non_empty_pages": 1,
+        "page_count": 1,
+        "reasons": [],
+        "short_line_ratio": 0.0,
+        "status": "high",
+        "unique_line_ratio": 1.0,
+        "valid_ratio": 0.813,
+        "watermark_ratio": 0.0
+      },
+      "recall": {
+        "query": true,
+        "returned_sources": 9,
+        "source_count": 1
+      },
+      "retrieved_at": "2026-07-17T20:38:15+08:00",
+      "sha256": "8ee6b9bd84c59169bc7e5838003806edefb2c51920f40035b7879d4a3414deed",
+      "status": "passed",
+      "upload": {
+        "source_id": "source_f0f009a8f2db49e69e55ad79c015e333",
+        "status": "ok"
+      },
+      "url": ""
+    },
+    {
+      "bytes": 4545620,
+      "chunks": 1,
+      "coverage": {
+        "counts": {
+          "notes": 1,
+          "slides": 1,
+          "tables": 0
+        },
+        "format": "pptx",
+        "status": "complete",
+        "warnings": []
+      },
+      "delete_reupload": {
+        "deleted": true,
+        "reuploaded": true
+      },
+      "duplicate": {
+        "blocked": true,
+        "status": "duplicate"
+      },
+      "key": "local_nasa_planet_sizes",
+      "local_path": "/tmp/pka-random-multiformat-qhJ2MA/samples/nasa_planet_sizes.pptx",
+      "mime_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "quality": {
+        "action": "structured_direct",
+        "cleaned_chars_ratio": 1.0,
+        "effective_chars_per_page": 726.0,
+        "non_empty_page_ratio": 1.0,
+        "non_empty_pages": 1,
+        "page_count": 1,
+        "reasons": [],
+        "short_line_ratio": 0.125,
+        "status": "high",
+        "unique_line_ratio": 1.6,
+        "valid_ratio": 0.736,
+        "watermark_ratio": 0.0
+      },
+      "recall": {
+        "query": true,
+        "returned_sources": 9,
+        "source_count": 1
+      },
+      "retrieved_at": "2026-07-17T20:38:15+08:00",
+      "sha256": "5fead9f3f62995928877258c1eb34370b3e7f9524ee7cfd6ea42ed24e9bff2c7",
+      "status": "passed",
+      "upload": {
+        "source_id": "source_007fc970284f4a75b9b92e4f64fab218",
+        "status": "ok"
+      },
+      "url": ""
+    },
+    {
+      "bytes": 1927508,
+      "chunks": 1,
+      "coverage": {
+        "counts": {
+          "notes": 1,
+          "slides": 1,
+          "tables": 2
+        },
+        "format": "pptx",
+        "status": "complete",
+        "warnings": []
+      },
+      "delete_reupload": {
+        "deleted": true,
+        "reuploaded": true
+      },
+      "duplicate": {
+        "blocked": true,
+        "status": "duplicate"
+      },
+      "key": "local_nasa_metal_phases",
+      "local_path": "/tmp/pka-random-multiformat-qhJ2MA/samples/nasa_metal_phases.pptx",
+      "mime_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "quality": {
+        "action": "structured_direct",
+        "cleaned_chars_ratio": 1.0,
+        "effective_chars_per_page": 608.0,
+        "non_empty_page_ratio": 1.0,
+        "non_empty_pages": 1,
+        "page_count": 1,
+        "reasons": [],
+        "short_line_ratio": 0.333,
+        "status": "high",
+        "unique_line_ratio": 3.0,
+        "valid_ratio": 0.66,
+        "watermark_ratio": 0.0
+      },
+      "recall": {
+        "query": true,
+        "returned_sources": 9,
+        "source_count": 1
+      },
+      "retrieved_at": "2026-07-17T20:38:16+08:00",
+      "sha256": "d1387a10724a467ff9106671ea89612967b3a1a5d445007b4dc6fbba269be755",
+      "status": "passed",
+      "upload": {
+        "source_id": "source_d315135fb5144dada9cc443771d9c602",
+        "status": "ok"
+      },
+      "url": ""
+    },
+    {
+      "bytes": 395292,
+      "chunks": 1163,
+      "coverage": {
+        "counts": {
+          "formulas": 577,
+          "rows": 4821,
+          "sheets": 6
+        },
+        "format": "xlsx",
+        "status": "complete",
+        "warnings": []
+      },
+      "delete_reupload": {
+        "deleted": true,
+        "reuploaded": true
+      },
+      "duplicate": {
+        "blocked": true,
+        "status": "duplicate"
+      },
+      "key": "local_epa_iris_database",
+      "local_path": "/tmp/pka-random-multiformat-qhJ2MA/samples/epa_iris_database.xlsx",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "quality": {
+        "action": "structured_direct",
+        "cleaned_chars_ratio": 1.0,
+        "effective_chars_per_page": 1039497.0,
+        "non_empty_page_ratio": 1.0,
+        "non_empty_pages": 1,
+        "page_count": 1,
+        "reasons": [],
+        "short_line_ratio": 0.0,
+        "status": "high",
+        "unique_line_ratio": 482.9,
+        "valid_ratio": 0.712,
+        "watermark_ratio": 0.0
+      },
+      "recall": {
+        "query": true,
+        "returned_sources": 8,
+        "source_count": 8
+      },
+      "retrieved_at": "2026-07-17T20:38:16+08:00",
+      "sha256": "16b1ee6282f4f9b57f4738417f88ef07c620fa0295fa656e49be7e3a3ede0423",
+      "status": "passed",
+      "upload": {
+        "source_id": "source_b9d41cf4b961474ea6c3d0d117fc3892",
+        "status": "ok"
+      },
+      "url": ""
+    },
+    {
+      "bytes": 201970,
+      "chunks": 755,
+      "coverage": {
+        "counts": {
+          "formulas": 0,
+          "rows": 1669,
+          "sheets": 5
+        },
+        "format": "xlsx",
+        "status": "complete",
+        "warnings": []
+      },
+      "delete_reupload": {
+        "deleted": true,
+        "reuploaded": true
+      },
+      "duplicate": {
+        "blocked": true,
+        "status": "duplicate"
+      },
+      "key": "local_enviroatlas_national",
+      "local_path": "/tmp/pka-random-multiformat-qhJ2MA/samples/enviroatlas_national.xlsx",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "quality": {
+        "action": "structured_direct",
+        "cleaned_chars_ratio": 1.0,
+        "effective_chars_per_page": 675561.0,
+        "non_empty_page_ratio": 1.0,
+        "non_empty_pages": 1,
+        "page_count": 1,
+        "reasons": [],
+        "short_line_ratio": 0.001,
+        "status": "high",
+        "unique_line_ratio": 167.4,
+        "valid_ratio": 0.717,
+        "watermark_ratio": 0.0
+      },
+      "recall": {
+        "query": true,
+        "returned_sources": 9,
+        "source_count": 8
+      },
+      "retrieved_at": "2026-07-17T20:42:56+08:00",
+      "sha256": "48b0af44e4c00bb776bc2a6f0247418d9217782520e11a56899759847074e58b",
+      "status": "passed",
+      "upload": {
+        "source_id": "source_99b9151312a846168f1b67c5e860d308",
+        "status": "ok"
+      },
+      "url": ""
+    },
+    {
+      "bytes": 12205038,
+      "chunks": 249,
+      "coverage": {
+        "counts": {
+          "non_empty_pages": 64,
+          "org_chart_pages": 0,
+          "pages": 68
+        },
+        "format": "pdf",
+        "status": "complete",
+        "warnings": []
+      },
+      "delete_reupload": {
+        "deleted": true,
+        "reuploaded": true
+      },
+      "duplicate": {
+        "blocked": true,
+        "status": "duplicate"
+      },
+      "key": "local_usgs_wildlife_report",
+      "local_path": "/tmp/pka-random-multiformat-qhJ2MA/samples/usgs_wildlife_report.pdf",
+      "mime_type": "application/pdf",
+      "quality": {
+        "action": "cleaned",
+        "cleaned_chars_ratio": 0.997,
+        "effective_chars_per_page": 2854.9,
+        "non_empty_page_ratio": 0.941,
+        "non_empty_pages": 64,
+        "page_count": 68,
+        "reasons": [],
+        "short_line_ratio": 0.188,
+        "status": "high",
+        "unique_line_ratio": 377.1,
+        "valid_ratio": 0.997,
+        "watermark_ratio": 0.055
+      },
+      "recall": {
+        "query": true,
+        "returned_sources": 10,
+        "source_count": 10
+      },
+      "retrieved_at": "2026-07-17T20:45:35+08:00",
+      "sha256": "10809d80ac99e98618e293d75a0f8a2e6cfadb33450ce0ac88b26f125f13458f",
+      "status": "passed",
+      "upload": {
+        "source_id": "source_f03121142fa4425da9c81ad6b8b48398",
+        "status": "ok"
+      },
+      "url": ""
+    },
+    {
+      "bytes": 1016315,
+      "chunks": 99,
+      "coverage": {
+        "counts": {
+          "non_empty_pages": 14,
+          "org_chart_pages": 0,
+          "pages": 14
+        },
+        "format": "pdf",
+        "status": "complete",
+        "warnings": []
+      },
+      "delete_reupload": {
+        "deleted": true,
+        "reuploaded": true
+      },
+      "duplicate": {
+        "blocked": true,
+        "status": "duplicate"
+      },
+      "key": "local_tracemonkey_paper",
+      "local_path": "/tmp/pka-random-multiformat-qhJ2MA/samples/tracemonkey_paper.pdf",
+      "mime_type": "application/pdf",
+      "quality": {
+        "action": "cleaned",
+        "cleaned_chars_ratio": 0.996,
+        "effective_chars_per_page": 5881.6,
+        "non_empty_page_ratio": 1.0,
+        "non_empty_pages": 14,
+        "page_count": 14,
+        "reasons": [],
+        "short_line_ratio": 0.239,
+        "status": "high",
+        "unique_line_ratio": 161.5,
+        "valid_ratio": 0.996,
+        "watermark_ratio": 0.077
+      },
+      "recall": {
+        "query": true,
+        "returned_sources": 10,
+        "source_count": 10
+      },
+      "retrieved_at": "2026-07-17T20:46:26+08:00",
+      "sha256": "3662ff519e485810520552bf301d8c3b2b917fd2f83303f4965d7abed367e113",
+      "status": "passed",
+      "upload": {
+        "source_id": "source_0ea8ccbe47454c9ca1772e0e8c167795",
+        "status": "ok"
+      },
+      "url": ""
+    },
+    {
+      "bytes": 23359,
+      "chunks": 1,
+      "coverage": {
+        "counts": {
+          "extracted_characters": 284,
+          "images": 1
+        },
+        "format": "image",
+        "status": "complete",
+        "warnings": []
+      },
+      "delete_reupload": {
+        "deleted": true,
+        "reuploaded": true
+      },
+      "duplicate": {
+        "blocked": true,
+        "status": "duplicate"
+      },
+      "key": "local_testocr",
+      "local_path": "/tmp/pka-random-multiformat-qhJ2MA/samples/testocr.png",
+      "mime_type": "image/png",
+      "quality": {
+        "action": "image_ocr",
+        "cleaned_chars_ratio": 1.0,
+        "effective_chars_per_page": 284.0,
+        "non_empty_page_ratio": 1.0,
+        "non_empty_pages": 1,
+        "page_count": 1,
+        "reasons": [],
+        "short_line_ratio": 0.0,
+        "status": "high",
+        "unique_line_ratio": 1.0,
+        "valid_ratio": 0.775,
+        "watermark_ratio": 0.0
+      },
+      "recall": {
+        "query": true,
+        "returned_sources": 9,
+        "source_count": 1
+      },
+      "retrieved_at": "2026-07-17T20:46:47+08:00",
+      "sha256": "2e9aaa7784de906cb1bb5be9785557c939fc8ca5a01fbc2d8009cd064b4892c7",
+      "status": "passed",
+      "upload": {
+        "source_id": "source_e0c3d2c1ca2f4070ac8aba193261fc60",
+        "status": "ok"
+      },
+      "url": ""
+    },
+    {
+      "bytes": 21878,
+      "chunks": 0,
+      "coverage": {
+        "counts": {
+          "extracted_characters": 33,
+          "images": 1
+        },
+        "format": "image",
+        "status": "complete",
+        "warnings": []
+      },
+      "key": "local_pptx_chart",
+      "local_path": "/tmp/pka-random-multiformat-qhJ2MA/samples/pptx_chart.png",
+      "mime_type": "image/png",
+      "quality": {
+        "action": "image_ocr_low",
+        "cleaned_chars_ratio": 1.0,
+        "effective_chars_per_page": 33.0,
+        "non_empty_page_ratio": 1.0,
+        "non_empty_pages": 1,
+        "page_count": 1,
+        "reasons": [
+          "OCR 文本少于 80 字，图片识别质量偏低"
+        ],
+        "short_line_ratio": 1.0,
+        "status": "low",
+        "unique_line_ratio": 1.0,
+        "valid_ratio": 0.758,
+        "watermark_ratio": 0.0
+      },
+      "recall": {
+        "fts": false,
+        "vector": false
+      },
+      "retrieved_at": "2026-07-17T20:46:55+08:00",
+      "sha256": "fcb998dea219135cb6fa51191601268e5746e5b683327697f430e60334bdccda",
+      "status": "conditional_pass",
+      "upload": {
+        "source_id": "source_c86379a24ec74a0097406026b3b532b5",
+        "status": "review_required"
+      },
+      "url": ""
+    },
+    {
+      "bytes": 143918,
+      "chunks": 1,
+      "coverage": {
+        "counts": {
+          "extracted_characters": 411,
+          "images": 1
+        },
+        "format": "image",
+        "status": "complete",
+        "warnings": []
+      },
+      "delete_reupload": {
+        "deleted": true,
+        "reuploaded": true
+      },
+      "duplicate": {
+        "blocked": true,
+        "status": "duplicate"
+      },
+      "key": "local_european_ocr",
+      "local_path": "/tmp/pka-random-multiformat-qhJ2MA/samples/european_ocr.jpg",
+      "mime_type": "image/jpeg",
+      "quality": {
+        "action": "image_ocr",
+        "cleaned_chars_ratio": 1.0,
+        "effective_chars_per_page": 411.0,
+        "non_empty_page_ratio": 1.0,
+        "non_empty_pages": 1,
+        "page_count": 1,
+        "reasons": [],
+        "short_line_ratio": 0.0,
+        "status": "high",
+        "unique_line_ratio": 1.2,
+        "valid_ratio": 0.766,
+        "watermark_ratio": 0.0
+      },
+      "recall": {
+        "query": true,
+        "returned_sources": 9,
+        "source_count": 1
+      },
+      "retrieved_at": "2026-07-17T20:46:57+08:00",
+      "sha256": "3abdb06a355d19b5f41abc6ee2bd2c421a2e7f3c2bc92624a997942217ec4c80",
+      "status": "passed",
+      "upload": {
+        "source_id": "source_c383b63495ff4ff3909863275702c1c0",
+        "status": "ok"
+      },
+      "url": ""
+    },
+    {
+      "bytes": 896733,
+      "chunks": 2,
+      "coverage": {
+        "counts": {
+          "extracted_characters": 1437,
+          "images": 1
+        },
+        "format": "image",
+        "status": "complete",
+        "warnings": []
+      },
+      "delete_reupload": {
+        "deleted": true,
+        "reuploaded": true
+      },
+      "duplicate": {
+        "blocked": true,
+        "status": "duplicate"
+      },
+      "key": "local_meditations_ocr",
+      "local_path": "/tmp/pka-random-multiformat-qhJ2MA/samples/meditations_ocr.jpg",
+      "mime_type": "image/jpeg",
+      "quality": {
+        "action": "image_ocr",
+        "cleaned_chars_ratio": 1.0,
+        "effective_chars_per_page": 1437.0,
+        "non_empty_page_ratio": 1.0,
+        "non_empty_pages": 1,
+        "page_count": 1,
+        "reasons": [],
+        "short_line_ratio": 0.036,
+        "status": "high",
+        "unique_line_ratio": 2.8,
+        "valid_ratio": 0.79,
+        "watermark_ratio": 0.0
+      },
+      "recall": {
+        "query": true,
+        "returned_sources": 10,
+        "source_count": 2
+      },
+      "retrieved_at": "2026-07-17T20:47:06+08:00",
+      "sha256": "a7b75dadaf2c48a6c87a20eb67e96dd91fc4852018befdf1074b09ba5aff46a7",
+      "status": "passed",
+      "upload": {
+        "source_id": "source_093012a4a9184f90bd6be3a043d5bdc6",
+        "status": "ok"
+      },
+      "url": ""
+    },
+    {
+      "bytes": 60168,
+      "chunks": 2,
+      "coverage": {
+        "counts": {
+          "extracted_characters": 1873,
+          "images": 1
+        },
+        "format": "image",
+        "status": "complete",
+        "warnings": []
+      },
+      "delete_reupload": {
+        "deleted": true,
+        "reuploaded": true
+      },
+      "duplicate": {
+        "blocked": true,
+        "status": "duplicate"
+      },
+      "key": "local_browserslist_screenshot",
+      "local_path": "/tmp/pka-random-multiformat-qhJ2MA/samples/browserslist_screenshot.webp",
+      "mime_type": "image/webp",
+      "quality": {
+        "action": "image_ocr",
+        "cleaned_chars_ratio": 1.0,
+        "effective_chars_per_page": 1873.0,
+        "non_empty_page_ratio": 1.0,
+        "non_empty_pages": 1,
+        "page_count": 1,
+        "reasons": [],
+        "short_line_ratio": 0.647,
+        "status": "high",
+        "unique_line_ratio": 8.5,
+        "valid_ratio": 0.784,
+        "watermark_ratio": 0.0
+      },
+      "recall": {
+        "query": true,
+        "returned_sources": 9,
+        "source_count": 2
+      },
+      "retrieved_at": "2026-07-17T20:47:45+08:00",
+      "sha256": "1570671caa498703d2812dbd13538dac0a3d5bcadf3ae15c58f6962d1b10f2e7",
+      "status": "passed",
+      "upload": {
+        "source_id": "source_e827b5c4f5c34dfd8211a75a6534c230",
+        "status": "ok"
+      },
+      "url": ""
+    },
+    {
+      "bytes": 66960,
+      "chunks": 1,
+      "coverage": {
+        "counts": {
+          "extracted_characters": 581,
+          "images": 1
+        },
+        "format": "image",
+        "status": "complete",
+        "warnings": []
+      },
+      "delete_reupload": {
+        "deleted": true,
+        "reuploaded": true
+      },
+      "duplicate": {
+        "blocked": true,
+        "status": "duplicate"
+      },
+      "key": "local_imagegen_screenshot",
+      "local_path": "/tmp/pka-random-multiformat-qhJ2MA/samples/imagegen_screenshot.webp",
+      "mime_type": "image/webp",
+      "quality": {
+        "action": "image_ocr",
+        "cleaned_chars_ratio": 1.0,
+        "effective_chars_per_page": 581.0,
+        "non_empty_page_ratio": 1.0,
+        "non_empty_pages": 1,
+        "page_count": 1,
+        "reasons": [],
+        "short_line_ratio": 0.429,
+        "status": "high",
+        "unique_line_ratio": 3.5,
+        "valid_ratio": 0.84,
+        "watermark_ratio": 0.0
+      },
+      "recall": {
+        "query": true,
+        "returned_sources": 4,
+        "source_count": 1
+      },
+      "retrieved_at": "2026-07-17T20:48:18+08:00",
+      "sha256": "cc417fb10955b69210155bc98b15f4f02bfa3deb381edf0a62ce23af0a231c90",
+      "status": "passed",
+      "upload": {
+        "source_id": "source_0b21eb678ae1492cb1f5cff7e2af5b65",
+        "status": "ok"
+      },
+      "url": ""
+    },
+    {
+      "bytes": 33280,
+      "chunks": 37,
+      "coverage": {
+        "counts": {
+          "characters": 33270,
+          "lines": 877
+        },
+        "format": "txt",
+        "status": "complete",
+        "warnings": []
+      },
+      "delete_reupload": {
+        "deleted": true,
+        "reuploaded": true
+      },
+      "duplicate": {
+        "blocked": true,
+        "status": "duplicate"
+      },
+      "key": "local_webp_container_spec",
+      "local_path": "/tmp/pka-random-multiformat-qhJ2MA/samples/webp_container_spec.txt",
+      "mime_type": "text/plain",
+      "quality": {
+        "action": "structured_direct",
+        "cleaned_chars_ratio": 1.0,
+        "effective_chars_per_page": 33269.0,
+        "non_empty_page_ratio": 1.0,
+        "non_empty_pages": 1,
+        "page_count": 1,
+        "reasons": [],
+        "short_line_ratio": 0.04,
+        "status": "high",
+        "unique_line_ratio": 50.7,
+        "valid_ratio": 0.555,
+        "watermark_ratio": 0.0
+      },
+      "recall": {
+        "query": true,
+        "returned_sources": 13,
+        "source_count": 13
+      },
+      "retrieved_at": "2026-07-17T20:48:36+08:00",
+      "sha256": "72740333623ba43cf1a6baee10979619a95fdd7be8e9dd025fe4866a7a6771f9",
+      "status": "passed",
+      "upload": {
+        "source_id": "source_0b257344a8004113821537dbf3c9fd7b",
+        "status": "ok"
+      },
+      "url": ""
+    },
+    {
+      "bytes": 196,
+      "chunks": 1,
+      "coverage": {
+        "counts": {
+          "characters": 196,
+          "lines": 3
+        },
+        "format": "txt",
+        "status": "complete",
+        "warnings": []
+      },
+      "delete_reupload": {
+        "deleted": true,
+        "reuploaded": true
+      },
+      "duplicate": {
+        "blocked": true,
+        "status": "duplicate"
+      },
+      "key": "local_pptx_lab_readme",
+      "local_path": "/tmp/pka-random-multiformat-qhJ2MA/samples/pptx_lab_readme.txt",
+      "mime_type": "text/plain",
+      "quality": {
+        "action": "structured_direct",
+        "cleaned_chars_ratio": 1.0,
+        "effective_chars_per_page": 195.0,
+        "non_empty_page_ratio": 1.0,
+        "non_empty_pages": 1,
+        "page_count": 1,
+        "reasons": [],
+        "short_line_ratio": 0.0,
+        "status": "high",
+        "unique_line_ratio": 1.0,
+        "valid_ratio": 0.826,
+        "watermark_ratio": 0.0
+      },
+      "recall": {
+        "query": true,
+        "returned_sources": 5,
+        "source_count": 1
+      },
+      "retrieved_at": "2026-07-17T20:48:44+08:00",
+      "sha256": "aa71df110716b0057d4c1b4a06ddd4e9c4fdc52207a4a0b65f94ea31288b9914",
+      "status": "passed",
+      "upload": {
+        "source_id": "source_162d7cc2699541e7afcd1da8e653c053",
+        "status": "ok"
+      },
+      "url": ""
+    },
+    {
+      "bytes": 9790,
+      "chunks": 15,
+      "coverage": {
+        "counts": {
+          "characters": 9788,
+          "lines": 168
+        },
+        "format": "md",
+        "status": "complete",
+        "warnings": []
+      },
+      "delete_reupload": {
+        "deleted": true,
+        "reuploaded": true
+      },
+      "duplicate": {
+        "blocked": true,
+        "status": "duplicate"
+      },
+      "key": "local_tensorflow_readme",
+      "local_path": "/tmp/pka-random-multiformat-qhJ2MA/samples/tensorflow_readme.md",
+      "mime_type": "text/markdown",
+      "quality": {
+        "action": "structured_direct",
+        "cleaned_chars_ratio": 1.0,
+        "effective_chars_per_page": 9787.0,
+        "non_empty_page_ratio": 1.0,
+        "non_empty_pages": 1,
+        "page_count": 1,
+        "reasons": [],
+        "short_line_ratio": 0.092,
+        "status": "high",
+        "unique_line_ratio": 12.6,
+        "valid_ratio": 0.717,
+        "watermark_ratio": 0.0
+      },
+      "recall": {
+        "query": true,
+        "returned_sources": 10,
+        "source_count": 10
+      },
+      "retrieved_at": "2026-07-17T20:48:44+08:00",
+      "sha256": "cd490686cd4ad6355aff49d75431f2cc00a101c61f60c3065b7c88cab7f557a4",
+      "status": "passed",
+      "upload": {
+        "source_id": "source_69c37a367a46420b8d835e1dcb6660b0",
+        "status": "ok"
+      },
+      "url": ""
+    },
+    {
+      "bytes": 4387,
+      "chunks": 10,
+      "coverage": {
+        "counts": {
+          "characters": 4387,
+          "lines": 100
+        },
+        "format": "md",
+        "status": "complete",
+        "warnings": []
+      },
+      "delete_reupload": {
+        "deleted": true,
+        "reuploaded": true
+      },
+      "duplicate": {
+        "blocked": true,
+        "status": "duplicate"
+      },
+      "key": "local_kubernetes_readme",
+      "local_path": "/tmp/pka-random-multiformat-qhJ2MA/samples/kubernetes_readme.md",
+      "mime_type": "text/markdown",
+      "quality": {
+        "action": "structured_direct",
+        "cleaned_chars_ratio": 1.0,
+        "effective_chars_per_page": 4386.0,
+        "non_empty_page_ratio": 1.0,
+        "non_empty_pages": 1,
+        "page_count": 1,
+        "reasons": [],
+        "short_line_ratio": 0.104,
+        "status": "high",
+        "unique_line_ratio": 6.1,
+        "valid_ratio": 0.789,
+        "watermark_ratio": 0.0
+      },
+      "recall": {
+        "query": true,
+        "returned_sources": 7,
+        "source_count": 2
+      },
+      "retrieved_at": "2026-07-17T20:48:48+08:00",
+      "sha256": "ca72a02de7afff935feb2beb5c670b758617eac433a8473703ed151f9641bb62",
+      "status": "passed",
+      "upload": {
+        "source_id": "source_e4f1917b5fe640b8b326ed4a1e6efd68",
+        "status": "ok"
+      },
+      "url": ""
+    }
+  ],
+  "started_at": "2026-07-17T20:38:11+08:00",
+  "status": "passed"
+}

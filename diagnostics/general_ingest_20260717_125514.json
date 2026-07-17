@@ -1,0 +1,86 @@
+{
+  "base_url": "http://127.0.0.1:61249",
+  "failures": [
+    "local_ocrmypdf_francais: delete/re-upload lifecycle did not complete"
+  ],
+  "finished_at": "2026-07-17T20:55:14+08:00",
+  "manifest": [
+    {
+      "anchor_query": "vieux whisky juge blond île intérieure",
+      "filename": "ocrmypdf_francais.pdf",
+      "key": "local_ocrmypdf_francais",
+      "mime_type": "application/pdf",
+      "path": "/tmp/pka-random-multiformat-qhJ2MA/samples/ocrmypdf_francais.pdf"
+    }
+  ],
+  "runtime_root": "/var/folders/by/ryk2x0p133n0q7syh20tp2l40000gn/T/pka-public-automotive-ingest-jy0q1oi3",
+  "samples": [
+    {
+      "bytes": 483256,
+      "chunks": 1,
+      "coverage": {
+        "counts": {
+          "pages": 1,
+          "processed_pages": 1
+        },
+        "format": "pdf_ocr",
+        "status": "complete",
+        "warnings": []
+      },
+      "delete_reupload": {
+        "deleted": true,
+        "reuploaded": false
+      },
+      "duplicate": {
+        "blocked": true,
+        "status": "duplicate"
+      },
+      "error": "delete/re-upload lifecycle did not complete",
+      "key": "local_ocrmypdf_francais",
+      "local_path": "/tmp/pka-random-multiformat-qhJ2MA/samples/ocrmypdf_francais.pdf",
+      "mime_type": "application/pdf",
+      "quality": {
+        "action": "ocr",
+        "attempts": [
+          {
+            "error": "",
+            "provider": "paddle",
+            "status": "accepted"
+          }
+        ],
+        "cleaned_chars_ratio": 1.0,
+        "effective_chars_per_page": 326.0,
+        "non_empty_page_ratio": 1.0,
+        "non_empty_pages": 1,
+        "ocr_page_limit_reached": false,
+        "ocr_pages_processed": 1,
+        "ocr_partial": false,
+        "page_count": 1,
+        "provider": "paddle",
+        "reasons": [],
+        "short_line_ratio": 0.083,
+        "source_page_count": 1,
+        "status": "high",
+        "unique_line_ratio": 1.2,
+        "valid_ratio": 1.0,
+        "watermark_ratio": 0.0
+      },
+      "recall": {
+        "query": true,
+        "returned_sources": 1,
+        "source_count": 1
+      },
+      "retrieved_at": "2026-07-17T20:55:01+08:00",
+      "sha256": "600c27f8dd2ef085a94d3500f6ccdb3b37f4b89aa8ffdf9a00a06a1367887e8b",
+      "status": "failed",
+      "traceback": "Traceback (most recent call last):\n  File \"/Users/tristanzh/agent/agent06-pka/scripts/verify_public_automotive_ingest.py\", line 357, in run_live_verification\n    raise AssertionError(\"delete/re-upload lifecycle did not complete\")\nAssertionError: delete/re-upload lifecycle did not complete\n",
+      "upload": {
+        "source_id": "source_48c2078ca9e848a2933d0eeeb434647f",
+        "status": "accepted"
+      },
+      "url": ""
+    }
+  ],
+  "started_at": "2026-07-17T20:55:00+08:00",
+  "status": "failed"
+}

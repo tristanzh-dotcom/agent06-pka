@@ -1,0 +1,82 @@
+{
+  "base_url": "http://127.0.0.1:61493",
+  "failures": [],
+  "finished_at": "2026-07-17T20:57:02+08:00",
+  "manifest": [
+    {
+      "anchor_query": "vieux whisky juge blond île intérieure",
+      "filename": "ocrmypdf_francais.pdf",
+      "key": "local_ocrmypdf_francais",
+      "mime_type": "application/pdf",
+      "path": "/tmp/pka-random-multiformat-qhJ2MA/samples/ocrmypdf_francais.pdf"
+    }
+  ],
+  "runtime_root": "/var/folders/by/ryk2x0p133n0q7syh20tp2l40000gn/T/pka-public-automotive-ingest-95evxh05",
+  "samples": [
+    {
+      "bytes": 483256,
+      "chunks": 1,
+      "coverage": {
+        "counts": {
+          "pages": 1,
+          "processed_pages": 1
+        },
+        "format": "pdf_ocr",
+        "status": "complete",
+        "warnings": []
+      },
+      "delete_reupload": {
+        "deleted": true,
+        "reuploaded": true
+      },
+      "duplicate": {
+        "blocked": true,
+        "status": "duplicate"
+      },
+      "key": "local_ocrmypdf_francais",
+      "local_path": "/tmp/pka-random-multiformat-qhJ2MA/samples/ocrmypdf_francais.pdf",
+      "mime_type": "application/pdf",
+      "quality": {
+        "action": "ocr",
+        "attempts": [
+          {
+            "error": "",
+            "provider": "paddle",
+            "status": "accepted"
+          }
+        ],
+        "cleaned_chars_ratio": 1.0,
+        "effective_chars_per_page": 326.0,
+        "non_empty_page_ratio": 1.0,
+        "non_empty_pages": 1,
+        "ocr_page_limit_reached": false,
+        "ocr_pages_processed": 1,
+        "ocr_partial": false,
+        "page_count": 1,
+        "provider": "paddle",
+        "reasons": [],
+        "short_line_ratio": 0.083,
+        "source_page_count": 1,
+        "status": "high",
+        "unique_line_ratio": 1.2,
+        "valid_ratio": 1.0,
+        "watermark_ratio": 0.0
+      },
+      "recall": {
+        "query": true,
+        "returned_sources": 1,
+        "source_count": 1
+      },
+      "retrieved_at": "2026-07-17T20:56:51+08:00",
+      "sha256": "600c27f8dd2ef085a94d3500f6ccdb3b37f4b89aa8ffdf9a00a06a1367887e8b",
+      "status": "passed",
+      "upload": {
+        "source_id": "source_8e1eb39856b84f8a8bc956323cb87bf9",
+        "status": "accepted"
+      },
+      "url": ""
+    }
+  ],
+  "started_at": "2026-07-17T20:56:51+08:00",
+  "status": "passed"
+}

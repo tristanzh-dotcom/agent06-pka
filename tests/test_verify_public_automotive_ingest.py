@@ -4,6 +4,7 @@ import sys
 
 import pytest
 
+import scripts.verify_public_automotive_ingest as ingest_verifier
 from scripts.verify_public_automotive_ingest import (
     LocalSample,
     PUBLIC_SAMPLE_MANIFEST,
@@ -15,6 +16,29 @@ from scripts.verify_public_automotive_ingest import (
     serialize_report,
     validate_manifest,
 )
+
+
+def test_completed_async_upload_counts_as_successful_reupload():
+    completed_upload_succeeded = getattr(
+        ingest_verifier,
+        "_completed_upload_succeeded",
+        lambda _payload: False,
+    )
+
+    assert completed_upload_succeeded(
+        {
+            "status": "accepted",
+            "source_id": "source_scan",
+            "chunks": 1,
+        }
+    )
+    assert not completed_upload_succeeded(
+        {
+            "status": "accepted",
+            "source_id": "",
+            "chunks": 0,
+        }
+    )
 
 
 def test_parse_local_sample_accepts_existing_docx_with_explicit_query(tmp_path):
@@ -30,6 +54,22 @@ def test_parse_local_sample_accepts_existing_docx_with_explicit_query(tmp_path):
         mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         anchor_query="功能医学 演讲",
     )
+
+
+def test_parse_local_sample_uses_supported_extension_when_platform_mime_is_missing(
+    tmp_path,
+    monkeypatch,
+):
+    document = tmp_path / "random_notes.md"
+    document.write_text("# Random notes\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "scripts.verify_public_automotive_ingest.mimetypes.guess_type",
+        lambda _filename: (None, None),
+    )
+
+    sample = parse_local_sample(f"{document}::Random notes")
+
+    assert sample.mime_type == "text/markdown"
 
 
 @pytest.mark.parametrize("spec", ["", "missing.docx::功能医学", "document.docx::"])

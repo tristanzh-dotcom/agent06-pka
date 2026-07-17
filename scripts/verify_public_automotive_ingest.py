@@ -32,6 +32,18 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MAX_DOWNLOAD_BYTES = 25 * 1024 * 1024
 POLL_SECONDS = 2.0
 POLL_TIMEOUT_SECONDS = 180.0
+SUPPORTED_LOCAL_MIME_TYPES = {
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".pdf": "application/pdf",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".txt": "text/plain",
+    ".md": "text/markdown",
+}
 
 
 def ensure_project_import_path() -> None:
@@ -74,6 +86,7 @@ def parse_local_sample(spec: str) -> LocalSample:
     if not path.is_file():
         raise ValueError(f"local sample does not exist: {path}")
     mime_type, _ = mimetypes.guess_type(path.name)
+    mime_type = mime_type or SUPPORTED_LOCAL_MIME_TYPES.get(path.suffix.lower())
     if not mime_type:
         raise ValueError(f"local sample MIME type is not supported: {path.name}")
     key_stem = re.sub(r"[^\w]+", "_", path.stem.lower()).strip("_") or "sample"
@@ -288,6 +301,14 @@ def _recall(client: httpx.Client, sample: PublicSample | LocalSample, source_id:
     return {"query": bool(matching), "source_count": len(matching), "returned_sources": len(sources)}
 
 
+def _completed_upload_succeeded(payload: dict[str, Any]) -> bool:
+    return (
+        payload.get("status") in {"ok", "accepted"}
+        and bool(payload.get("source_id"))
+        and int(payload.get("chunks") or 0) > 0
+    )
+
+
 def run_live_verification(
     report_dir: str | Path,
     *,
@@ -339,7 +360,10 @@ def run_live_verification(
                         deleted = client.delete(f"/api/ingest/sources/{source_id}")
                         deleted.raise_for_status()
                         reuploaded = _upload(client, sample, download)
-                        item["delete_reupload"] = {"deleted": deleted.json().get("deleted_source_id") == source_id, "reuploaded": reuploaded.get("status") == "ok"}
+                        item["delete_reupload"] = {
+                            "deleted": deleted.json().get("deleted_source_id") == source_id,
+                            "reuploaded": _completed_upload_succeeded(reuploaded),
+                        }
                         if not all(item["delete_reupload"].values()):
                             raise AssertionError("delete/re-upload lifecycle did not complete")
                         item["status"] = "passed"
