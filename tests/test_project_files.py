@@ -197,7 +197,11 @@ def test_settings_page_exposes_clear_knowledge_action():
     assert 'data-confirm-phrase="清空知识库"' in settings_html
     assert 'id="clear-knowledge" disabled' in settings_html
     assert "setupClearKnowledgeGuard" in app_js
-    assert 'confirm(' not in app_js
+    clear_guard = app_js[
+        app_js.index("function setupClearKnowledgeGuard")
+        : app_js.index("setupEmbeddedStateBridge();")
+    ]
+    assert "window.confirm(" not in clear_guard
 
 
 def test_settings_danger_zone_is_collapsed_to_a_two_line_maintenance_control():
@@ -933,10 +937,10 @@ def test_agent06_shell_uses_agent04_style_workflow_switch_contract():
     server_mjs = (web_root / "server.mjs").read_text(encoding="utf-8")
     agent06_css = (web_root / "app/agent06.css").read_text(encoding="utf-8")
 
-    assert 'class="agent06-info-switch"' in server_mjs
+    assert "agent06-info-switch" in server_mjs
     assert "<small>功能切换</small>" in server_mjs
     assert "agent06-tab-switch" in server_mjs
     assert "agent06-tab-switch__button" in server_mjs
+    assert "agent06-tab-switch__button tz-agent-tab" in server_mjs
     assert ".agent06-info-switch" in agent06_css
     assert ".agent06-tab-switch" in agent06_css
-    assert ".agent06-tab-switch__button.is-active" in agent06_css

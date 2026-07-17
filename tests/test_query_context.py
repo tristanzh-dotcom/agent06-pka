@@ -33,6 +33,17 @@ def test_context_dependent_follow_up_uses_previous_question_as_retrieval_anchor(
     assert "下一步" in resolution.resolved_question
 
 
+def test_sentence_initial_na_follow_up_uses_previous_question_as_retrieval_anchor():
+    resolution = resolve_query(
+        "那负责人需要在什么时候完成发布检查清单？",
+        previous_question="合成测试项目 Alpha 的发布日期和负责人是谁？",
+    )
+
+    assert resolution.status == "resolved"
+    assert "Alpha" in resolution.resolved_question
+    assert "发布检查清单" in resolution.resolved_question
+
+
 def test_generic_action_words_do_not_make_unrelated_chunk_supported():
     chunks = [
         chunk("notes.md#0", "这个项目的问题应该由供应商和预算委员会共同处理。"),

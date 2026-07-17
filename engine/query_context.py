@@ -18,6 +18,10 @@ FOLLOW_UP_MARKERS = (
     "怎么办",
 )
 
+SENTENCE_INITIAL_FOLLOW_UP = re.compile(
+    r"^那(?:么)?(?:个|这|他|她|它|其|负责人|项目|部分|方面|件事|一步|接下来|后来|结果|时间|原因|方案|建议|内容|问题)"
+)
+
 GENERIC_TERMS = {
     "这个",
     "那个",
@@ -83,7 +87,10 @@ def filter_supported_chunks(question: str, chunks: Iterable[RetrievedChunk]) -> 
 
 
 def _is_context_dependent(question: str) -> bool:
-    return bool(question) and any(marker in question for marker in FOLLOW_UP_MARKERS)
+    return bool(question) and (
+        any(marker in question for marker in FOLLOW_UP_MARKERS)
+        or bool(SENTENCE_INITIAL_FOLLOW_UP.search(question))
+    )
 
 
 def _anchor_terms(question: str) -> List[str]:

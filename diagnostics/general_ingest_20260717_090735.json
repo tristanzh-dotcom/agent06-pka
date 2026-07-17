@@ -1,0 +1,130 @@
+{
+  "base_url": "http://127.0.0.1:64375",
+  "failures": [],
+  "finished_at": "2026-07-17T17:07:35+08:00",
+  "manifest": [
+    {
+      "anchor_query": "苗军堂 功能医学 深度演讲",
+      "filename": "苗军堂_30分钟功能医学深度演讲脚本.docx",
+      "key": "local_苗军堂_30分钟功能医学深度演讲脚本",
+      "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "path": "/Users/tristanzh/Desktop/苗先生/苗军堂_30分钟功能医学深度演讲脚本.docx"
+    },
+    {
+      "anchor_query": "顽固性跖疣 22 次液氮 病损内注射",
+      "filename": "顽固性跖疣治疗方案_患者家属沟通版_字体加大版.pptx",
+      "key": "local_顽固性跖疣治疗方案_患者家属沟通版_字体加大版",
+      "mime_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "path": "/Users/tristanzh/Desktop/小菲/顽固性跖疣治疗方案_患者家属沟通版_字体加大版.pptx"
+    }
+  ],
+  "runtime_root": "removed (isolated /tmp runtime)",
+  "samples": [
+    {
+      "bytes": 58211,
+      "chunks": 18,
+      "coverage": {
+        "counts": {
+          "paragraphs": 152,
+          "table_rows": 52,
+          "tables": 11
+        },
+        "format": "docx",
+        "status": "complete",
+        "warnings": []
+      },
+      "delete_reupload": {
+        "deleted": true,
+        "reuploaded": true
+      },
+      "duplicate": {
+        "blocked": true,
+        "status": "duplicate"
+      },
+      "key": "local_苗军堂_30分钟功能医学深度演讲脚本",
+      "local_path": "/Users/tristanzh/Desktop/苗先生/苗军堂_30分钟功能医学深度演讲脚本.docx",
+      "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "quality": {
+        "action": "structured_direct",
+        "cleaned_chars_ratio": 1.0,
+        "effective_chars_per_page": 15892.0,
+        "non_empty_page_ratio": 1.0,
+        "non_empty_pages": 1,
+        "page_count": 1,
+        "reasons": [],
+        "short_line_ratio": 0.07,
+        "status": "high",
+        "unique_line_ratio": 20.7,
+        "valid_ratio": 0.814,
+        "watermark_ratio": 0.0
+      },
+      "recall": {
+        "query": true,
+        "returned_sources": 10,
+        "source_count": 10
+      },
+      "retrieved_at": "2026-07-17T17:07:26+08:00",
+      "sha256": "6382c35635d6fbeb7be5a99f4ed92231eb0619a140129c6850f43312763fe759",
+      "status": "passed",
+      "upload": {
+        "source_id": "source_1c81f05099184db28574aabba782ea44",
+        "status": "ok"
+      },
+      "url": ""
+    },
+    {
+      "bytes": 7512627,
+      "chunks": 16,
+      "coverage": {
+        "counts": {
+          "notes": 0,
+          "slides": 16,
+          "tables": 0
+        },
+        "format": "pptx",
+        "status": "complete",
+        "warnings": []
+      },
+      "delete_reupload": {
+        "deleted": true,
+        "reuploaded": true
+      },
+      "duplicate": {
+        "blocked": true,
+        "status": "duplicate"
+      },
+      "key": "local_顽固性跖疣治疗方案_患者家属沟通版_字体加大版",
+      "local_path": "/Users/tristanzh/Desktop/小菲/顽固性跖疣治疗方案_患者家属沟通版_字体加大版.pptx",
+      "mime_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "quality": {
+        "action": "structured_direct",
+        "cleaned_chars_ratio": 1.0,
+        "effective_chars_per_page": 4680.0,
+        "non_empty_page_ratio": 1.0,
+        "non_empty_pages": 1,
+        "page_count": 1,
+        "reasons": [],
+        "short_line_ratio": 0.461,
+        "status": "high",
+        "unique_line_ratio": 24.3,
+        "valid_ratio": 0.776,
+        "watermark_ratio": 0.0
+      },
+      "recall": {
+        "query": true,
+        "returned_sources": 10,
+        "source_count": 10
+      },
+      "retrieved_at": "2026-07-17T17:07:31+08:00",
+      "sha256": "ee48868c6102ace62f006c898ee4fef8b269e62f257aa7b7bc0f862bf59a4e3c",
+      "status": "passed",
+      "upload": {
+        "source_id": "source_e46c0f09b0ab45ec9960aafd177a2182",
+        "status": "ok"
+      },
+      "url": ""
+    }
+  ],
+  "started_at": "2026-07-17T17:07:25+08:00",
+  "status": "passed"
+}

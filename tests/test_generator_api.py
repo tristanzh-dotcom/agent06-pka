@@ -894,6 +894,7 @@ async def test_generate_answer_with_language_zh_uses_deepseek_path_without_codex
     assert len(deepseek_client.prompts) == 1
     assert "中文个人建议" in deepseek_client.prompts[0]
     assert "输出 JSON 格式" not in deepseek_client.prompts[0]
+    assert "不要把资料中的人物身份、职责或经历归因于用户本人" in deepseek_client.prompts[0]
     assert llm_client.prompts == []
     assert [event["type"] for event in events][-2:] == ["sources", "done"]
 

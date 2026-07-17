@@ -46,6 +46,19 @@ Question answering, retrieval ranking and answer generation are out of scope exc
 
 DOCX extraction walks paragraphs and tables in document order. PPTX extraction walks text frames, tables and notes by slide. XLSX extraction loads formula and cached-value views, preserves formula expressions, and includes cached results when present.
 
+### Structured-text extraction quality
+
+TXT, Markdown, DOCX, PPTX and XLSX extraction also receives a deterministic
+`ParseQuality` assessment. This assessment is deliberately conservative: it
+does not judge writing quality, factual correctness or domain meaning. It marks
+content `low` only when extraction produced no usable text, a material ratio of
+replacement/control characters, highly repeated lines, or effectively
+unreadable non-text output. Short but readable content remains `high`.
+
+Low structured-text quality follows the existing `review_required` contract and
+produces zero indexed chunks unless the user explicitly resubmits with
+`quality_policy=accept`.
+
 ### Durable source records
 
 `engine/source_registry.py` owns a local SQLite source table keyed by `source_id`. A record stores:

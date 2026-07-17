@@ -1,4 +1,4 @@
-from engine.quality import assess_pdf_quality, clean_pdf_text
+from engine.quality import assess_extracted_text_quality, assess_pdf_quality, clean_pdf_text
 
 
 def test_empty_text_needs_ocr():
@@ -78,3 +78,25 @@ def test_clean_pdf_text_keeps_lines_repeated_within_single_page_table():
 
     assert "2026E" in cleaned
     assert "100.0%" in cleaned
+
+
+def test_short_valid_extracted_text_is_high_quality():
+    quality = assess_extracted_text_quality("会议结论：下周完成供应商评审。")
+
+    assert quality.status == "high"
+    assert quality.reasons == []
+
+
+def test_replacement_character_heavy_extracted_text_requires_review():
+    quality = assess_extracted_text_quality("有效标题\n" + "�\x00" * 80)
+
+    assert quality.status == "low"
+    assert "异常字符" in " ".join(quality.reasons)
+
+
+def test_highly_repeated_extracted_text_requires_review():
+    quality = assess_extracted_text_quality("\n".join(["重复页眉内容"] * 12))
+
+    assert quality.status == "low"
+    assert quality.unique_line_ratio < 0.2
+    assert "重复" in " ".join(quality.reasons)

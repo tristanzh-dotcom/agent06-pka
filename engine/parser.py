@@ -4,6 +4,7 @@ import re
 from typing import Any, Optional
 
 from engine.models import ParseResult, PreChunkedParseRecord
+from engine.quality import assess_extracted_text_quality
 from engine.org_chart import (
     PdfTextBlock,
     generate_projection_text,
@@ -47,8 +48,13 @@ async def parse_file(
                 source_type=TEXT_TYPES[suffix],
                 metadata={
                     "mime_type": detected_mime,
-                    "coverage": _coverage(TEXT_TYPES[suffix], characters=len(text), lines=len(text.splitlines())),
+                    "coverage": _coverage(
+                        TEXT_TYPES[suffix],
+                        characters=len(text),
+                        lines=len(text.splitlines()),
+                    ),
                 },
+                quality=assess_extracted_text_quality(text),
             )
         if suffix == ".docx":
             return _parse_docx(path)
@@ -108,8 +114,9 @@ def _parse_docx(path: Path) -> ParseResult:
         if text:
             sections.append(text)
             paragraph_count += 1
+    extracted_text = "\n".join(sections)
     return ParseResult(
-        text="\n".join(sections),
+        text=extracted_text,
         source_name=path.name,
         source_type="docx",
         metadata={
@@ -121,6 +128,7 @@ def _parse_docx(path: Path) -> ParseResult:
                 table_rows=table_row_count,
             ),
         },
+        quality=assess_extracted_text_quality(extracted_text),
     )
 
 
@@ -147,8 +155,9 @@ def _parse_pptx(path: Path) -> ParseResult:
             note_count += 1
         if slide_texts:
             texts.append(f"## Slide {slide_number}\n" + "\n".join(slide_texts))
+    extracted_text = "\n\n".join(texts)
     return ParseResult(
-        text="\n\n".join(texts),
+        text=extracted_text,
         source_name=path.name,
         source_type="pptx",
         metadata={
@@ -160,6 +169,7 @@ def _parse_pptx(path: Path) -> ParseResult:
                 notes=note_count,
             ),
         },
+        quality=assess_extracted_text_quality(extracted_text),
     )
 
 
@@ -248,8 +258,9 @@ def _parse_xlsx(path: Path) -> ParseResult:
         normalized = [row + [""] * (width - len(row)) for row in rows]
         sections.append(f"## Sheet: {sheet.title}\n" + _markdown_table(normalized))
     try:
+        extracted_text = "\n\n".join(sections)
         return ParseResult(
-            text="\n\n".join(sections),
+            text=extracted_text,
             source_name=path.name,
             source_type="xlsx",
             metadata={
@@ -261,6 +272,7 @@ def _parse_xlsx(path: Path) -> ParseResult:
                     formulas=formula_count,
                 ),
             },
+            quality=assess_extracted_text_quality(extracted_text),
         )
     finally:
         workbook.close()

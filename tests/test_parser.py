@@ -78,8 +78,12 @@ async def test_parse_txt_and_markdown_files(tmp_path):
     assert parsed_txt.source_type == "txt"
     assert parsed_txt.metadata["coverage"]["counts"]["characters"] == 5
     assert parsed_txt.metadata["coverage"]["status"] == "complete"
+    assert parsed_txt.quality is not None
+    assert parsed_txt.quality.status == "high"
     assert "Markdown 内容" in parsed_md.text
     assert parsed_md.source_type == "md"
+    assert parsed_md.quality is not None
+    assert parsed_md.quality.status == "high"
 
 
 async def test_parse_docx_extracts_all_paragraphs(tmp_path):
@@ -96,6 +100,8 @@ async def test_parse_docx_extracts_all_paragraphs(tmp_path):
     assert parsed.source_type == "docx"
     assert "第一段\n第二段\n第三段" in parsed.text
     assert parsed.metadata["paragraph_count"] == 3
+    assert parsed.quality is not None
+    assert parsed.quality.status == "high"
 
 
 async def test_parse_docx_extracts_table_cells_and_reports_coverage(tmp_path):
@@ -139,6 +145,8 @@ async def test_parse_pptx_extracts_slide_text(tmp_path):
     assert "第一页内容" in parsed.text
     assert "第二页内容" in parsed.text
     assert parsed.metadata["slide_count"] == 2
+    assert parsed.quality is not None
+    assert parsed.quality.status == "high"
 
 
 async def test_parse_pptx_extracts_tables_and_notes_with_coverage(tmp_path):
@@ -649,6 +657,8 @@ async def test_parse_xlsx_converts_sheets_to_markdown_tables(tmp_path):
     assert "| 姓名 | 评分 |" in parsed.text
     assert "| PKA | 进行中 |" in parsed.text
     assert parsed.metadata["sheet_count"] == 2
+    assert parsed.quality is not None
+    assert parsed.quality.status == "high"
 
 
 async def test_parse_xlsx_preserves_formula_expression_and_reports_coverage(tmp_path):

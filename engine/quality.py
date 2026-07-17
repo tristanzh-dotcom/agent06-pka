@@ -1,4 +1,5 @@
 import re
+import unicodedata
 from typing import List, Optional, Set
 
 from engine.models import ParseQuality
@@ -30,6 +31,55 @@ _WATERMARK_KEYWORDS = [
 
 FREQ_DEDUP_MIN_PAGES = 3
 FREQ_DEDUP_THRESHOLD = 0.3
+
+
+def assess_extracted_text_quality(text: str) -> ParseQuality:
+    """Conservatively flag extraction failures without judging document meaning."""
+    content = (text or "").strip()
+    lines = [line.strip() for line in content.splitlines() if line.strip()]
+    char_count = len(content)
+    meaningful_chars = sum(
+        1 for char in content if char.isalnum() or "\u4e00" <= char <= "\u9fff"
+    )
+    suspicious_chars = sum(
+        1
+        for char in content
+        if char == "\ufffd"
+        or (unicodedata.category(char) == "Cc" and char not in "\n\r\t")
+    )
+    valid_ratio = round(meaningful_chars / max(1, char_count), 3)
+    suspicious_ratio = round(suspicious_chars / max(1, char_count), 3)
+    short_line_ratio = round(
+        sum(1 for line in lines if len(line) < 10) / max(1, len(lines)),
+        3,
+    )
+    unique_line_ratio = _unique_line_ratio(lines)
+    reasons: List[str] = []
+
+    if not content:
+        reasons.append("未提取到有效正文")
+    elif suspicious_chars >= 3 and suspicious_ratio > 0.05:
+        reasons.append(f"异常字符占比 {suspicious_ratio:.1%}，提取结果可能乱码")
+    elif len(lines) >= 5 and unique_line_ratio < 0.2:
+        reasons.append(f"唯一行占比 {unique_line_ratio:.1%}，重复内容偏高")
+    elif char_count >= 20 and valid_ratio < 0.1:
+        reasons.append(f"有效字符占比 {valid_ratio:.1%}，提取结果不可读")
+
+    status = "low" if reasons else "high"
+    return ParseQuality(
+        status=status,
+        action="structured_review" if reasons else "structured_direct",
+        valid_ratio=valid_ratio,
+        short_line_ratio=short_line_ratio,
+        watermark_ratio=0.0,
+        unique_line_ratio=unique_line_ratio,
+        non_empty_pages=1 if content else 0,
+        page_count=1,
+        non_empty_page_ratio=1.0 if content else 0.0,
+        effective_chars_per_page=float(char_count),
+        cleaned_chars_ratio=1.0 if content else 0.0,
+        reasons=reasons,
+    )
 
 
 def clean_pdf_text(

@@ -22,6 +22,9 @@ Prevent context-dependent follow-ups and unrelated queries from producing fabric
 Add a deterministic query-assessment layer before generation.
 
 - Detect referential Chinese follow-ups such as `这个`, `那个`, `上述`, `继续`, `下一步`, and `怎么做`.
+- Also treat conservative sentence-initial references such as `那负责人`,
+  `那项目`, `那结果` and `那方案` as follow-ups. Do not use a broad `那*`
+  match that would misclassify standalone proper nouns such as `那曲`.
 - Build a resolved retrieval question from the previous user question only when the client provides a same-session predecessor. Otherwise return `clarification_required`.
 - Remove generic Chinese stop words from FTS matching and require an anchor-term overlap before a chunk can support the answer.
 - Treat vector-only nearest neighbours as candidates, not proof. At least one primary-source chunk must pass the deterministic anchor check. This avoids collection-specific hard-coded vector-distance thresholds while a labelled calibration set is not yet available.
