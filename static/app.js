@@ -1581,6 +1581,7 @@ function setupClearKnowledgeGuard() {
   const clearButton = document.getElementById("clear-knowledge");
   const confirmation = document.getElementById("clear-confirmation");
   if (!clearButton || !confirmation) return;
+  confirmation.value = "";
   const phrase = confirmation.dataset.confirmPhrase || "清空知识库";
   const syncButton = () => {
     clearButton.disabled = confirmation.value.trim() !== phrase;
