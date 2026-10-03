@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 import urllib.error
 import urllib.request
+from engine.local_http import open_local_request, validate_loopback_url
 from uuid import uuid4
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -1522,10 +1523,10 @@ async def add_answer_asset_to_pka_retrieval_endpoint(request: AddGeneratedKnowle
 
 
 def _publish_agent10_agent06_asset(source_asset_path: str) -> dict:
+    endpoint = _agent10_base_url() + "/api/agent10/producers/agent06/assets"
     token = _agent10_control_token()
     if not token:
         raise ValueError("Agent10 control token is not configured")
-    endpoint = _agent10_base_url().rstrip("/") + "/api/agent10/producers/agent06/assets"
     body = json.dumps({"source_asset_path": source_asset_path}, ensure_ascii=False).encode("utf-8")
     request = urllib.request.Request(
         endpoint,
@@ -1537,7 +1538,7 @@ def _publish_agent10_agent06_asset(source_asset_path: str) -> dict:
         },
     )
     try:
-        with urllib.request.urlopen(request, timeout=10) as response:
+        with open_local_request(request, timeout=10) as response:
             payload = response.read().decode("utf-8")
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
@@ -1546,7 +1547,7 @@ def _publish_agent10_agent06_asset(source_asset_path: str) -> dict:
 
 
 def _agent10_base_url() -> str:
-    return os.environ.get("AGENT10_BASE_URL", "http://127.0.0.1:8010")
+    return validate_loopback_url(os.environ.get("AGENT10_BASE_URL", "http://127.0.0.1:8010"))
 
 
 def _agent10_control_token() -> str:

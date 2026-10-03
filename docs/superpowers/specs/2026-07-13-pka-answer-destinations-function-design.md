@@ -60,3 +60,7 @@ The token never enters Web HTML, JavaScript, logs, source-controlled configurati
 - Agent10 remains the only Obsidian writer and the only cross-Agent asset-governance owner.
 - Shared Web changes only the Agent06 backend runtime environment; no Web visual-system change is needed.
 - Agent05 remains excluded.
+
+## Agent10 本机传输约束（2026-10-03）
+
+TZ 已授权 Obsidian 审计最小修复。发布客户端在读取控制凭据前核验 AGENT10_BASE_URL 为回环地址，拒绝重定向并禁用环境代理。本地保存、PKA 检索和 Obsidian 发布仍为独立目的地；本轮不改模型路由或发送正式内容。
